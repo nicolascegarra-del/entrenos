@@ -1,0 +1,24 @@
+# Datos personales descargados de Garmin
+spike/output/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
+
+# Entorno
+.env
+.env.*
+!.env.example
+data/
+
+# Artefactos de build/tests
+.coverage
+coverage/
+*.egg-info/

@@ -1,0 +1,65 @@
+# APP ENTRENOS
+
+App personal para sincronizar entrenamientos de Garmin, ver la progresión en gráficas y comparar las sesiones planificadas con lo que registró el reloj (plan vs real).
+
+## Requisitos previos
+
+- Docker + Docker Compose
+- Python 3.12 (solo para ejecutar backend/tests fuera de Docker)
+- Node 22 (opcional: el frontend también se puede construir dentro de Docker)
+
+## Instalación y arranque local
+
+```bash
+cp .env.example .env              # y rellena los secretos (ver comentarios)
+docker compose up -d --build      # postgres, redis, api, worker, beat, web
+docker compose exec api python -m app.cli create-user
+```
+
+- Web: http://localhost:3000
+- API: http://localhost:8000 · Swagger en http://localhost:8000/docs (la web la usa vía proxy en `/api`)
+
+La API aplica las migraciones y carga el catálogo de métricas al arrancar.
+
+## Variables de entorno necesarias
+
+Todas están documentadas en [`.env.example`](.env.example). Las credenciales de Garmin **no** se guardan en `.env`: se introducen una vez y solo se conservan los tokens.
+
+## Estructura del proyecto
+
+```
+backend/    FastAPI + SQLModel + Alembic + Celery
+  app/api/        routers (auth…)
+  app/core/       config, BD, seguridad, errores, rate limit
+  app/models/     modelos; datos dependientes del reloj en JSONB / streams por canal
+  app/services/   lógica de negocio (catálogo de métricas…)
+  app/tasks/      Celery (sync Garmin en fase 3)
+frontend/   Next.js 15 + Tailwind v4 + shadcn/ui + TanStack Query
+spike/      script de exploración de datos de Garmin
+```
+
+### Preparado para cambiar de reloj
+
+Solo las métricas universales son columnas. El resto va en `metrics` (JSONB), las series temporales se guardan por canal (`activity_stream`) y el catálogo `metric_definition` describe cada métrica y de dónde se extrae. Un reloj con métricas nuevas no requiere migraciones: se añade la métrica al catálogo (`app/services/metric_catalog.py`) y se reprocesan los datos raw.
+
+## Comandos útiles
+
+```bash
+# Backend (desde backend/, con el venv del proyecto)
+pytest                                   # tests (+ cobertura) contra Postgres en :5433
+ruff check . && ruff format .
+alembic revision --autogenerate -m "..."  # nueva migración
+alembic upgrade head
+python -m app.cli seed-catalog
+
+# Frontend (desde frontend/)
+npm run dev | lint | typecheck | test | build
+```
+
+## Deploy
+
+Docker Compose en Coolify (VPS Contabo) detrás de Nginx + Let's Encrypt. En producción: `APP_ENV=production`, `DEBUG=false`, `CORS_ORIGINS` con el dominio real y servir web y API bajo el mismo dominio para que la cookie `SameSite=Strict` funcione.
+
+## Contacto / equipo
+
+Klyp · nicolascegarra@gmail.com

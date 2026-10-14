@@ -1,0 +1,69 @@
+import logging
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
+from sqlalchemy import text
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+
+from app.api import auth
+from app.core.config import get_settings
+from app.core.db import engine
+from app.core.errors import register_error_handlers
+from app.core.rate_limit import limiter
+
+settings = get_settings()
+logging.basicConfig(level=logging.DEBUG if settings.debug else logging.INFO)
+
+app = FastAPI(
+    title="APP ENTRENOS API",
+    version="0.1.0",
+    docs_url=None if settings.is_production else "/docs",
+    redoc_url=None if settings.is_production else "/redoc",
+)
+app.state.limiter = limiter
+register_error_handlers(app)
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limited(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={
+            "error": {
+                "code": "RATE_LIMITED",
+                "message": "Demasiados intentos, espera un minuto.",
+                "request_id": request.state.request_id,
+            }
+        },
+    )
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+)
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    if settings.is_production:
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+    return response
+
+
+app.include_router(auth.router, prefix="/api/v1")
+
+
+@app.get("/health", summary="Estado del servicio", tags=["infra"])
+def health() -> dict:
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+    return {"status": "ok"}
