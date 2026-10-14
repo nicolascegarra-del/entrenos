@@ -44,6 +44,7 @@ class ActivityDetail(ActivitySummary):
     device: DeviceRead | None
     laps: list[LapRead]
     channels: list[str]
+    manual: bool  # registrada a mano (sin Garmin): se puede borrar
 
 
 class StreamsResponse(BaseModel):

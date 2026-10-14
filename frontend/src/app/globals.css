@@ -80,6 +80,10 @@
   --chart-3: #0e9f6e;
   --chart-4: #7e3af2;
   --chart-5: #6b7280;
+  /* Intensidad: escala secuencial de un solo tono (suave → intenso) */
+  --intensity-low: #b9d3ef;
+  --intensity-mid: #5b93d3;
+  --intensity-high: #1a3a6b;
   --radius: 0.5rem;
   --sidebar: #051937;
   --sidebar-foreground: #ffffff;
@@ -115,6 +119,9 @@
   --chart-3: #14a37a;
   --chart-4: #9a7cf0;
   --chart-5: #a3b1c6;
+  --intensity-low: #2a4f80;
+  --intensity-mid: #4f8fd6;
+  --intensity-high: #b9d3ef;
   --sidebar: #031127;
   --sidebar-foreground: #e8edf5;
   --sidebar-primary: #2e6db4;

@@ -7,6 +7,7 @@ import {
   ComposedChart,
   Legend,
   Line,
+  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   Scatter,
@@ -23,6 +24,8 @@ export interface ChartSeries {
   label: string;
   color: string;
   kind: "line" | "area" | "bar" | "dots";
+  /** Barras con el mismo `stack` se apilan (ej. minutos por zona de intensidad). */
+  stack?: string;
 }
 
 interface TimeChartProps {
@@ -36,6 +39,8 @@ interface TimeChartProps {
   zeroLine?: boolean;
   /** Etiqueta del eje X: fecha corta (por defecto) o semana. */
   xLabel?: (t: number) => string;
+  /** Franja de referencia horizontal (ej. zona segura del ACWR 0,8–1,3). */
+  band?: { from: number; to: number; label: string };
 }
 
 const shortDate = (t: number) =>
@@ -55,6 +60,7 @@ export function TimeChart({
   height = "h-48",
   zeroLine,
   xLabel = shortDate,
+  band,
 }: TimeChartProps) {
   const times = data.map((d) => d.t as number);
   const [min, max] = [Math.min(...times), Math.max(...times)];
@@ -121,6 +127,21 @@ export function TimeChart({
               wrapperStyle={{ fontSize: 12, color: "var(--foreground)" }}
             />
           )}
+          {band && (
+            <ReferenceArea
+              y1={band.from}
+              y2={band.to}
+              fill="var(--chart-3)"
+              fillOpacity={0.12}
+              ifOverflow="extendDomain"
+              label={{
+                value: band.label,
+                position: "insideTopLeft",
+                fontSize: 10,
+                fill: "var(--muted-foreground)",
+              }}
+            />
+          )}
           {zeroLine && (
             <ReferenceLine
               y={0}
@@ -154,7 +175,8 @@ export function TimeChart({
                   key={s.key}
                   {...common}
                   fill={s.color}
-                  radius={[4, 4, 0, 0]}
+                  stackId={s.stack}
+                  radius={s.stack ? undefined : [4, 4, 0, 0]}
                   maxBarSize={18}
                 />
               );

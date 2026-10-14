@@ -225,3 +225,65 @@ export interface SyncSettings {
   intervals: number[];
   next_sync_at: string | null;
 }
+
+export type InsightStatus = "good" | "watch" | "alert" | "info" | "nodata";
+
+export interface Insight {
+  status: InsightStatus;
+  title: string;
+  message: string;
+  evidence: { label: string; url: string | null }[];
+}
+
+export type InsightSection =
+  | "fitness"
+  | "acwr"
+  | "volume"
+  | "intensity"
+  | "resting_hr"
+  | "vo2max"
+  | "efficiency"
+  | "records"
+  | "recovery"
+  | "consistency"
+  | "strength";
+
+export interface InsightsResponse {
+  overall: { label: string; status: InsightStatus; title: string }[];
+  sections: Record<InsightSection, Insight>;
+  acwr: { day: string; acwr: number | null }[];
+  intensity: {
+    split_min: { low: number; moderate: number; high: number };
+    weeks: { week: string; low: number; moderate: number; high: number }[];
+  };
+  decoupling: { day: string; activity_id: number; value: number }[];
+  predictions: {
+    label: string;
+    distance_m: number;
+    time_s: number;
+    pace_s_km: number;
+  }[];
+  training_paces: {
+    easy: [number, number];
+    threshold: number;
+    interval: number;
+  } | null;
+  disclaimer: string;
+}
+
+export interface ActivityFeedback {
+  rpe: number | null;
+  feeling: number | null;
+  notes: string;
+  day: string;
+  context: Partial<
+    Record<
+      | "sleep_seconds"
+      | "sleep_score"
+      | "resting_hr"
+      | "hrv_last_night"
+      | "body_battery_max",
+      number
+    >
+  >;
+}

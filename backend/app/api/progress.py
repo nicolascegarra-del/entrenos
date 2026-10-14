@@ -9,6 +9,7 @@ from app.api.deps import CurrentUser, SessionDep
 from app.models import Device, PlannedSession
 from app.schemas.activity import ActivitySummary
 from app.services import progress as svc
+from app.services.insights import build_insights
 from app.services.metric_catalog import CATALOG
 from app.services.plan_steps import local_day, sport_family
 
@@ -110,7 +111,7 @@ def _since(days: int) -> date:
 )
 def fitness(session: SessionDep, user: CurrentUser, days: Days = 180) -> FitnessResponse:
     thresholds = svc.user_thresholds(session, user.id)
-    per_day, _ = svc.loads_by_day(svc.user_activities(session, user.id), thresholds)
+    per_day, _ = svc.loads_by_day(svc.user_activities(session, user.id), thresholds, svc.user_rpes(session, user.id))
     points = svc.fitness_series(per_day, _since(days), date.today())
     return FitnessResponse(lthr=thresholds.lthr, hr_rest=thresholds.hr_rest, points=points)
 
@@ -127,7 +128,9 @@ def weekly(
     activities = svc.user_activities(session, user.id, first)
     if sport:
         activities = [a for a in activities if sport_family(a.sport) == sport_family(sport)]
-    _, per_activity = svc.loads_by_day(activities, svc.user_thresholds(session, user.id))
+    _, per_activity = svc.loads_by_day(
+        activities, svc.user_thresholds(session, user.id), svc.user_rpes(session, user.id)
+    )
     return [WeekPoint(**w) for w in svc.weekly_volume(activities, per_activity, first, last)]
 
 
@@ -175,7 +178,7 @@ def summary(session: SessionDep, user: CurrentUser) -> SummaryResponse:
     last_monday = this_monday - timedelta(days=7)
     thresholds = svc.user_thresholds(session, user.id)
     activities = svc.user_activities(session, user.id)
-    per_day, per_activity = svc.loads_by_day(activities, thresholds)
+    per_day, per_activity = svc.loads_by_day(activities, thresholds, svc.user_rpes(session, user.id))
     weeks = svc.weekly_volume(
         [a for a in activities if local_day(a.start_time, a.timezone) >= last_monday], per_activity, last_monday,
         this_monday,
@@ -213,3 +216,16 @@ def summary(session: SessionDep, user: CurrentUser) -> SummaryResponse:
             for a in sorted(activities, key=lambda a: a.start_time, reverse=True)[:5]
         ],
     )
+
+
+@router.get(
+    "/progress/insights",
+    summary="Análisis de la progresión con base científica",
+    description=(
+        "Estado general (carga, recuperación, constancia, tendencia aeróbica) y un análisis por sección con su "
+        "estado, explicación dinámica y referencias. Incluye ACWR, distribución de intensidad, desacople, "
+        "predicciones (Riegel) y ritmos (VDOT). Orientativo; no es consejo médico."
+    ),
+)
+def insights(session: SessionDep, user: CurrentUser, days: Days = 180) -> dict:
+    return build_insights(session, user.id, days)

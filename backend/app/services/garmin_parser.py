@@ -13,7 +13,7 @@ from typing import Any
 from app.models import MetricScope
 from app.services.metric_catalog import CATALOG
 
-PARSER_VERSION = 3  # v3: récords, VO2max y FC umbral en el catálogo
+PARSER_VERSION = 4  # v4: tiempo en zonas de FC (distribución de intensidad)
 
 # Valores centinela que Garmin usa para "sin dato" (ej. potencia sin sensor = 65535).
 _SENTINELS = {65535.0}

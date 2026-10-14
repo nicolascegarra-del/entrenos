@@ -98,6 +98,7 @@ def get_activity(activity_id: int, session: SessionDep, user: CurrentUser) -> Ac
         device=DeviceRead(id=device.id, name=device.name) if device else None,
         laps=[LapRead.model_validate(lap, from_attributes=True) for lap in laps],
         channels=sorted(channels),
+        manual=activity.garmin_activity_id is None,
     )
 
 

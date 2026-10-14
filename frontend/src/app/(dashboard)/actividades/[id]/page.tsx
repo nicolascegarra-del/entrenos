@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
 
+import { FeedbackCard } from "@/components/activity/feedback-card";
 import { LapsTable } from "@/components/activity/laps-table";
 import {
   StreamCharts,
@@ -248,6 +249,8 @@ export default function ActivityDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      <FeedbackCard activityId={activity.id} />
 
       <LapsTable laps={activity.laps} pace={pace} />
     </article>

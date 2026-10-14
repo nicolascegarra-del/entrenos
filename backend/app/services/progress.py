@@ -10,7 +10,7 @@ from datetime import date, timedelta
 
 from sqlmodel import Session, col, select
 
-from app.models import Activity, DailyMetric, MetricScope
+from app.models import Activity, ActivityFeedback, DailyMetric, MetricScope
 from app.services.metric_catalog import CATALOG, RECORD_DISTANCES
 from app.services.plan_steps import local_day, sport_family
 
@@ -19,6 +19,7 @@ DEFAULT_HR_REST = 60.0
 LTHR_OF_HR_MAX = 0.89  # aproximación habitual de la FC umbral si Garmin no la da
 FALLBACK_TSS_PER_HOUR = {"strength": 30.0}
 DEFAULT_TSS_PER_HOUR = 50.0
+RPE_AT_THRESHOLD = 7.5  # sin FC, un RPE de 7,5 se considera intensidad de umbral (IF = 1)
 
 
 @dataclass(frozen=True)
@@ -28,17 +29,21 @@ class Thresholds:
     hr_max: float | None
 
 
-def activity_load(activity: Activity, thresholds: Thresholds) -> float:
+def activity_load(activity: Activity, thresholds: Thresholds, rpe: int | None = None) -> float:
     """
-    Carga estilo TSS basada en FC (hrTSS): horas × IF² × 100, con
-    IF = (FC media − FC reposo) / (FC umbral − FC reposo). Sin FC, se estima por duración.
-    Una hora justo en umbral = 100.
+    Carga estilo TSS: horas × IF² × 100 (una hora justo en umbral = 100).
+
+    IF sale de la FC (hrTSS: (FC media − reposo) / (umbral − reposo)); si no hay FC
+    pero sí RPE, de RPE / 7,5; y si no hay ninguno, se estima por duración y deporte.
     """
     hours = activity.duration_s / 3600
     lthr = thresholds.lthr
     if activity.avg_hr and lthr and lthr > thresholds.hr_rest:
         intensity = (activity.avg_hr - thresholds.hr_rest) / (lthr - thresholds.hr_rest)
         intensity = min(max(intensity, 0.0), 1.5)
+        return round(hours * intensity**2 * 100, 1)
+    if rpe:
+        intensity = min(rpe / RPE_AT_THRESHOLD, 1.4)
         return round(hours * intensity**2 * 100, 1)
     per_hour = FALLBACK_TSS_PER_HOUR.get(sport_family(activity.sport), DEFAULT_TSS_PER_HOUR)
     return round(hours * per_hour, 1)
@@ -158,12 +163,25 @@ def user_thresholds(session: Session, user_id: int) -> Thresholds:
     return Thresholds(lthr=lthr, hr_rest=statistics.median(values) if values else DEFAULT_HR_REST, hr_max=hr_max)
 
 
-def loads_by_day(activities: list[Activity], thresholds: Thresholds) -> tuple[dict[date, float], dict[int, float]]:
-    per_activity = {a.id: activity_load(a, thresholds) for a in activities}
+def loads_by_day(
+    activities: list[Activity], thresholds: Thresholds, rpes: dict[int, int] | None = None
+) -> tuple[dict[date, float], dict[int, float]]:
+    rpes = rpes or {}
+    per_activity = {a.id: activity_load(a, thresholds, rpes.get(a.id)) for a in activities}
     per_day: dict[date, float] = defaultdict(float)
     for a in activities:
         per_day[local_day(a.start_time, a.timezone)] += per_activity[a.id]
     return dict(per_day), per_activity
+
+
+def user_rpes(session: Session, user_id: int) -> dict[int, int]:
+    """RPE registrado por actividad (para estimar la carga de sesiones sin FC)."""
+    rows = session.exec(
+        select(ActivityFeedback.activity_id, ActivityFeedback.rpe)
+        .join(Activity, col(Activity.id) == ActivityFeedback.activity_id)
+        .where(Activity.user_id == user_id, col(ActivityFeedback.rpe).is_not(None))
+    ).all()
+    return dict(rows)
 
 
 def metric_series(session: Session, user_id: int, key: str, since: date) -> list[dict]:

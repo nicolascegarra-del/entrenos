@@ -175,6 +175,42 @@ CATALOG: list[MetricDefinition] = [
         unit="ppm",
         sources={"garmin_summary": "lactateThresholdBpm"},
     ),
+    # Tiempo en cada zona de FC de Garmin (Z1 50–60 % … Z5 90–100 % de la FC máx.).
+    MetricDefinition(
+        key="hr_zone_1_s",
+        scope=_A,
+        label="Tiempo en Z1",
+        unit="s",
+        sources={"garmin_summary": "hrTimeInZone_1"},
+    ),
+    MetricDefinition(
+        key="hr_zone_2_s",
+        scope=_A,
+        label="Tiempo en Z2",
+        unit="s",
+        sources={"garmin_summary": "hrTimeInZone_2"},
+    ),
+    MetricDefinition(
+        key="hr_zone_3_s",
+        scope=_A,
+        label="Tiempo en Z3",
+        unit="s",
+        sources={"garmin_summary": "hrTimeInZone_3"},
+    ),
+    MetricDefinition(
+        key="hr_zone_4_s",
+        scope=_A,
+        label="Tiempo en Z4",
+        unit="s",
+        sources={"garmin_summary": "hrTimeInZone_4"},
+    ),
+    MetricDefinition(
+        key="hr_zone_5_s",
+        scope=_A,
+        label="Tiempo en Z5",
+        unit="s",
+        sources={"garmin_summary": "hrTimeInZone_5"},
+    ),
     # ── Streams (segundo a segundo) ────────────────────────────────────────
     MetricDefinition(
         key="hr",

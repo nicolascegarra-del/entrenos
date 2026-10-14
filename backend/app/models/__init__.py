@@ -5,11 +5,13 @@ from app.models.health import AthleteZones, DailyMetric
 from app.models.metric import MetricDefinition, MetricScope
 from app.models.plan import BlockKind, MatchMode, PlannedBlock, PlannedSession
 from app.models.settings import SYNC_INTERVALS, SyncMode, UserSettings
+from app.models.strength import ActivityFeedback, StrengthSet
 from app.models.sync import SyncRun, SyncStatus
 from app.models.user import User
 
 __all__ = [
     "Activity",
+    "ActivityFeedback",
     "ActivityRaw",
     "ActivityStream",
     "AthleteZones",
@@ -23,6 +25,7 @@ __all__ = [
     "PlannedBlock",
     "PlannedSession",
     "SYNC_INTERVALS",
+    "StrengthSet",
     "SyncMode",
     "SyncRun",
     "SyncStatus",

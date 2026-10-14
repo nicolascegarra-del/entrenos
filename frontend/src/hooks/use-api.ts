@@ -8,12 +8,14 @@ import {
 import { apiFetch } from "@/lib/api";
 import type {
   ActivityDetail,
+  ActivityFeedback,
   ActivityPage,
   ActivitySummary,
   DeviceSpan,
   EfficiencyPoint,
   FitnessResponse,
   GarminStatus,
+  InsightsResponse,
   MetricDefinition,
   PlannedSession,
   PlannedSessionDetail,
@@ -264,5 +266,45 @@ export function useSaveSyncSettings() {
         body: JSON.stringify(body),
       }),
     onSuccess: (data) => queryClient.setQueryData(["sync-settings"], data),
+  });
+}
+
+export function useInsights(days: number) {
+  return useQuery({
+    queryKey: ["insights", days],
+    queryFn: () =>
+      apiFetch<InsightsResponse>(`/api/v1/progress/insights?days=${days}`),
+  });
+}
+
+// ─── Sensaciones ─────────────────────────────────────────────────────────────
+
+export function useFeedback(activityId: number) {
+  return useQuery({
+    queryKey: ["feedback", activityId],
+    queryFn: () =>
+      apiFetch<ActivityFeedback>(`/api/v1/activities/${activityId}/feedback`),
+  });
+}
+
+export function useSaveFeedback(activityId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      rpe: number | null;
+      feeling: number | null;
+      notes: string;
+    }) =>
+      apiFetch<ActivityFeedback>(`/api/v1/activities/${activityId}/feedback`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: async (data) => {
+      queryClient.setQueryData(["feedback", activityId], data);
+      // El RPE cambia la carga de sesiones sin FC: refresca resumen y progresión.
+      await queryClient.invalidateQueries({ queryKey: ["summary"] });
+      await queryClient.invalidateQueries({ queryKey: ["fitness"] });
+      await queryClient.invalidateQueries({ queryKey: ["insights"] });
+    },
   });
 }
