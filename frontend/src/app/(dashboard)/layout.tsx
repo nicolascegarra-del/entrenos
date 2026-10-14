@@ -12,7 +12,11 @@ import { useAuthStore } from "@/stores/auth";
  * Protege las rutas privadas. El access token solo vive en memoria, así que al
  * recargar la página se intenta recuperar con la cookie de refresh.
  */
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const router = useRouter();
   const accessToken = useAuthStore((s) => s.accessToken);
   const [checking, setChecking] = useState(!accessToken);

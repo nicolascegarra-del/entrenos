@@ -1,7 +1,15 @@
 "use client";
 
 import { useMemo } from "react";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import { formatDuration, formatNumber, speedToPace } from "@/lib/format";
 import type { Streams } from "@/types/api";
@@ -39,15 +47,47 @@ function chartSpecs(pace: boolean): ChartSpec[] {
           transform: (v) => v * 3.6,
           format: (v) => formatNumber(v, 1),
         },
-    { channel: "hr", label: "Frecuencia cardiaca", unit: "ppm", color: "var(--chart-2)", format: (v) => formatNumber(v) },
-    { channel: "power", label: "Potencia", unit: "W", color: "var(--chart-4)", format: (v) => formatNumber(v) },
-    { channel: "altitude", label: "Altitud", unit: "m", color: "var(--chart-3)", format: (v) => formatNumber(v) },
-    { channel: "cadence", label: "Cadencia", unit: "ppm", color: "var(--chart-4)", format: (v) => formatNumber(v) },
+    {
+      channel: "hr",
+      label: "Frecuencia cardiaca",
+      unit: "ppm",
+      color: "var(--chart-2)",
+      format: (v) => formatNumber(v),
+    },
+    {
+      channel: "power",
+      label: "Potencia",
+      unit: "W",
+      color: "var(--chart-4)",
+      format: (v) => formatNumber(v),
+    },
+    {
+      channel: "altitude",
+      label: "Altitud",
+      unit: "m",
+      color: "var(--chart-3)",
+      format: (v) => formatNumber(v),
+    },
+    {
+      channel: "cadence",
+      label: "Cadencia",
+      unit: "ppm",
+      color: "var(--chart-4)",
+      format: (v) => formatNumber(v),
+    },
   ];
 }
 
 export function chartChannels(available: string[]): string[] {
-  const wanted = ["time", "distance", "speed", "hr", "power", "altitude", "cadence"];
+  const wanted = [
+    "time",
+    "distance",
+    "speed",
+    "hr",
+    "power",
+    "altitude",
+    "cadence",
+  ];
   return wanted.filter((c) => available.includes(c));
 }
 
@@ -73,24 +113,32 @@ export function StreamCharts({ streams, pace }: Props) {
   const rows = useMemo(() => {
     const xs = byDistance ? channels.distance : channels.time;
     return (xs ?? []).map((x, i) => {
-      const row: Record<string, number | null> = { x: x == null ? null : byDistance ? x / 1000 : x };
+      const row: Record<string, number | null> = {
+        x: x == null ? null : byDistance ? x / 1000 : x,
+      };
       for (const spec of chartSpecs(pace)) {
         const raw = channels[spec.channel]?.[i];
-        row[spec.channel] = raw == null ? null : spec.transform ? spec.transform(raw) : raw;
+        row[spec.channel] =
+          raw == null ? null : spec.transform ? spec.transform(raw) : raw;
       }
       return row;
     });
   }, [channels, byDistance, pace]);
 
-  const specs = chartSpecs(pace).filter((s) => rows.some((r) => r[s.channel] != null && r[s.channel] !== 0));
+  const specs = chartSpecs(pace).filter((s) =>
+    rows.some((r) => r[s.channel] != null && r[s.channel] !== 0),
+  );
   if (!specs.length) return null;
 
-  const xFormat = (v: number) => (byDistance ? `${formatNumber(v, 1)} km` : formatDuration(v));
+  const xFormat = (v: number) =>
+    byDistance ? `${formatNumber(v, 1)} km` : formatDuration(v);
 
   return (
     <div className="space-y-4">
       {specs.map((spec) => {
-        const values = rows.map((r) => r[spec.channel]).filter((v): v is number => v != null && v !== 0);
+        const values = rows
+          .map((r) => r[spec.channel])
+          .filter((v): v is number => v != null && v !== 0);
         const avg = values.reduce((a, b) => a + b, 0) / values.length;
         return (
           <figure key={spec.channel} className="space-y-1">
@@ -102,8 +150,16 @@ export function StreamCharts({ streams, pace }: Props) {
             </figcaption>
             <div className="h-32 md:h-36">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={rows} syncId="activity" margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-                  <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="0" />
+                <AreaChart
+                  data={rows}
+                  syncId="activity"
+                  margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
+                >
+                  <CartesianGrid
+                    vertical={false}
+                    stroke="var(--border)"
+                    strokeDasharray="0"
+                  />
                   <XAxis
                     dataKey="x"
                     type="number"
@@ -126,7 +182,10 @@ export function StreamCharts({ streams, pace }: Props) {
                     tickCount={4}
                   />
                   <Tooltip
-                    cursor={{ stroke: "var(--muted-foreground)", strokeWidth: 1 }}
+                    cursor={{
+                      stroke: "var(--muted-foreground)",
+                      strokeWidth: 1,
+                    }}
                     contentStyle={{
                       background: "var(--popover)",
                       border: "1px solid var(--border)",
@@ -135,7 +194,10 @@ export function StreamCharts({ streams, pace }: Props) {
                       color: "var(--popover-foreground)",
                     }}
                     labelFormatter={(v: number) => xFormat(v)}
-                    formatter={(v: number) => [`${spec.format(v)} ${spec.unit}`, spec.label]}
+                    formatter={(v: number) => [
+                      `${spec.format(v)} ${spec.unit}`,
+                      spec.label,
+                    ]}
                   />
                   <Area
                     type="monotone"

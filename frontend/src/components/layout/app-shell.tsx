@@ -8,7 +8,12 @@ import { useState } from "react";
 
 import { NAV_ITEMS } from "@/components/layout/nav";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { logout } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +22,8 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav className="flex flex-col gap-1" aria-label="Principal">
       {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-        const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+        const active =
+          href === "/" ? pathname === "/" : pathname.startsWith(href);
         return (
           <Link
             key={href}
@@ -59,7 +65,11 @@ function SidebarFooter() {
         className="min-h-11 justify-start gap-3 text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
         onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
       >
-        {resolvedTheme === "dark" ? <Sun className="size-5" /> : <Moon className="size-5" />}
+        {resolvedTheme === "dark" ? (
+          <Sun className="size-5" />
+        ) : (
+          <Moon className="size-5" />
+        )}
         Tema {resolvedTheme === "dark" ? "claro" : "oscuro"}
       </Button>
       <Button
@@ -91,11 +101,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-20 flex h-14 items-center gap-2 bg-sidebar px-3 lg:hidden">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-11 text-sidebar-foreground" aria-label="Abrir menú">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-11 text-sidebar-foreground"
+              aria-label="Abrir menú"
+            >
               <Menu className="size-6" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="flex w-72 flex-col gap-6 border-sidebar-border bg-sidebar p-4">
+          <SheetContent
+            side="left"
+            className="flex w-72 flex-col gap-6 border-sidebar-border bg-sidebar p-4"
+          >
             <SheetTitle className="sr-only">Menú</SheetTitle>
             <Brand />
             <NavLinks onNavigate={() => setOpen(false)} />

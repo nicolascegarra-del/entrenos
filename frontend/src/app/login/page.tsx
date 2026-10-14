@@ -8,7 +8,13 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError, login } from "@/lib/api";
@@ -34,7 +40,9 @@ export default function LoginPage() {
       await login(email, password);
       router.replace("/");
     } catch (err) {
-      setServerError(err instanceof ApiError ? err.message : "No se pudo iniciar sesión.");
+      setServerError(
+        err instanceof ApiError ? err.message : "No se pudo iniciar sesión.",
+      );
     }
   }
 
@@ -45,15 +53,33 @@ export default function LoginPage() {
           <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-lg bg-klyp-pale text-klyp-navy">
             <Activity className="size-6" aria-hidden />
           </div>
-          <CardTitle className="font-heading text-2xl font-bold">APP ENTRENOS</CardTitle>
-          <CardDescription>Inicia sesión para ver tus entrenamientos</CardDescription>
+          <CardTitle className="font-heading text-2xl font-bold">
+            APP ENTRENOS
+          </CardTitle>
+          <CardDescription>
+            Inicia sesión para ver tus entrenamientos
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+          <form
+            onSubmit={handleSubmit(onSubmit)}
+            className="space-y-4"
+            noValidate
+          >
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" autoComplete="email" aria-invalid={!!errors.email} {...register("email")} />
-              {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                aria-invalid={!!errors.email}
+                {...register("email")}
+              />
+              {errors.email && (
+                <p className="text-sm text-destructive">
+                  {errors.email.message}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Contraseña</Label>
@@ -64,14 +90,25 @@ export default function LoginPage() {
                 aria-invalid={!!errors.password}
                 {...register("password")}
               />
-              {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
+              {errors.password && (
+                <p className="text-sm text-destructive">
+                  {errors.password.message}
+                </p>
+              )}
             </div>
             {serverError && (
-              <p role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              <p
+                role="alert"
+                className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+              >
                 {serverError}
               </p>
             )}
-            <Button type="submit" className="h-11 w-full" disabled={isSubmitting}>
+            <Button
+              type="submit"
+              className="h-11 w-full"
+              disabled={isSubmitting}
+            >
               {isSubmitting && <Loader2 className="animate-spin" aria-hidden />}
               Entrar
             </Button>

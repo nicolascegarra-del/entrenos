@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDistance, formatDuration, formatPace, speedToPace, sportInfo } from "@/lib/format";
+import {
+  formatDistance,
+  formatDuration,
+  formatPace,
+  speedToPace,
+  sportInfo,
+} from "@/lib/format";
 
 describe("format", () => {
   it("formatDuration cuando menos de una hora entonces m:ss", () => {
@@ -22,6 +28,8 @@ describe("format", () => {
 
   it("sportInfo cuando deporte desconocido entonces etiqueta legible", () => {
     expect(sportInfo("running").pace).toBe(true);
-    expect(sportInfo("stand_up_paddleboarding").label).toBe("stand up paddleboarding");
+    expect(sportInfo("stand_up_paddleboarding").label).toBe(
+      "stand up paddleboarding",
+    );
   });
 });

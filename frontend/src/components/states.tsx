@@ -3,10 +3,19 @@ import { AlertTriangle, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+export function ErrorState({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry?: () => void;
+}) {
   return (
     <Card className="border-destructive/40 shadow-sm">
-      <CardContent className="flex flex-col items-center gap-3 py-10 text-center" role="alert">
+      <CardContent
+        className="flex flex-col items-center gap-3 py-10 text-center"
+        role="alert"
+      >
         <AlertTriangle className="size-8 text-destructive" aria-hidden />
         <p className="text-sm text-muted-foreground">{message}</p>
         {onRetry && (

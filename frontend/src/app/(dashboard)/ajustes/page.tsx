@@ -1,12 +1,25 @@
 "use client";
 
-import { CheckCircle2, CircleAlert, CircleX, Loader2, RefreshCw, Watch } from "lucide-react";
+import {
+  CheckCircle2,
+  CircleAlert,
+  CircleX,
+  Loader2,
+  RefreshCw,
+  Watch,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { ErrorState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGarminStatus, useSyncNow } from "@/hooks/use-api";
 import { ApiError } from "@/lib/api";
@@ -17,7 +30,8 @@ function LastRun({ run }: { run: SyncRun }) {
   if (run.status === "running") {
     return (
       <p className="flex items-center gap-2 text-sm" role="status">
-        <Loader2 className="size-4 animate-spin text-klyp-accent" aria-hidden /> Sincronizando…
+        <Loader2 className="size-4 animate-spin text-klyp-accent" aria-hidden />{" "}
+        Sincronizando…
       </p>
     );
   }
@@ -26,15 +40,23 @@ function LastRun({ run }: { run: SyncRun }) {
     <div className="space-y-1 text-sm">
       <p className="flex items-center gap-2">
         {ok ? (
-          <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+          <CheckCircle2
+            className="size-4 text-emerald-600 dark:text-emerald-400"
+            aria-hidden
+          />
         ) : (
           <CircleAlert className="size-4 text-destructive" aria-hidden />
         )}
-        <span className="font-medium">{ok ? "Última sincronización correcta" : "La última sincronización falló"}</span>
+        <span className="font-medium">
+          {ok
+            ? "Última sincronización correcta"
+            : "La última sincronización falló"}
+        </span>
       </p>
       <p className="text-muted-foreground">
         {formatDateTime(run.finished_at ?? run.started_at)}
-        {ok && ` · ${run.new_activities} actividades nuevas · ${run.daily_days} días de métricas`}
+        {ok &&
+          ` · ${run.new_activities} actividades nuevas · ${run.daily_days} días de métricas`}
       </p>
       {!ok && run.error && <p className="text-muted-foreground">{run.error}</p>}
     </div>
@@ -46,7 +68,13 @@ function GarminCard() {
   const sync = useSyncNow();
 
   if (isPending) return <Skeleton className="h-44 w-full" />;
-  if (isError) return <ErrorState message="No se pudo consultar el estado de Garmin." onRetry={() => refetch()} />;
+  if (isError)
+    return (
+      <ErrorState
+        message="No se pudo consultar el estado de Garmin."
+        onRetry={() => refetch()}
+      />
+    );
 
   const running = data.last_run?.status === "running" || sync.isPending;
   return (
@@ -54,7 +82,8 @@ function GarminCard() {
       <CardHeader className="flex flex-row items-start justify-between gap-3">
         <div className="space-y-1">
           <CardTitle className="flex items-center gap-2 font-heading text-lg">
-            <Watch className="size-5 text-klyp-accent" aria-hidden /> Garmin Connect
+            <Watch className="size-5 text-klyp-accent" aria-hidden /> Garmin
+            Connect
           </CardTitle>
           <CardDescription>Se sincroniza solo cada 30 minutos.</CardDescription>
         </div>
@@ -74,18 +103,29 @@ function GarminCard() {
             {data.last_run ? (
               <LastRun run={data.last_run} />
             ) : (
-              <p className="text-sm text-muted-foreground">Aún no se ha sincronizado.</p>
+              <p className="text-sm text-muted-foreground">
+                Aún no se ha sincronizado.
+              </p>
             )}
             <Button
               className="min-h-11 w-full sm:w-auto"
               disabled={running}
               onClick={() =>
                 sync.mutate(undefined, {
-                  onError: (err) => toast.error(err instanceof ApiError ? err.message : "No se pudo sincronizar."),
+                  onError: (err) =>
+                    toast.error(
+                      err instanceof ApiError
+                        ? err.message
+                        : "No se pudo sincronizar.",
+                    ),
                 })
               }
             >
-              {running ? <Loader2 className="animate-spin" aria-hidden /> : <RefreshCw aria-hidden />}
+              {running ? (
+                <Loader2 className="animate-spin" aria-hidden />
+              ) : (
+                <RefreshCw aria-hidden />
+              )}
               Sincronizar ahora
             </Button>
           </>

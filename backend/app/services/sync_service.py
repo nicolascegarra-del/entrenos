@@ -182,6 +182,10 @@ def run_sync(
     try:
         run.new_activities = sync_activities(session, user_id, source, storage, max_new)
         run.daily_days = sync_daily(session, user_id, source, days)
+        if run.new_activities:
+            from app.services.plan_service import match_pending  # import local: evita ciclo
+
+            match_pending(session, user_id)
         run.status = SyncStatus.SUCCESS
     except Exception as exc:
         session.rollback()

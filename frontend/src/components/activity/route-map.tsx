@@ -19,8 +19,15 @@ export default function RouteMap({ points }: { points: LatLngTuple[] }) {
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      <Polyline positions={points} pathOptions={{ color: "#2e6db4", weight: 4, opacity: 0.9 }} />
-      <CircleMarker center={points[0]} radius={6} pathOptions={{ color: "#fff", fillColor: "#0e9f6e", fillOpacity: 1 }} />
+      <Polyline
+        positions={points}
+        pathOptions={{ color: "#2e6db4", weight: 4, opacity: 0.9 }}
+      />
+      <CircleMarker
+        center={points[0]}
+        radius={6}
+        pathOptions={{ color: "#fff", fillColor: "#0e9f6e", fillOpacity: 1 }}
+      />
       <CircleMarker
         center={points[points.length - 1]}
         radius={6}

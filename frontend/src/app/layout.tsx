@@ -12,10 +12,13 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "APP ENTRENOS",
-  description: "Tus entrenamientos de Garmin: progresión, planificación y análisis plan vs real.",
+  description:
+    "Tus entrenamientos de Garmin: progresión, planificación y análisis plan vs real.",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="es" suppressHydrationWarning>
       <body className="antialiased">

@@ -1,4 +1,11 @@
-import { CalendarDays, Footprints, LayoutDashboard, Settings, TrendingUp, type LucideIcon } from "lucide-react";
+import {
+  CalendarDays,
+  Footprints,
+  LayoutDashboard,
+  Settings,
+  TrendingUp,
+  type LucideIcon,
+} from "lucide-react";
 
 export interface NavItem {
   href: string;

@@ -66,3 +66,73 @@ export interface GarminStatus {
   connected: boolean;
   last_run: SyncRun | null;
 }
+
+export type BlockKind =
+  "warmup" | "steady" | "interval" | "recovery" | "cooldown";
+export type TargetMetric = "pace" | "speed" | "hr" | "power" | "cadence";
+
+export interface PlannedBlock {
+  position?: number;
+  kind: BlockKind;
+  repeat: number;
+  duration_s: number | null;
+  distance_m: number | null;
+  target_metric: TargetMetric | null;
+  target_min: number | null;
+  target_max: number | null;
+  recovery_duration_s: number | null;
+  recovery_distance_m: number | null;
+}
+
+export interface PlannedSessionInput {
+  day: string;
+  sport: string;
+  title: string;
+  notes: string;
+  blocks: PlannedBlock[];
+}
+
+export interface PlannedSession extends PlannedSessionInput {
+  id: number;
+  activity_id: number | null;
+  match_mode: "auto" | "manual";
+  compliance_score: number | null;
+  planned_duration_s: number;
+  planned_distance_m: number | null;
+}
+
+export type StepStatus = "ok" | "near" | "off";
+
+export interface ComplianceStep {
+  label: string;
+  kind: BlockKind;
+  planned: {
+    duration_s: number | null;
+    distance_m: number | null;
+    target_metric: TargetMetric | null;
+    target_min: number | null;
+    target_max: number | null;
+  };
+  actual: {
+    duration_s: number;
+    distance_m: number;
+    laps: number[];
+    value: number | null;
+  };
+  completion: number | null;
+  score: number | null;
+  status: StepStatus | null;
+  direction: "fast" | "slow" | "low" | "high" | null;
+}
+
+export interface ComplianceDetail {
+  score?: number | null;
+  method?: "laps" | "streams" | null;
+  steps?: ComplianceStep[];
+  unplanned_laps?: number[];
+}
+
+export interface PlannedSessionDetail extends PlannedSession {
+  compliance_detail: ComplianceDetail;
+  activity: ActivitySummary | null;
+}

@@ -43,7 +43,11 @@ def register_error_handlers(app: FastAPI) -> None:
     async def validation_exc(request: Request, exc: RequestValidationError):
         first = exc.errors()[0] if exc.errors() else {}
         field = ".".join(str(p) for p in first.get("loc", [])[1:]) or None
-        message = f"El campo {field} no es válido." if field else "Datos no válidos."
+        if first.get("type") == "value_error":
+            # Validaciones propias (ValueError en español): se muestran tal cual.
+            message = str(first.get("msg", "")).removeprefix("Value error, ")
+        else:
+            message = f"El campo {field} no es válido." if field else "Datos no válidos."
         return _error(422, "VALIDATION_ERROR", message, request.state.request_id, field)
 
     @app.exception_handler(Exception)

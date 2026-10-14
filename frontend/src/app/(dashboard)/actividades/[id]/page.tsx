@@ -8,7 +8,10 @@ import { useParams } from "next/navigation";
 import { useMemo } from "react";
 
 import { LapsTable } from "@/components/activity/laps-table";
-import { StreamCharts, chartChannels } from "@/components/activity/stream-charts";
+import {
+  StreamCharts,
+  chartChannels,
+} from "@/components/activity/stream-charts";
 import { ErrorState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,12 +37,24 @@ const RouteMap = dynamic(() => import("@/components/activity/route-map"), {
 // Métricas que ya salen en las tarjetas principales.
 const SHOWN_ELSEWHERE = new Set(["avg_speed"]);
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Stat({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+}) {
   return (
     <div className="rounded-lg bg-muted/60 p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-0.5 text-lg font-semibold tabular-nums md:text-xl">{value}</p>
-      {sub && <p className="text-xs text-muted-foreground tabular-nums">{sub}</p>}
+      <p className="mt-0.5 text-lg font-semibold tabular-nums md:text-xl">
+        {value}
+      </p>
+      {sub && (
+        <p className="text-xs text-muted-foreground tabular-nums">{sub}</p>
+      )}
     </div>
   );
 }
@@ -48,29 +63,60 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
  * Tarjetas de métricas: las fijas (distancia, tiempo…) más las que el reloj haya
  * aportado y estén en el catálogo, así un reloj con más métricas las muestra solo.
  */
-function StatsGrid({ activity, catalog }: { activity: ActivityDetail; catalog: MetricDefinition[] }) {
+function StatsGrid({
+  activity,
+  catalog,
+}: {
+  activity: ActivityDetail;
+  catalog: MetricDefinition[];
+}) {
   const { pace } = sportInfo(activity.sport);
   const speed =
-    activity.metrics.avg_speed ?? (activity.distance_m ? activity.distance_m / activity.duration_s : null);
+    activity.metrics.avg_speed ??
+    (activity.distance_m ? activity.distance_m / activity.duration_s : null);
   const extra = catalog.filter(
-    (m) => m.scope === "activity" && !SHOWN_ELSEWHERE.has(m.key) && activity.metrics[m.key] != null,
+    (m) =>
+      m.scope === "activity" &&
+      !SHOWN_ELSEWHERE.has(m.key) &&
+      activity.metrics[m.key] != null,
   );
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-      {activity.distance_m ? <Stat label="Distancia" value={formatDistance(activity.distance_m)} /> : null}
+      {activity.distance_m ? (
+        <Stat label="Distancia" value={formatDistance(activity.distance_m)} />
+      ) : null}
       <Stat
         label="Tiempo en movimiento"
-        value={formatDuration(activity.moving_duration_s ?? activity.duration_s)}
+        value={formatDuration(
+          activity.moving_duration_s ?? activity.duration_s,
+        )}
         sub={`total ${formatDuration(activity.duration_s)}`}
       />
-      {speed ? <Stat label={pace ? "Ritmo medio" : "Velocidad media"} value={pace ? formatPace(speed) : formatSpeedKmh(speed)} /> : null}
+      {speed ? (
+        <Stat
+          label={pace ? "Ritmo medio" : "Velocidad media"}
+          value={pace ? formatPace(speed) : formatSpeedKmh(speed)}
+        />
+      ) : null}
       {activity.avg_hr ? (
-        <Stat label="FC media" value={`${formatNumber(activity.avg_hr)} ppm`} sub={`máx. ${formatNumber(activity.max_hr)}`} />
+        <Stat
+          label="FC media"
+          value={`${formatNumber(activity.avg_hr)} ppm`}
+          sub={`máx. ${formatNumber(activity.max_hr)}`}
+        />
       ) : null}
       {activity.elevation_gain_m != null ? (
-        <Stat label="Desnivel +" value={`${formatNumber(activity.elevation_gain_m)} m`} />
+        <Stat
+          label="Desnivel +"
+          value={`${formatNumber(activity.elevation_gain_m)} m`}
+        />
       ) : null}
-      {activity.calories ? <Stat label="Calorías" value={`${formatNumber(activity.calories)} kcal`} /> : null}
+      {activity.calories ? (
+        <Stat
+          label="Calorías"
+          value={`${formatNumber(activity.calories)} kcal`}
+        />
+      ) : null}
       {extra.map((m) => (
         <Stat
           key={m.key}
@@ -84,15 +130,31 @@ function StatsGrid({ activity, catalog }: { activity: ActivityDetail; catalog: M
 
 export default function ActivityDetailPage() {
   const id = Number(useParams<{ id: string }>().id);
-  const { data: activity, isPending, isError, error, refetch } = useActivity(id);
+  const {
+    data: activity,
+    isPending,
+    isError,
+    error,
+    refetch,
+  } = useActivity(id);
   const { data: catalog = [] } = useCatalog();
-  const channels = activity ? [...chartChannels(activity.channels), "lat", "lon"] : [];
-  const { data: streams, isPending: streamsPending } = useStreams(id, channels, !!activity);
+  const channels = activity
+    ? [...chartChannels(activity.channels), "lat", "lon"]
+    : [];
+  const { data: streams, isPending: streamsPending } = useStreams(
+    id,
+    channels,
+    !!activity,
+  );
 
   const route = useMemo<LatLngTuple[]>(() => {
     const lat = streams?.channels.lat ?? [];
     const lon = streams?.channels.lon ?? [];
-    return lat.flatMap((la, i) => (la != null && lon[i] != null ? [[la, lon[i] as number] as LatLngTuple] : []));
+    return lat.flatMap((la, i) =>
+      la != null && lon[i] != null
+        ? [[la, lon[i] as number] as LatLngTuple]
+        : [],
+    );
   }, [streams]);
 
   if (isPending) {
@@ -108,7 +170,11 @@ export default function ActivityDetailPage() {
     const notFound = error instanceof ApiError && error.status === 404;
     return (
       <ErrorState
-        message={notFound ? "Esta actividad no existe." : "No se pudo cargar la actividad."}
+        message={
+          notFound
+            ? "Esta actividad no existe."
+            : "No se pudo cargar la actividad."
+        }
         onRetry={notFound ? undefined : () => refetch()}
       />
     );
@@ -126,7 +192,9 @@ export default function ActivityDetailPage() {
         </Link>
         <div className="flex flex-wrap items-center gap-2">
           <Icon className="size-6 text-klyp-accent" aria-hidden />
-          <h1 className="font-heading text-2xl font-bold md:text-3xl">{activity.name || label}</h1>
+          <h1 className="font-heading text-2xl font-bold md:text-3xl">
+            {activity.name || label}
+          </h1>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <span>{formatDateTime(activity.start_time)}</span>
@@ -148,7 +216,11 @@ export default function ActivityDetailPage() {
               <CardTitle className="font-heading text-lg">Recorrido</CardTitle>
             </CardHeader>
             <CardContent>
-              {streamsPending ? <Skeleton className="h-64 w-full md:h-80" /> : <RouteMap points={route} />}
+              {streamsPending ? (
+                <Skeleton className="h-64 w-full md:h-80" />
+              ) : (
+                <RouteMap points={route} />
+              )}
             </CardContent>
           </Card>
         )}
@@ -162,7 +234,9 @@ export default function ActivityDetailPage() {
             ) : streams && streams.points > 0 ? (
               <StreamCharts streams={streams} pace={pace} />
             ) : (
-              <p className="text-sm text-muted-foreground">Esta actividad no tiene datos segundo a segundo.</p>
+              <p className="text-sm text-muted-foreground">
+                Esta actividad no tiene datos segundo a segundo.
+              </p>
             )}
           </CardContent>
         </Card>

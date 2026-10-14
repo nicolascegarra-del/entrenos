@@ -25,7 +25,11 @@ async function parseError(res: Response): Promise<ApiError> {
     const { error } = await res.json();
     return new ApiError(res.status, error.code, error.message, error.field);
   } catch {
-    return new ApiError(res.status, "ERROR", "No se pudo conectar con el servidor.");
+    return new ApiError(
+      res.status,
+      "ERROR",
+      "No se pudo conectar con el servidor.",
+    );
   }
 }
 
@@ -37,7 +41,10 @@ let refreshing: Promise<boolean> | null = null;
  * @returns true si se obtuvo un token nuevo.
  */
 export function refreshAccessToken(): Promise<boolean> {
-  refreshing ??= fetch(`${API_URL}/api/v1/auth/refresh`, { method: "POST", credentials: "include" })
+  refreshing ??= fetch(`${API_URL}/api/v1/auth/refresh`, {
+    method: "POST",
+    credentials: "include",
+  })
     .then(async (res) => {
       if (!res.ok) return false;
       const data: TokenResponse = await res.json();
@@ -55,13 +62,22 @@ export function refreshAccessToken(): Promise<boolean> {
  * Llama a la API añadiendo el access token; si caduca, lo renueva una vez y reintenta.
  * @param path - Ruta relativa, ej. "/api/v1/auth/me".
  */
-export async function apiFetch<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
+export async function apiFetch<T>(
+  path: string,
+  init: RequestInit = {},
+  retry = true,
+): Promise<T> {
   const token = useAuthStore.getState().accessToken;
   const headers = new Headers(init.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  if (init.body && !headers.has("Content-Type"))
+    headers.set("Content-Type", "application/json");
 
-  const res = await fetch(`${API_URL}${path}`, { ...init, headers, credentials: "include" });
+  const res = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers,
+    credentials: "include",
+  });
   if (res.status === 401 && retry && (await refreshAccessToken())) {
     return apiFetch<T>(path, init, false);
   }
@@ -79,6 +95,8 @@ export async function login(email: string, password: string): Promise<void> {
 }
 
 export async function logout(): Promise<void> {
-  await apiFetch<void>("/api/v1/auth/logout", { method: "POST" }, false).catch(() => undefined);
+  await apiFetch<void>("/api/v1/auth/logout", { method: "POST" }, false).catch(
+    () => undefined,
+  );
   useAuthStore.getState().setAccessToken(null);
 }

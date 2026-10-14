@@ -1,4 +1,11 @@
-import { Bike, Dumbbell, Footprints, Waves, Activity as Generic, type LucideIcon } from "lucide-react";
+import {
+  Bike,
+  Dumbbell,
+  Footprints,
+  Waves,
+  Activity as Generic,
+  type LucideIcon,
+} from "lucide-react";
 
 const LOCALE = "es-ES";
 
@@ -42,23 +49,39 @@ export function formatSpeedKmh(speed: number | null | undefined): string {
 
 /** Fecha ISO → "14/10/2026" (formato Klyp DD/MM/YYYY, hora local del navegador). */
 export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(LOCALE, { day: "2-digit", month: "2-digit", year: "numeric" });
+  return new Date(iso).toLocaleDateString(LOCALE, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 /** Fecha ISO → "mar 14/10/2026 · 17:58". */
 export function formatDateTime(iso: string): string {
   const d = new Date(iso);
   const weekday = d.toLocaleDateString(LOCALE, { weekday: "short" });
-  const time = d.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" });
+  const time = d.toLocaleTimeString(LOCALE, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   return `${weekday} ${formatDate(iso)} · ${time}`;
 }
 
-export function formatNumber(value: number | null | undefined, decimals = 0): string {
+export function formatNumber(
+  value: number | null | undefined,
+  decimals = 0,
+): string {
   if (value == null) return "—";
-  return value.toLocaleString(LOCALE, { maximumFractionDigits: decimals, minimumFractionDigits: decimals });
+  return value.toLocaleString(LOCALE, {
+    maximumFractionDigits: decimals,
+    minimumFractionDigits: decimals,
+  });
 }
 
-const SPORTS: Record<string, { label: string; icon: LucideIcon; pace: boolean }> = {
+const SPORTS: Record<
+  string,
+  { label: string; icon: LucideIcon; pace: boolean }
+> = {
   running: { label: "Carrera", icon: Footprints, pace: true },
   trail_running: { label: "Trail", icon: Footprints, pace: true },
   treadmill_running: { label: "Cinta", icon: Footprints, pace: true },
@@ -71,6 +94,16 @@ const SPORTS: Record<string, { label: string; icon: LucideIcon; pace: boolean }>
 };
 
 /** Etiqueta, icono y si el deporte se mide en ritmo (min/km) o velocidad. */
-export function sportInfo(sport: string): { label: string; icon: LucideIcon; pace: boolean } {
-  return SPORTS[sport] ?? { label: sport.replaceAll("_", " "), icon: Generic, pace: false };
+export function sportInfo(sport: string): {
+  label: string;
+  icon: LucideIcon;
+  pace: boolean;
+} {
+  return (
+    SPORTS[sport] ?? {
+      label: sport.replaceAll("_", " "),
+      icon: Generic,
+      pace: false,
+    }
+  );
 }

@@ -41,9 +41,10 @@ class PlannedSession(SQLModel, table=True):
 
 class PlannedBlock(SQLModel, table=True):
     """
-    Bloque de la sesión, ej. 6 x 1000 m @ ritmo 3:55-4:05 /km.
-    `target_metric` es una clave del catálogo (pace, power, hr...) para soportar
-    objetivos con métricas que traiga un reloj futuro.
+    Bloque de la sesión, ej. 6 x 1000 m @ ritmo 3:55-4:05 /km con 90 s de recuperación.
+
+    `target_metric`: pace (s/km), speed (km/h), hr (ppm), power (W) o cadence (ppm).
+    La recuperación se intercala entre repeticiones (no tras la última).
     """
 
     __tablename__ = "planned_block"
@@ -59,3 +60,5 @@ class PlannedBlock(SQLModel, table=True):
     target_metric: str | None = Field(default=None, max_length=64)
     target_min: float | None = None
     target_max: float | None = None
+    recovery_duration_s: float | None = None
+    recovery_distance_m: float | None = None
