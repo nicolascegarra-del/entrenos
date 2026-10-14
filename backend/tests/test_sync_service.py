@@ -83,3 +83,13 @@ def test_reprocess_cuando_parser_nuevo_entonces_rehace_desde_raw(session: Sessio
     session.refresh(activity)
     assert activity.metrics["avg_power"] == 250.0
     assert reprocess_activities(session, user.id) == 0
+
+
+def test_sync_activities_cuando_historico_completo_con_recientes_ya_importadas_entonces_trae_las_antiguas(
+    session, user
+):
+    garmin = FakeGarmin(30)
+    assert sync_activities(session, user.id, garmin, MemoryStorage(), max_new=5) == 5
+    # Regresión: --full se paraba en la primera conocida y nunca llegaba a las antiguas.
+    assert sync_activities(session, user.id, garmin, MemoryStorage(), max_new=None) == 25
+    assert len(session.exec(select(Activity)).all()) == 30

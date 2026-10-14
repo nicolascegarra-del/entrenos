@@ -10,12 +10,19 @@ import type {
   ActivityDetail,
   ActivityPage,
   ActivitySummary,
+  DeviceSpan,
+  EfficiencyPoint,
+  FitnessResponse,
   GarminStatus,
   MetricDefinition,
   PlannedSession,
   PlannedSessionDetail,
   PlannedSessionInput,
+  RecordRead,
+  SeriesPoint,
   Streams,
+  Summary,
+  WeekPoint,
 } from "@/types/api";
 
 export function useActivities(sport: string | null) {
@@ -176,5 +183,61 @@ export function useSetMatch(id: number) {
         body: JSON.stringify(body),
       }),
     onSuccess: invalidate,
+  });
+}
+
+// ─── Progresión ──────────────────────────────────────────────────────────────
+
+export function useFitness(days: number) {
+  return useQuery({
+    queryKey: ["fitness", days],
+    queryFn: () =>
+      apiFetch<FitnessResponse>(`/api/v1/progress/fitness?days=${days}`),
+  });
+}
+
+export function useWeekly(weeks: number) {
+  return useQuery({
+    queryKey: ["weekly", weeks],
+    queryFn: () =>
+      apiFetch<WeekPoint[]>(`/api/v1/progress/weekly?weeks=${weeks}`),
+  });
+}
+
+export function useMetricSeries(key: string, days: number) {
+  return useQuery({
+    queryKey: ["metric-series", key, days],
+    queryFn: () =>
+      apiFetch<SeriesPoint[]>(`/api/v1/progress/metric/${key}?days=${days}`),
+  });
+}
+
+export function useEfficiency(days: number) {
+  return useQuery({
+    queryKey: ["efficiency", days],
+    queryFn: () =>
+      apiFetch<EfficiencyPoint[]>(`/api/v1/progress/efficiency?days=${days}`),
+  });
+}
+
+export function useRecords() {
+  return useQuery({
+    queryKey: ["records"],
+    queryFn: () => apiFetch<RecordRead[]>("/api/v1/progress/records"),
+  });
+}
+
+export function useDevices() {
+  return useQuery({
+    queryKey: ["devices"],
+    staleTime: Infinity,
+    queryFn: () => apiFetch<DeviceSpan[]>("/api/v1/devices"),
+  });
+}
+
+export function useSummary() {
+  return useQuery({
+    queryKey: ["summary"],
+    queryFn: () => apiFetch<Summary>("/api/v1/summary"),
   });
 }

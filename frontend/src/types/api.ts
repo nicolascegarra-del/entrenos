@@ -136,3 +136,83 @@ export interface PlannedSessionDetail extends PlannedSession {
   compliance_detail: ComplianceDetail;
   activity: ActivitySummary | null;
 }
+
+// ─── Progresión ──────────────────────────────────────────────────────────────
+
+export interface FitnessPoint {
+  day: string;
+  load: number;
+  ctl: number;
+  atl: number;
+  tsb: number;
+}
+
+export interface FitnessResponse {
+  lthr: number | null;
+  hr_rest: number;
+  points: FitnessPoint[];
+}
+
+export interface WeekPoint {
+  week: string;
+  distance_m: number;
+  duration_s: number;
+  count: number;
+  load: number;
+}
+
+export interface SeriesPoint {
+  day: string;
+  value: number;
+}
+
+export interface EfficiencyPoint extends SeriesPoint {
+  activity_id: number;
+}
+
+export interface RecordBest {
+  time_s: number;
+  activity_id: number;
+  day: string;
+}
+
+export interface RecordRead {
+  key: string;
+  label: string;
+  distance_m: number;
+  best: RecordBest | null;
+  history: RecordBest[];
+}
+
+export interface DeviceSpan {
+  id: number;
+  name: string;
+  first_seen: string;
+  last_seen: string;
+}
+
+export interface WeekTotals {
+  distance_m: number;
+  duration_s: number;
+  count: number;
+  load: number;
+}
+
+export interface Summary {
+  this_week: WeekTotals;
+  last_week: WeekTotals;
+  fitness: FitnessPoint | null;
+  form_label: string | null;
+  vo2max: number | null;
+  resting_hr: number | null;
+  planned_this_week: {
+    id: number;
+    day: string;
+    title: string;
+    sport: string;
+    compliance_score: number | null;
+    activity_id: number | null;
+  }[];
+  compliance_avg: number | null;
+  recent: ActivitySummary[];
+}

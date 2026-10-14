@@ -13,7 +13,7 @@ from typing import Any
 from app.models import MetricScope
 from app.services.metric_catalog import CATALOG
 
-PARSER_VERSION = 2  # v2: rutas alternativas (a|b) en el catálogo, ej. cadencia
+PARSER_VERSION = 3  # v3: récords, VO2max y FC umbral en el catálogo
 
 # Valores centinela que Garmin usa para "sin dato" (ej. potencia sin sensor = 65535).
 _SENTINELS = {65535.0}

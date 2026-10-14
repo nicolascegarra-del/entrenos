@@ -123,8 +123,9 @@ def sync_activities(
     """
     Importa las actividades nuevas (de la más reciente hacia atrás).
 
-    Se detiene al encontrar una ya importada, o al llegar a `max_new` (None = todo el
-    histórico, para la carga inicial).
+    En modo incremental se detiene al encontrar una ya importada o al llegar a `max_new`.
+    Con `max_new=None` recorre todo el histórico saltando las ya importadas (carga
+    inicial o para completar huecos).
 
     Returns:
         Número de actividades nuevas importadas.
@@ -142,6 +143,8 @@ def sync_activities(
             break
         for summary in page:
             if int(summary["activityId"]) in known:
+                if max_new is None:
+                    continue  # histórico completo: salta las ya importadas y sigue hacia atrás
                 return imported
             import_activity(session, user_id, source, storage, summary, device_names)
             imported += 1

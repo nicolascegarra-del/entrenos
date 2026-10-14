@@ -34,6 +34,13 @@ const RouteMap = dynamic(() => import("@/components/activity/route-map"), {
   loading: () => <Skeleton className="h-64 w-full md:h-80" />,
 });
 
+/** Valor de una métrica del catálogo: tiempos (unidad "s") como m:ss; enteros sin decimales. */
+function metricValue(m: MetricDefinition, value: number): string {
+  if (m.unit === "s") return formatDuration(value);
+  const decimals = Number.isInteger(value) || m.unit ? 0 : 1;
+  return `${formatNumber(value, decimals)}${m.unit ? ` ${m.unit}` : ""}`;
+}
+
 // Métricas que ya salen en las tarjetas principales.
 const SHOWN_ELSEWHERE = new Set(["avg_speed"]);
 
@@ -121,7 +128,7 @@ function StatsGrid({
         <Stat
           key={m.key}
           label={m.label}
-          value={`${formatNumber(activity.metrics[m.key], Number.isInteger(activity.metrics[m.key]) || m.unit ? 0 : 1)}${m.unit ? ` ${m.unit}` : ""}`}
+          value={metricValue(m, activity.metrics[m.key])}
         />
       ))}
     </div>

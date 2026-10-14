@@ -10,6 +10,16 @@ from app.models import MetricDefinition, MetricScope
 
 RUN, BIKE, STRENGTH = "running", "cycling", "strength_training"
 
+# Distancia (m) de cada récord, para la vista de mejores marcas.
+RECORD_DISTANCES = {
+    "best_1k": 1000,
+    "best_mile": 1609,
+    "best_5k": 5000,
+    "best_10k": 10000,
+    "best_half": 21098,
+    "best_marathon": 42195,
+}
+
 _A, _S, _D = MetricScope.ACTIVITY, MetricScope.STREAM, MetricScope.DAILY
 
 CATALOG: list[MetricDefinition] = [
@@ -93,6 +103,77 @@ CATALOG: list[MetricDefinition] = [
         unit="",
         sports=[STRENGTH],
         sources={"garmin_summary": "totalReps"},
+    ),
+    # Mejores tiempos dentro de la actividad (Garmin los calcula: fastestSplit_<metros>).
+    MetricDefinition(
+        key="best_1k",
+        scope=_A,
+        label="Mejor 1 km",
+        unit="s",
+        higher_is_better=False,
+        sports=[RUN],
+        sources={"garmin_summary": "fastestSplit_1000"},
+    ),
+    MetricDefinition(
+        key="best_mile",
+        scope=_A,
+        label="Mejor milla",
+        unit="s",
+        higher_is_better=False,
+        sports=[RUN],
+        sources={"garmin_summary": "fastestSplit_1609"},
+    ),
+    MetricDefinition(
+        key="best_5k",
+        scope=_A,
+        label="Mejor 5 km",
+        unit="s",
+        higher_is_better=False,
+        sports=[RUN],
+        sources={"garmin_summary": "fastestSplit_5000"},
+    ),
+    MetricDefinition(
+        key="best_10k",
+        scope=_A,
+        label="Mejor 10 km",
+        unit="s",
+        higher_is_better=False,
+        sports=[RUN],
+        sources={"garmin_summary": "fastestSplit_10000"},
+    ),
+    MetricDefinition(
+        key="best_half",
+        scope=_A,
+        label="Mejor media maratón",
+        unit="s",
+        higher_is_better=False,
+        sports=[RUN],
+        sources={"garmin_summary": "fastestSplit_21098"},
+    ),
+    MetricDefinition(
+        key="best_marathon",
+        scope=_A,
+        label="Mejor maratón",
+        unit="s",
+        higher_is_better=False,
+        sports=[RUN],
+        sources={"garmin_summary": "fastestSplit_42195"},
+    ),
+    MetricDefinition(
+        key="vo2max",
+        scope=_A,
+        label="VO2max estimado",
+        unit="ml/kg/min",
+        higher_is_better=True,
+        sports=[RUN, BIKE],
+        sources={"garmin_summary": "vO2MaxValue"},
+    ),
+    MetricDefinition(
+        key="lthr",
+        scope=_A,
+        label="FC umbral láctico",
+        unit="ppm",
+        sources={"garmin_summary": "lactateThresholdBpm"},
     ),
     # ── Streams (segundo a segundo) ────────────────────────────────────────
     MetricDefinition(
