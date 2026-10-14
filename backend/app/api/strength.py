@@ -9,6 +9,7 @@ from app.models import Activity, ActivityFeedback, DailyMetric, StrengthSet
 from app.schemas.activity import ActivitySummary
 from app.services.plan_service import match_pending
 from app.services.plan_steps import local_day
+from app.services.profile import calories, get_profile
 from app.services.strength import (
     clean_exercise,
     estimated_1rm,
@@ -70,6 +71,9 @@ def create_manual_activity(body: ManualActivityIn, session: SessionDep, user: Cu
         moving_duration_s=body.duration_s,
         distance_m=body.distance_m,
     )
+    weight = get_profile(session, user.id).weight_kg
+    if weight:
+        activity.calories = calories(body.sport, body.duration_s, weight, body.distance_m)
     session.add(activity)
     session.commit()
     match_pending(session, user.id)

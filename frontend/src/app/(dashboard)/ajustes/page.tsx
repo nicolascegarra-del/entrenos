@@ -12,6 +12,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { GarminConnectForm } from "@/components/settings/garmin-connect-form";
+import { ProfileCard } from "@/components/settings/profile-card";
+import { UsersCard } from "@/components/settings/users-card";
 import { ErrorState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,7 +27,9 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  useDisconnectGarmin,
   useGarminStatus,
+  useMe,
   useSaveSyncSettings,
   useSyncNow,
   useSyncSettings,
@@ -205,6 +210,7 @@ function SyncModeControl() {
 function GarminCard() {
   const { data, isPending, isError, refetch } = useGarminStatus();
   const sync = useSyncNow();
+  const disconnect = useDisconnectGarmin();
 
   if (isPending) return <Skeleton className="h-44 w-full" />;
   if (isError)
@@ -231,6 +237,13 @@ function GarminCard() {
         {data.connected ? (
           <Badge className="gap-1 bg-emerald-600 text-white hover:bg-emerald-600">
             <CheckCircle2 className="size-3" aria-hidden /> Conectado
+          </Badge>
+        ) : data.connection.status === "expired" ? (
+          <Badge
+            variant="outline"
+            className="gap-1 border-amber-500 text-amber-700 dark:text-amber-300"
+          >
+            <CircleAlert className="size-3" aria-hidden /> Caducada
           </Badge>
         ) : (
           <Badge variant="outline" className="gap-1">
@@ -272,17 +285,35 @@ function GarminCard() {
             <div className="border-t border-border pt-4">
               <SyncModeControl />
             </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4 text-sm">
+              <span className="text-muted-foreground">
+                {data.connection.display_name
+                  ? `Cuenta: ${data.connection.display_name}`
+                  : "Cuenta de Garmin conectada"}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="min-h-11 text-destructive md:min-h-8"
+                disabled={disconnect.isPending}
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      "¿Desconectar Garmin? Se borran los tokens; tus actividades se quedan.",
+                    )
+                  )
+                    return;
+                  disconnect.mutate(undefined, {
+                    onSuccess: () => toast.success("Garmin desconectado"),
+                  });
+                }}
+              >
+                Desconectar
+              </Button>
+            </div>
           </>
         ) : (
-          <div className="space-y-2 text-sm">
-            <p>Para conectar tu cuenta, ejecuta en el servidor:</p>
-            <pre className="overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs">
-              docker compose exec api python -m app.cli garmin-login
-            </pre>
-            <p className="text-muted-foreground">
-              La contraseña de Garmin no se guarda: solo los tokens de sesión.
-            </p>
-          </div>
+          <GarminConnectForm reconnect={data.connection.status === "expired"} />
         )}
       </CardContent>
     </Card>
@@ -290,11 +321,18 @@ function GarminCard() {
 }
 
 export default function AjustesPage() {
+  const { data: me } = useMe();
   return (
     <section className="space-y-4">
       <h1 className="font-heading text-2xl font-bold md:text-3xl">Ajustes</h1>
-      <div className="max-w-2xl">
+      <div className="grid max-w-5xl gap-4 md:gap-6 lg:grid-cols-2">
         <GarminCard />
+        <ProfileCard />
+        {me?.is_admin && (
+          <div className="lg:col-span-2">
+            <UsersCard />
+          </div>
+        )}
       </div>
     </section>
   );

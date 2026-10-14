@@ -12,6 +12,7 @@ from app.services import progress as svc
 from app.services.insights import build_insights
 from app.services.metric_catalog import CATALOG
 from app.services.plan_steps import local_day, sport_family
+from app.services.profile import age_grade, age_on, get_profile
 
 router = APIRouter(tags=["progresión"])
 
@@ -63,6 +64,7 @@ class RecordRead(BaseModel):
     distance_m: int
     best: RecordBest | None
     history: list[RecordBest]
+    age_grade: dict | None = None  # % respecto al estándar de tu edad y sexo (tablas 2025)
 
 
 class DeviceSpan(BaseModel):
@@ -160,7 +162,15 @@ def efficiency(session: SessionDep, user: CurrentUser, days: Days = 365) -> list
 
 @router.get("/progress/records", summary="Mejores marcas en carrera y su evolución")
 def records(session: SessionDep, user: CurrentUser) -> list[RecordRead]:
-    return [RecordRead(**r) for r in svc.records(svc.user_activities(session, user.id))]
+    profile = get_profile(session, user.id)
+    result = []
+    for r in svc.records(svc.user_activities(session, user.id)):
+        grade = None
+        if r["best"] and profile.birth_date and profile.sex:
+            age = age_on(profile.birth_date, r["best"]["day"])  # edad el día de la marca
+            grade = age_grade(r["distance_m"], r["best"]["time_s"], age, profile.sex)
+        result.append(RecordRead(**r, age_grade=grade))
+    return result
 
 
 @router.get("/devices", summary="Dispositivos usados (para marcar cambios de reloj en las gráficas)")

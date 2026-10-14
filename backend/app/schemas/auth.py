@@ -23,3 +23,4 @@ class TokenResponse(BaseModel):
 class UserRead(BaseModel):
     id: int
     email: str
+    is_admin: bool = False

@@ -607,6 +607,12 @@ function RecordsSection({
                   {formatPace(r.distance_m / r.best!.time_s)} ·{" "}
                   {formatDate(`${r.best!.day}T12:00:00`)}
                 </p>
+                {r.age_grade && (
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    {formatNumber(r.age_grade.percent, 1)} % ajustado por edad ·{" "}
+                    {r.age_grade.level}
+                  </p>
+                )}
               </Link>
             </li>
           ))}

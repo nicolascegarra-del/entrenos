@@ -69,8 +69,3 @@ class SyncRunRead(BaseModel):
     new_activities: int
     daily_days: int
     error: str | None
-
-
-class GarminStatus(BaseModel):
-    connected: bool
-    last_run: SyncRunRead | None

@@ -7,6 +7,12 @@ import {
 
 import { apiFetch } from "@/lib/api";
 import type {
+  ConnectState,
+  InvitationRow,
+  Me,
+  Profile,
+  ProfileInput,
+  UserRow,
   ActivityDetail,
   ActivityFeedback,
   ActivityPage,
@@ -394,5 +400,132 @@ export function useTrainingPaces() {
     queryKey: ["training-paces"],
     staleTime: 10 * 60_000,
     queryFn: () => apiFetch<TrainingPaces>("/api/v1/training-paces"),
+  });
+}
+
+// ─── Perfil y cuenta ─────────────────────────────────────────────────────────
+
+export function useMe() {
+  return useQuery({
+    queryKey: ["me"],
+    staleTime: Infinity,
+    queryFn: () => apiFetch<Me>("/api/v1/auth/me"),
+  });
+}
+
+export function useProfile() {
+  return useQuery({
+    queryKey: ["profile"],
+    queryFn: () => apiFetch<Profile>("/api/v1/profile"),
+  });
+}
+
+export function useSaveProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ProfileInput) =>
+      apiFetch<Profile>("/api/v1/profile", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: async (data) => {
+      queryClient.setQueryData(["profile"], data);
+      // La edad y el sexo cambian percentiles, FC máx., ajuste por edad y previsiones.
+      for (const key of ["insights", "records", "goal-report", "fitness"]) {
+        await queryClient.invalidateQueries({ queryKey: [key] });
+      }
+    },
+  });
+}
+
+// ─── Conexión con Garmin ─────────────────────────────────────────────────────
+
+export function useStartGarminConnect() {
+  return useMutation({
+    mutationFn: (body: { email: string; password: string }) =>
+      apiFetch<{ connect_id: string }>("/api/v1/garmin/connect", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+  });
+}
+
+export function useConnectState(connectId: string | null) {
+  return useQuery({
+    queryKey: ["garmin-connect", connectId],
+    enabled: !!connectId,
+    queryFn: () =>
+      apiFetch<ConnectState>(`/api/v1/garmin/connect/${connectId}`),
+    // Consulta cada 2 s mientras el worker hace el login.
+    refetchInterval: (query) =>
+      ["connected", "error", "needs_mfa"].includes(
+        query.state.data?.status ?? "",
+      )
+        ? false
+        : 2000,
+  });
+}
+
+export function useSendMfaCode(connectId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (code: string) =>
+      apiFetch<ConnectState>(`/api/v1/garmin/connect/${connectId}/mfa`, {
+        method: "POST",
+        body: JSON.stringify({ code }),
+      }),
+    onSuccess: (data) =>
+      queryClient.setQueryData(["garmin-connect", connectId], data),
+  });
+}
+
+export function useDisconnectGarmin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<void>("/api/v1/garmin/connection", { method: "DELETE" }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["garmin-status"] }),
+  });
+}
+
+// ─── Usuarios e invitaciones (administrador) ─────────────────────────────────
+
+export function useUsers(enabled: boolean) {
+  return useQuery({
+    queryKey: ["users"],
+    enabled,
+    queryFn: () => apiFetch<UserRow[]>("/api/v1/users"),
+  });
+}
+
+export function useInvitations(enabled: boolean) {
+  return useQuery({
+    queryKey: ["invitations"],
+    enabled,
+    queryFn: () => apiFetch<InvitationRow[]>("/api/v1/invitations"),
+  });
+}
+
+export function useCreateInvitation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (email: string) =>
+      apiFetch<InvitationRow>("/api/v1/invitations", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["invitations"] }),
+  });
+}
+
+export function useDeleteInvitation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiFetch<void>(`/api/v1/invitations/${id}`, { method: "DELETE" }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["invitations"] }),
   });
 }

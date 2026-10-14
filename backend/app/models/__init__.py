@@ -1,5 +1,6 @@
 """Importa todos los modelos para que Alembic y SQLModel.metadata los registren."""
 
+from app.models.account import GarminCredential, GarminStatus, Invitation, Sex, UserProfile, WeightLog
 from app.models.activity import Activity, ActivityRaw, ActivityStream, Device, Lap
 from app.models.goal import RaceGoal
 from app.models.health import AthleteZones, DailyMetric
@@ -11,6 +12,12 @@ from app.models.sync import SyncRun, SyncStatus
 from app.models.user import User
 
 __all__ = [
+    "GarminCredential",
+    "GarminStatus",
+    "Invitation",
+    "Sex",
+    "UserProfile",
+    "WeightLog",
     "Activity",
     "ActivityFeedback",
     "ActivityRaw",

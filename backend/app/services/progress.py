@@ -10,9 +10,10 @@ from datetime import date, timedelta
 
 from sqlmodel import Session, col, select
 
-from app.models import Activity, ActivityFeedback, DailyMetric, MetricScope
+from app.models import Activity, ActivityFeedback, DailyMetric, MetricScope, UserProfile
 from app.services.metric_catalog import CATALOG, RECORD_DISTANCES
 from app.services.plan_steps import local_day, sport_family
+from app.services.profile import age_on, tanaka_hr_max
 
 CTL_DAYS, ATL_DAYS = 42, 7
 DEFAULT_HR_REST = 60.0
@@ -154,6 +155,11 @@ def user_thresholds(session: Session, user_id: int) -> Thresholds:
     activities = user_activities(session, user_id)
     lthr = next((a.metrics["lthr"] for a in reversed(activities) if a.metrics.get("lthr")), None)
     hr_max = max((a.max_hr for a in activities if a.max_hr), default=None)
+    if hr_max is None:
+        # Sin FC máx. registrada: estimación por edad (Tanaka) si el perfil tiene fecha de nacimiento.
+        profile = session.get(UserProfile, user_id)
+        if profile and profile.birth_date:
+            hr_max = tanaka_hr_max(age_on(profile.birth_date, date.today()))
     if lthr is None and hr_max:
         lthr = round(hr_max * LTHR_OF_HR_MAX)
     rests = session.exec(

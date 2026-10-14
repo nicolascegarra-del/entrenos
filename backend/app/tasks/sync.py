@@ -8,6 +8,7 @@ from app.core.config import get_settings
 from app.core.db import engine
 from app.models import SyncRun, SyncStatus, User
 from app.services.garmin_client import GarminConnectClient, GarminNotConnectedError, has_tokens
+from app.services.profile import apply_garmin_profile
 from app.services.storage import get_storage
 from app.services.sync_schedule import get_user_settings, is_due, last_run_start
 from app.services.sync_service import run_sync
@@ -37,6 +38,10 @@ def sync_user(user_id: int, days: int = 7, max_new: int | None = 50) -> str:
                 session.commit()
                 return "no conectado"
             run = run_sync(session, user_id, source, get_storage(), days=days, max_new=max_new)
+            if run.status == SyncStatus.SUCCESS:
+                source.persist()  # Garmin renueva los tokens durante el uso
+                # Mantiene el perfil (y el historial de peso) al día sin pisar lo editado a mano.
+                apply_garmin_profile(session, user_id, source.get_user_profile())
             return run.status
     finally:
         lock.release()

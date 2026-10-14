@@ -80,4 +80,4 @@ def logout(response: Response) -> None:
 
 @router.get("/me", summary="Usuario actual", responses=_ERRORS)
 def me(user: CurrentUser) -> UserRead:
-    return UserRead(id=user.id, email=user.email)
+    return UserRead(id=user.id, email=user.email, is_admin=user.is_admin)

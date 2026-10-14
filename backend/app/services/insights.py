@@ -20,6 +20,7 @@ from app.services import race_forecast
 from app.services.es_format import num as _n
 from app.services.metric_catalog import RECORD_DISTANCES
 from app.services.plan_steps import local_day, sport_family
+from app.services.profile import age_on, get_profile, vo2max_percentile
 from app.services.race_models import pace_at_fraction, vdot
 from app.services.strength import exercise_history, exercise_overview
 
@@ -48,6 +49,8 @@ BUIST = _doi("Buist et al. 2007 · Am J Sports Med · la regla del 10 % no reduc
 SEILER = _doi("Seiler 2010 · IJSPP · distribución de intensidad en resistencia", "10.1123/ijspp.5.3.276")
 STOGGL = _doi("Stöggl y Sperlich 2014 · Front Physiol · entrenamiento polarizado", "10.3389/fphys.2014.00033")
 BUCHHEIT = _doi("Buchheit 2014 · Front Physiol · seguimiento con medidas de FC", "10.3389/fphys.2014.00073")
+KAMINSKY = _doi("Kaminsky et al. 2015 · Mayo Clin Proc · valores de referencia de VO2max (FRIEND)",
+                "10.1016/j.mayocp.2015.07.026")  # fmt: skip
 KODAMA = _doi("Kodama et al. 2009 · JAMA · capacidad cardiorrespiratoria y mortalidad", "10.1001/jama.2009.681")
 FRIEL = Evidence("Friel · The Triathlete's Training Bible (desacople aeróbico Pa:FC)")
 RIEGEL = Evidence("Riegel 1981 · American Scientist · Athletic records and human endurance")
@@ -332,7 +335,27 @@ def resting_hr_insight(series: list[dict]) -> Insight:
     )
 
 
-def vo2max_insight(series: list[dict]) -> Insight:
+def _percentile_text(percentile: dict | None) -> str:
+    if not percentile:
+        return " Añade tu fecha de nacimiento y sexo en Ajustes para compararte con tu grupo de edad."
+    where = {"below": "por debajo del percentil 5", "above": "por encima del percentil 95"}.get(
+        percentile["bound"], f"en el percentil {percentile['percentile']}"
+    )
+    return (
+        f" Para tu edad ({percentile['age_group']} años) y sexo estás {where} "
+        f"(la mediana es {_n(percentile['median'], 1)}; referencia medida en laboratorio, el reloj solo la estima)."
+    )
+
+
+def vo2max_insight(series: list[dict], percentile: dict | None = None) -> Insight:
+    insight = _vo2max_trend(series)
+    if insight.status != NODATA:
+        insight.message += _percentile_text(percentile)
+        insight.evidence = [*insight.evidence, KAMINSKY]
+    return insight
+
+
+def _vo2max_trend(series: list[dict]) -> Insight:
     values = [p["value"] for p in series]
     evidence = [KODAMA]
     if len(values) < 4:
@@ -501,6 +524,13 @@ def _record_source(activities: list[Activity], since: date) -> dict | None:
     return best
 
 
+def _user_percentile(session: Session, user_id: int, vo2_series: list[dict]) -> dict | None:
+    profile = get_profile(session, user_id)
+    if not (vo2_series and profile.birth_date and profile.sex):
+        return None
+    return vo2max_percentile(vo2_series[-1]["value"], age_on(profile.birth_date, date.today()), profile.sex)
+
+
 def build_insights(session: Session, user_id: int, days: int) -> dict:
     today = date.today()
     since = today - timedelta(days=days)
@@ -591,7 +621,7 @@ def build_insights(session: Session, user_id: int, days: int) -> dict:
         "volume": volume_insight(weeks),
         "intensity": intensity_insight(split),
         "resting_hr": rhr,
-        "vo2max": vo2max_insight(vo2_series),
+        "vo2max": vo2max_insight(vo2_series, _user_percentile(session, user_id, vo2_series)),
         "efficiency": efficiency_insight(efficiency_points, decoupling),
         "records": records_insight(source),
         "recovery": recovery_insight([p["value"] / 3600 for p in sleep], rhr),

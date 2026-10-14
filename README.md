@@ -14,9 +14,16 @@ App personal para sincronizar entrenamientos de Garmin, ver la progresión en gr
 cp .env.example .env              # y rellena los secretos (ver comentarios)
 docker compose up -d --build      # postgres, redis, api, worker, beat, web
 docker compose exec api python -m app.cli create-user
-docker compose exec api python -m app.cli garmin-login        # conecta tu cuenta de Garmin
-docker compose exec api python -m app.cli garmin-sync --full  # primera carga: todo el histórico
+docker compose exec api python -m app.cli make-admin          # el primer usuario puede invitar a otros
+docker compose exec api python -m app.cli garmin-sync --full  # tras conectar Garmin: todo el histórico
 ```
+
+Garmin se conecta desde **Ajustes → Garmin Connect** (email, contraseña y código de verificación si Garmin lo
+pide). La contraseña solo se usa para iniciar sesión en el worker; se guardan únicamente los tokens, cifrados
+con `GARMIN_TOKEN_KEY`. Alternativa por terminal: `python -m app.cli garmin-login`.
+
+Cada persona tiene su propio usuario y su Garmin: el administrador invita desde **Ajustes → Usuarios** y comparte
+el enlace de registro (un solo uso, 7 días).
 
 Después, el worker sincroniza solo cada 30 minutos (o con «Sincronizar ahora» en Ajustes).
 
@@ -27,7 +34,7 @@ La API aplica las migraciones y carga el catálogo de métricas al arrancar.
 
 ## Variables de entorno necesarias
 
-Todas están documentadas en [`.env.example`](.env.example). Las credenciales de Garmin **no** se guardan en `.env`: se introducen una vez y solo se conservan los tokens.
+Todas están documentadas en [`.env.example`](.env.example). Las credenciales de Garmin **no** se guardan en `.env`: se introducen una vez y solo se conservan los tokens, cifrados con `GARMIN_TOKEN_KEY` (genera la clave como indica `.env.example`; si la pierdes, cada usuario tendrá que reconectar Garmin).
 
 ## Estructura del proyecto
 

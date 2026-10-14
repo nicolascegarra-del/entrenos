@@ -6,6 +6,7 @@ Comandos de administración (ejecutar dentro del contenedor `api`):
     python -m app.cli garmin-login             # conecta tu cuenta de Garmin (solo guarda tokens)
     python -m app.cli garmin-sync [--full]     # sincroniza ya (--full: todo el histórico)
     python -m app.cli reprocess [--all]        # re-parsea la capa raw tras cambios del catálogo
+    python -m app.cli make-admin               # da permisos de administrador (invitar usuarios)
 """
 
 import argparse
@@ -49,15 +50,30 @@ def create_user() -> None:
 
 
 def garmin_login() -> None:
-    from app.services.garmin_client import login_with_credentials
+    from app.services.garmin_client import connect_with_credentials
+    from app.services.profile import apply_garmin_profile
 
     with Session(engine) as session:
         user = _ask_user(session)
-    print(f"Conectando Garmin para {user.email}. La contraseña no se guarda; solo los tokens.")
+    print(f"Conectando Garmin para {user.email}. La contraseña no se guarda; solo los tokens cifrados.")
     email = input("Email de Garmin Connect: ").strip()
     password = getpass("Contraseña de Garmin (no se muestra): ")
-    login_with_credentials(user.id, email, password, prompt_mfa=lambda: input("Código MFA: ").strip())
+    profile = connect_with_credentials(user.id, email, password, prompt_mfa=lambda: input("Código MFA: ").strip())
+    with Session(engine) as session:
+        apply_garmin_profile(session, user.id, profile)
     print("✔ Garmin conectado.")
+
+
+def make_admin() -> None:
+    with Session(engine) as session:
+        email = input("Email del usuario que será administrador: ").strip().lower()
+        user = session.exec(select(User).where(User.email == email)).first()
+        if user is None:
+            raise SystemExit("Ese usuario no existe.")
+        user.is_admin = True
+        session.add(user)
+        session.commit()
+    print(f"✔ {email} ahora es administrador (puede invitar a otras personas).")
 
 
 def garmin_sync(full: bool, days: int) -> None:
@@ -80,7 +96,9 @@ def reprocess(all_activities: bool) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="app.cli")
-    parser.add_argument("command", choices=["create-user", "seed-catalog", "garmin-login", "garmin-sync", "reprocess"])
+    parser.add_argument(
+        "command", choices=["create-user", "seed-catalog", "garmin-login", "garmin-sync", "reprocess", "make-admin"]
+    )
     parser.add_argument("--full", action="store_true", help="garmin-sync: importar todo el histórico")
     parser.add_argument("--days", type=int, default=7, help="garmin-sync: días de métricas diarias")
     parser.add_argument("--all", action="store_true", help="reprocess: todas, no solo las desactualizadas")
@@ -92,6 +110,8 @@ def main() -> None:
         garmin_login()
     elif args.command == "garmin-sync":
         garmin_sync(args.full, args.days)
+    elif args.command == "make-admin":
+        make_admin()
     elif args.command == "reprocess":
         reprocess(args.all)
     else:

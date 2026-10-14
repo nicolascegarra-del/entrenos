@@ -64,6 +64,12 @@ export interface SyncRun {
 
 export interface GarminStatus {
   connected: boolean;
+  connection: {
+    status: "none" | "ok" | "expired";
+    display_name: string | null;
+    connected_at: string | null;
+    last_ok_at: string | null;
+  };
   last_run: SyncRun | null;
 }
 
@@ -182,6 +188,7 @@ export interface RecordRead {
   distance_m: number;
   best: RecordBest | null;
   history: RecordBest[];
+  age_grade: AgeGrade | null;
 }
 
 export interface DeviceSpan {
@@ -348,6 +355,11 @@ export interface GoalReport {
   paces: DanielsPaces | null;
   explanation: Explanation;
   paces_explanation: PacesExplanation | null;
+  age_grade: {
+    age: number;
+    probable: AgeGrade | null;
+    target: AgeGrade | null;
+  } | null;
 }
 
 export interface TrainingPaces {
@@ -367,4 +379,66 @@ export interface PacesExplanation {
   summary: string;
   zones: { key: PaceZone; label: string; percent: string; purpose: string }[];
   sources: { label: string; url: string | null }[];
+}
+
+// ─── Perfil, cuentas y usuarios ──────────────────────────────────────────────
+
+export type Sex = "male" | "female";
+
+export interface ProfileInput {
+  birth_date: string | null;
+  sex: Sex | null;
+  weight_kg: number | null;
+  height_cm: number | null;
+}
+
+export interface Profile extends ProfileInput {
+  source: "garmin" | "manual";
+  age: number | null;
+  hr_max: number | null;
+  hr_max_source: "real" | "tanaka" | null;
+  bmi: number | null;
+  stride_ratio: number | null;
+  vo2max: number | null;
+  vo2max_percentile: {
+    percentile: number;
+    bound: "below" | "above" | null;
+    age_group: string;
+    median: number;
+    out_of_range_age: boolean;
+  } | null;
+  weight_history: { day: string; weight_kg: number }[];
+}
+
+export interface AgeGrade {
+  percent: number;
+  age_standard_s: number;
+  factor: number;
+  level: string;
+}
+
+export interface ConnectState {
+  status: "pending" | "needs_mfa" | "verifying" | "connected" | "error";
+  error: string | null;
+}
+
+export interface Me {
+  id: number;
+  email: string;
+  is_admin: boolean;
+}
+
+export interface UserRow {
+  id: number;
+  email: string;
+  is_admin: boolean;
+  created_at: string;
+  garmin: "none" | "ok" | "expired";
+}
+
+export interface InvitationRow {
+  id: number;
+  email: string;
+  expires_at: string;
+  token: string | null;
 }

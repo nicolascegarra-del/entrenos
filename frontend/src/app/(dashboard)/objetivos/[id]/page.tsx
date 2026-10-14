@@ -177,6 +177,21 @@ function ForecastCard({ report }: { report: GoalReport }) {
               )}
             </div>
           )}
+          {report.age_grade?.probable && (
+            <div>
+              <p className="text-xs text-muted-foreground">
+                Ajustado por edad ({report.age_grade.age} años)
+              </p>
+              <p className="text-xl font-semibold tabular-nums">
+                {formatNumber(report.age_grade.probable.percent, 1)} %
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {report.age_grade.probable.level}
+                {report.age_grade.target &&
+                  ` · tu objetivo sería ${formatNumber(report.age_grade.target.percent, 1)} %`}
+              </p>
+            </div>
+          )}
         </div>
         <RangeBar report={report} />
 

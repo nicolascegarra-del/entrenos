@@ -100,3 +100,16 @@ export async function logout(): Promise<void> {
   );
   useAuthStore.getState().setAccessToken(null);
 }
+
+/** Crea el usuario con una invitación y deja la sesión iniciada. */
+export async function registerWithInvitation(
+  token: string,
+  password: string,
+): Promise<void> {
+  const data = await apiFetch<TokenResponse>(
+    "/api/v1/auth/register",
+    { method: "POST", body: JSON.stringify({ token, password }) },
+    false,
+  );
+  useAuthStore.getState().setAccessToken(data.access_token);
+}

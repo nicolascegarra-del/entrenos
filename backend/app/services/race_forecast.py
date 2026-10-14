@@ -15,6 +15,7 @@ from app.services import progress as prog
 from app.services.es_format import num
 from app.services.metric_catalog import RECORD_DISTANCES
 from app.services.plan_steps import local_day, sport_family
+from app.services.profile import age_grade, age_on, get_profile
 from app.services.race_models import (
     daniels_paces,
     personal_exponent,
@@ -334,6 +335,19 @@ def evolution(session: Session, goal: RaceGoal, weeks: int = 16) -> list[dict]:
     return points
 
 
+def _goal_age_grade(session: Session, goal: RaceGoal, f: Forecast) -> dict | None:
+    """% de ajuste por edad de la previsión y del objetivo (edad el día de la carrera)."""
+    profile = get_profile(session, goal.user_id)
+    if not (profile.birth_date and profile.sex):
+        return None
+    age = age_on(profile.birth_date, goal.race_date)
+    return {
+        "age": age,
+        "probable": age_grade(goal.distance_m, f.probable_s, age, profile.sex) if f.probable_s else None,
+        "target": age_grade(goal.distance_m, goal.target_time_s, age, profile.sex) if goal.target_time_s else None,
+    }
+
+
 def full_report(session: Session, goal: RaceGoal) -> dict:
     today = date.today()
     activities = prog.user_activities(session, goal.user_id)
@@ -366,4 +380,5 @@ def full_report(session: Session, goal: RaceGoal) -> dict:
             f.vdot_current,
         ),  # fmt: skip
         "paces": daniels_paces(f.vdot_current) if f.vdot_current else None,
+        "age_grade": _goal_age_grade(session, goal, f),
     }

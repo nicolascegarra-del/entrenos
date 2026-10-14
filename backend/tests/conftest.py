@@ -15,6 +15,7 @@ _url = make_url(Settings().database_url)
 _test_url = _url.set(database=f"{_url.database}_test")
 os.environ["DATABASE_URL"] = _test_url.render_as_string(hide_password=False)
 os.environ["APP_ENV"] = "test"
+os.environ.setdefault("GARMIN_TOKEN_KEY", "dGVzdC1rZXktc29sby1wYXJhLXRlc3RzLTMyYnl0ZXM=")
 get_settings.cache_clear()
 
 with psycopg.connect(

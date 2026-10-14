@@ -23,7 +23,10 @@ class Settings(BaseSettings):
 
     storage_dir: str = "./data/storage"
 
-    garmin_token_dir: str = "/data/garmin-tokens"
+    garmin_token_dir: str = "/data/garmin-tokens"  # solo para migrar tokens antiguos (en fichero) a la BD
+    # Clave Fernet para cifrar los tokens de Garmin en la BD. Generar con:
+    # python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    garmin_token_key: str = ""
 
     @property
     def is_production(self) -> bool:

@@ -7,7 +7,7 @@ celery_app = Celery(
     "entrenos",
     broker=get_settings().redis_url,
     backend=get_settings().redis_url,
-    include=["app.tasks.sync"],
+    include=["app.tasks.sync", "app.tasks.garmin_connect"],
 )
 celery_app.conf.update(
     timezone="UTC",

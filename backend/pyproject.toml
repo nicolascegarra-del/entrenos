@@ -17,6 +17,7 @@ dependencies = [
     "celery[redis]>=5.4",
     "garminconnect>=0.3.17",
     "fitparse>=1.2.0",
+    "cryptography>=43.0",
 ]
 
 [project.optional-dependencies]

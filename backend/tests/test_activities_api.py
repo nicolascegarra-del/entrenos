@@ -4,7 +4,6 @@ from sqlmodel import Session
 
 from app.core.security import create_token, hash_password
 from app.models import SyncRun, SyncStatus, User
-from app.services import garmin_client
 from app.services.metric_catalog import seed_catalog
 from app.services.streams import downsample
 from app.services.sync_service import sync_activities
@@ -100,7 +99,8 @@ def test_get_streams_cuando_sin_auth_entonces_401(client):
 def test_garmin_status_cuando_sin_tokens_entonces_desconectado(client, user, monkeypatch):
     monkeypatch.setattr("app.api.garmin.has_tokens", lambda _uid: False)
     res = client.get("/api/v1/garmin/status", headers=auth(user)).json()
-    assert res == {"connected": False, "last_run": None}
+    assert res["connected"] is False and res["last_run"] is None
+    assert res["connection"]["status"] == "none"
 
 
 def test_garmin_status_cuando_hay_sync_entonces_devuelve_la_ultima(client, session, user, monkeypatch):
@@ -132,12 +132,3 @@ def test_metric_catalog_cuando_sembrado_entonces_lista_metricas(client, session,
     seed_catalog(session)
     keys = {m["key"] for m in client.get("/api/v1/metrics/catalog", headers=auth(user)).json()}
     assert {"hr", "avg_power", "hrv_last_night", "distance"} <= keys
-
-
-def test_has_tokens_cuando_directorio_por_usuario_entonces_independiente(tmp_path, monkeypatch):
-    monkeypatch.setattr(garmin_client, "get_settings", lambda: type("S", (), {"garmin_token_dir": str(tmp_path)}))
-    assert garmin_client.has_tokens(1) is False
-    (tmp_path / "1").mkdir()
-    (tmp_path / "1" / "garmin_tokens.json").write_text("{}")
-    assert garmin_client.has_tokens(1) is True
-    assert garmin_client.has_tokens(2) is False
