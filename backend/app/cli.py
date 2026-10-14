@@ -1,8 +1,11 @@
 """
-Comandos de administración.
+Comandos de administración (ejecutar dentro del contenedor `api`):
 
-    python -m app.cli create-user     # pide email y contraseña por terminal
-    python -m app.cli seed-catalog    # carga/actualiza el catálogo de métricas
+    python -m app.cli create-user              # usuario de la app (email + contraseña)
+    python -m app.cli seed-catalog             # carga/actualiza el catálogo de métricas
+    python -m app.cli garmin-login             # conecta tu cuenta de Garmin (solo guarda tokens)
+    python -m app.cli garmin-sync [--full]     # sincroniza ya (--full: todo el histórico)
+    python -m app.cli reprocess [--all]        # re-parsea la capa raw tras cambios del catálogo
 """
 
 import argparse
@@ -16,6 +19,17 @@ from app.models import User
 from app.services.metric_catalog import seed_catalog
 
 MIN_PASSWORD_LENGTH = 10
+
+
+def _ask_user(session: Session) -> User:
+    users = session.exec(select(User)).all()
+    if len(users) == 1:
+        return users[0]
+    email = input("Email del usuario de la app: ").strip().lower()
+    user = session.exec(select(User).where(User.email == email)).first()
+    if user is None:
+        raise SystemExit("Ese usuario no existe. Créalo antes con create-user.")
+    return user
 
 
 def create_user() -> None:
@@ -34,12 +48,52 @@ def create_user() -> None:
         session.commit()
 
 
+def garmin_login() -> None:
+    from app.services.garmin_client import login_with_credentials
+
+    with Session(engine) as session:
+        user = _ask_user(session)
+    print(f"Conectando Garmin para {user.email}. La contraseña no se guarda; solo los tokens.")
+    email = input("Email de Garmin Connect: ").strip()
+    password = getpass("Contraseña de Garmin (no se muestra): ")
+    login_with_credentials(user.id, email, password, prompt_mfa=lambda: input("Código MFA: ").strip())
+    print("✔ Garmin conectado.")
+
+
+def garmin_sync(full: bool, days: int) -> None:
+    from app.tasks.sync import sync_user
+
+    with Session(engine) as session:
+        user = _ask_user(session)
+    print("Sincronizando… (el histórico completo puede tardar varios minutos)")
+    print("Resultado:", sync_user(user.id, days=days, max_new=None if full else 50))
+
+
+def reprocess(all_activities: bool) -> None:
+    from app.services.sync_service import reprocess_activities
+
+    with Session(engine) as session:
+        user = _ask_user(session)
+        count = reprocess_activities(session, user.id, only_outdated=not all_activities)
+    print(f"Actividades reprocesadas: {count}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="app.cli")
-    parser.add_argument("command", choices=["create-user", "seed-catalog"])
+    parser.add_argument("command", choices=["create-user", "seed-catalog", "garmin-login", "garmin-sync", "reprocess"])
+    parser.add_argument("--full", action="store_true", help="garmin-sync: importar todo el histórico")
+    parser.add_argument("--days", type=int, default=7, help="garmin-sync: días de métricas diarias")
+    parser.add_argument("--all", action="store_true", help="reprocess: todas, no solo las desactualizadas")
     args = parser.parse_args()
+
     if args.command == "create-user":
         create_user()
+    elif args.command == "garmin-login":
+        garmin_login()
+    elif args.command == "garmin-sync":
+        garmin_sync(args.full, args.days)
+    elif args.command == "reprocess":
+        reprocess(args.all)
     else:
         with Session(engine) as session:
             print(f"Catálogo: {seed_catalog(session)} métricas.")

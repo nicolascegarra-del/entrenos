@@ -29,7 +29,7 @@ CATALOG: list[MetricDefinition] = [
         label="Cadencia media",
         unit="ppm",
         sports=[RUN, BIKE],
-        sources={"garmin_summary": "averageRunningCadenceInStepsPerMinute"},
+        sources={"garmin_summary": "averageRunningCadenceInStepsPerMinute|averageBikingCadenceInRevPerMinute"},
     ),
     MetricDefinition(
         key="avg_stride_length",
@@ -77,9 +77,7 @@ CATALOG: list[MetricDefinition] = [
         unit="",
         sources={"garmin_summary": "activityTrainingLoad"},
     ),
-    MetricDefinition(
-        key="steps", scope=_A, label="Pasos", unit="", sports=[RUN], sources={"garmin_summary": "steps"}
-    ),
+    MetricDefinition(key="steps", scope=_A, label="Pasos", unit="", sports=[RUN], sources={"garmin_summary": "steps"}),
     MetricDefinition(
         key="total_sets",
         scope=_A,
@@ -116,7 +114,8 @@ CATALOG: list[MetricDefinition] = [
         scope=_S,
         label="Cadencia",
         unit="ppm",
-        sources={"garmin_details": "directRunCadence", "fit_record": "cadence"},
+        # Carrera: pasos/min totales (directDoubleCadence); bici: rpm.
+        sources={"garmin_details": "directDoubleCadence|directBikeCadence|directRunCadence", "fit_record": "cadence"},
     ),
     MetricDefinition(
         key="altitude",
@@ -124,6 +123,13 @@ CATALOG: list[MetricDefinition] = [
         label="Altitud",
         unit="m",
         sources={"garmin_details": "directElevation", "fit_record": "enhanced_altitude"},
+    ),
+    MetricDefinition(
+        key="distance",
+        scope=_S,
+        label="Distancia",
+        unit="m",
+        sources={"garmin_details": "sumDistance", "fit_record": "distance"},
     ),
     MetricDefinition(
         key="power",

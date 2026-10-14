@@ -28,9 +28,7 @@ def upgrade() -> None:
         sa.Column("unit", sqlmodel.sql.sqltypes.AutoString(length=32), nullable=False),
         sa.Column("higher_is_better", sa.Boolean(), nullable=True),
         sa.Column("sports", postgresql.ARRAY(sa.VARCHAR(length=32)), nullable=False),
-        sa.Column(
-            "sources", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'"), nullable=False
-        ),
+        sa.Column("sources", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'"), nullable=False),
         sa.PrimaryKeyConstraint("key"),
     )
     op.create_index(op.f("ix_metric_definition_scope"), "metric_definition", ["scope"], unique=False)
@@ -55,9 +53,7 @@ def upgrade() -> None:
             server_default=sa.text("'{}'"),
             nullable=False,
         ),
-        sa.Column(
-            "zones", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'"), nullable=False
-        ),
+        sa.Column("zones", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'"), nullable=False),
         sa.ForeignKeyConstraint(
             ["user_id"],
             ["user.id"],
@@ -71,12 +67,8 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=False),
         sa.Column("day", sa.Date(), nullable=False),
-        sa.Column(
-            "metrics", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'"), nullable=False
-        ),
-        sa.Column(
-            "raw", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'"), nullable=False
-        ),
+        sa.Column("metrics", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'"), nullable=False),
+        sa.Column("raw", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'"), nullable=False),
         sa.ForeignKeyConstraint(
             ["user_id"],
             ["user.id"],
@@ -119,9 +111,7 @@ def upgrade() -> None:
         sa.Column("max_hr", sa.Float(), nullable=True),
         sa.Column("elevation_gain_m", sa.Float(), nullable=True),
         sa.Column("calories", sa.Float(), nullable=True),
-        sa.Column(
-            "metrics", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'"), nullable=False
-        ),
+        sa.Column("metrics", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
@@ -135,16 +125,12 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("user_id", "garmin_activity_id"),
     )
-    op.create_index(
-        "ix_activity_user_sport_start", "activity", ["user_id", "sport", "start_time"], unique=False
-    )
+    op.create_index("ix_activity_user_sport_start", "activity", ["user_id", "sport", "start_time"], unique=False)
     op.create_index("ix_activity_user_start", "activity", ["user_id", "start_time"], unique=False)
     op.create_table(
         "activity_raw",
         sa.Column("activity_id", sa.Integer(), nullable=False),
-        sa.Column(
-            "summary", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'"), nullable=False
-        ),
+        sa.Column("summary", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'"), nullable=False),
         sa.Column("splits", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("details", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("fit_object_key", sqlmodel.sql.sqltypes.AutoString(length=255), nullable=True),
@@ -175,9 +161,7 @@ def upgrade() -> None:
         sa.Column("avg_hr", sa.Float(), nullable=True),
         sa.Column("max_hr", sa.Float(), nullable=True),
         sa.Column("avg_speed", sa.Float(), nullable=True),
-        sa.Column(
-            "metrics", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'"), nullable=False
-        ),
+        sa.Column("metrics", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'"), nullable=False),
         sa.ForeignKeyConstraint(["activity_id"], ["activity.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("activity_id", "index"),

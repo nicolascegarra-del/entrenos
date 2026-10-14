@@ -1,0 +1,31 @@
+{
+ "stats": {
+  "calendarDate": "2026-10-13",
+  "restingHeartRate": 56,
+  "bodyBatteryHighestValue": null,
+  "averageStressLevel": null,
+  "totalSteps": 10742
+ },
+ "hrv": {},
+ "sleep": {
+  "dailySleepDTO": {
+   "calendarDate": "2026-10-13",
+   "sleepTimeSeconds": null,
+   "sleepScores": null
+  }
+ },
+ "max_metrics": [
+  {
+   "generic": {
+    "calendarDate": "2026-10-13",
+    "vo2MaxPreciseValue": 44.0,
+    "vo2MaxValue": 44.0,
+    "fitnessAge": null,
+    "fitnessAgeDescription": null,
+    "maxMetCategory": 0
+   },
+   "cycling": null,
+   "heatAltitudeAcclimation": null
+  }
+ ]
+}

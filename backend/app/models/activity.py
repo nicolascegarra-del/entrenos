@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Float, Index, UniqueConstraint
+from sqlalchemy import BigInteger, Column, DateTime, Float, Index, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel import Field, SQLModel
 
@@ -14,7 +14,8 @@ class Device(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id", index=True)
-    garmin_device_id: int
+    # Los IDs de Garmin superan el rango de INTEGER (ej. 3 312 206 070).
+    garmin_device_id: int = Field(sa_type=BigInteger)
     name: str = Field(max_length=120)
     first_seen: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
     last_seen: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
@@ -35,7 +36,7 @@ class Activity(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id")
     device_id: int | None = Field(default=None, foreign_key="device.id")
-    garmin_activity_id: int | None = None
+    garmin_activity_id: int | None = Field(default=None, sa_type=BigInteger)
     sport: str = Field(max_length=32)
     sub_sport: str | None = Field(default=None, max_length=64)
     name: str = Field(default="", max_length=255)

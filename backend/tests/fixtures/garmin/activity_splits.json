@@ -1,0 +1,54 @@
+{
+ "activityId": 9000000001,
+ "lapDTOs": [
+  {
+   "startTimeGMT": "2026-10-14T15:58:05.0",
+   "startLatitude": 40.4168,
+   "startLongitude": -3.7038,
+   "distance": 6009.75,
+   "duration": 2570.353,
+   "movingDuration": 2570.0,
+   "elapsedDuration": 2570.353,
+   "elevationGain": 80.27,
+   "elevationLoss": 97.57,
+   "maxElevation": 28.82,
+   "minElevation": 1.0,
+   "averageSpeed": 2.3380000591278076,
+   "averageMovingSpeed": 2.338424124513619,
+   "maxSpeed": 2.9110000133514404,
+   "calories": 492.0,
+   "averageHR": 133.0,
+   "maxHR": 146.0,
+   "averageRunCadence": 163.859375,
+   "maxRunCadence": 237.0,
+   "strideLength": 85.6137630810879,
+   "endLatitude": 40.41743233077526,
+   "endLongitude": -3.6976890896737578,
+   "maxVerticalSpeed": 1.0330986976623535,
+   "lapIndex": 1,
+   "lengthDTOs": [],
+   "connectIQMeasurement": [],
+   "messageIndex": 0
+  }
+ ],
+ "eventDTOs": [
+  {
+   "startTimeGMT": "2026-10-14T15:58:04.0",
+   "startTimeGMTDoubleValue": 1791993484000.0,
+   "sectionTypeDTO": {
+    "id": 4,
+    "key": "timerTrigger",
+    "sectionTypeKey": "TIMER_TRIGGER"
+   }
+  },
+  {
+   "startTimeGMT": "2026-10-14T15:58:05.0",
+   "startTimeGMTDoubleValue": 1791993485000.0,
+   "sectionTypeDTO": {
+    "id": 4,
+    "key": "timerTrigger",
+    "sectionTypeKey": "TIMER_TRIGGER"
+   }
+  }
+ ]
+}

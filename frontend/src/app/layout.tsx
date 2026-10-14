@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, Nunito } from "next/font/google";
+
+// Fuentes empaquetadas con la app (sin depender de Google Fonts en la build).
+import "@fontsource-variable/inter";
+import "@fontsource-variable/jetbrains-mono";
+import "@fontsource/nunito/600.css";
+import "@fontsource/nunito/700.css";
 
 import { Providers } from "@/components/providers";
 
 import "./globals.css";
-
-const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
-const nunito = Nunito({ variable: "--font-nunito", subsets: ["latin"], weight: ["600", "700"] });
-const jetbrainsMono = JetBrains_Mono({ variable: "--font-jetbrains-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "APP ENTRENOS",
@@ -16,11 +17,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="es"
-      className={`${inter.variable} ${nunito.variable} ${jetbrainsMono.variable}`}
-      suppressHydrationWarning
-    >
+    <html lang="es" suppressHydrationWarning>
       <body className="antialiased">
         <Providers>{children}</Providers>
       </body>

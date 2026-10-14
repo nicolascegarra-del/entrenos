@@ -14,7 +14,11 @@ App personal para sincronizar entrenamientos de Garmin, ver la progresión en gr
 cp .env.example .env              # y rellena los secretos (ver comentarios)
 docker compose up -d --build      # postgres, redis, api, worker, beat, web
 docker compose exec api python -m app.cli create-user
+docker compose exec api python -m app.cli garmin-login        # conecta tu cuenta de Garmin
+docker compose exec api python -m app.cli garmin-sync --full  # primera carga: todo el histórico
 ```
+
+Después, el worker sincroniza solo cada 30 minutos (o con «Sincronizar ahora» en Ajustes).
 
 - Web: http://localhost:3000
 - API: http://localhost:8000 · Swagger en http://localhost:8000/docs (la web la usa vía proxy en `/api`)
@@ -40,7 +44,7 @@ spike/      script de exploración de datos de Garmin
 
 ### Preparado para cambiar de reloj
 
-Solo las métricas universales son columnas. El resto va en `metrics` (JSONB), las series temporales se guardan por canal (`activity_stream`) y el catálogo `metric_definition` describe cada métrica y de dónde se extrae. Un reloj con métricas nuevas no requiere migraciones: se añade la métrica al catálogo (`app/services/metric_catalog.py`) y se reprocesan los datos raw.
+Solo las métricas universales son columnas. El resto va en `metrics` (JSONB), las series temporales se guardan por canal (`activity_stream`) y el catálogo `metric_definition` describe cada métrica y de dónde se extrae. Un reloj con métricas nuevas no requiere migraciones: los canales desconocidos se guardan solos con su nombre de Garmin; para darles nombre y mostrarlos, se añade la métrica al catálogo (`app/services/metric_catalog.py`, admite rutas alternativas `a|b`), se sube `PARSER_VERSION` y se ejecuta `reprocess`.
 
 ## Comandos útiles
 
@@ -51,6 +55,7 @@ ruff check . && ruff format .
 alembic revision --autogenerate -m "..."  # nueva migración
 alembic upgrade head
 python -m app.cli seed-catalog
+python -m app.cli reprocess              # re-parsea la capa raw tras cambiar catálogo/parser
 
 # Frontend (desde frontend/)
 npm run dev | lint | typecheck | test | build

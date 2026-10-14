@@ -7,7 +7,7 @@ from sqlalchemy import text
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from app.api import auth
+from app.api import activities, auth, garmin
 from app.core.config import get_settings
 from app.core.db import engine
 from app.core.errors import register_error_handlers
@@ -60,6 +60,8 @@ async def security_headers(request: Request, call_next):
 
 
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(activities.router, prefix="/api/v1")
+app.include_router(garmin.router, prefix="/api/v1")
 
 
 @app.get("/health", summary="Estado del servicio", tags=["infra"])

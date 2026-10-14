@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter);
-  --font-mono: var(--font-jetbrains-mono);
-  --font-heading: var(--font-nunito);
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  --font-heading: "Nunito", "Inter Variable", ui-sans-serif, sans-serif;
   --color-klyp-navy: #051937;
   --color-klyp-navy-light: #1a3a6b;
   --color-klyp-accent: #2e6db4;
@@ -74,11 +74,12 @@
   --border: #dbe2ee;
   --input: #dbe2ee;
   --ring: #2e6db4;
+  /* Gráficas (validadas: banda L, CVD, contraste) — color fijo por métrica */
   --chart-1: #2e6db4;
-  --chart-2: #0e9f6e;
-  --chart-3: #e3a008;
-  --chart-4: #d9480f;
-  --chart-5: #7e3af2;
+  --chart-2: #d9480f;
+  --chart-3: #0e9f6e;
+  --chart-4: #7e3af2;
+  --chart-5: #6b7280;
   --radius: 0.5rem;
   --sidebar: #051937;
   --sidebar-foreground: #ffffff;
@@ -109,11 +110,11 @@
   --border: #1a3a6b;
   --input: #1a3a6b;
   --ring: #2e6db4;
-  --chart-1: #5b9be0;
-  --chart-2: #34d399;
-  --chart-3: #fbbf24;
-  --chart-4: #fb923c;
-  --chart-5: #a78bfa;
+  --chart-1: #4f8fd6;
+  --chart-2: #e2691a;
+  --chart-3: #14a37a;
+  --chart-4: #9a7cf0;
+  --chart-5: #a3b1c6;
   --sidebar: #031127;
   --sidebar-foreground: #e8edf5;
   --sidebar-primary: #2e6db4;
