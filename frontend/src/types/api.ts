@@ -287,3 +287,84 @@ export interface ActivityFeedback {
     >
   >;
 }
+
+// ─── Objetivos ───────────────────────────────────────────────────────────────
+
+export interface RaceGoalInput {
+  name: string;
+  race_date: string;
+  distance_m: number;
+  target_time_s: number | null;
+}
+
+export interface RaceGoal extends RaceGoalInput {
+  id: number;
+  result_activity_id: number | null;
+  result_time_s: number | null;
+  predicted_time_s: number | null;
+  probable_s: number | null;
+  days_left: number;
+}
+
+export type PaceZone =
+  "easy" | "marathon" | "threshold" | "interval" | "repetition";
+export type DanielsPaces = Record<PaceZone, [number, number]>;
+
+export interface GoalReport {
+  goal: RaceGoal;
+  forecast: {
+    probable_s: number | null;
+    optimistic_s: number | null;
+    conservative_s: number | null;
+    models: {
+      key: string;
+      label: string;
+      time_s: number;
+      weight: number;
+      detail: string;
+    }[];
+    warnings: string[];
+    vdot_current: number | null;
+    vdot_source: "marca" | "vo2max" | null;
+    exponent: number | null;
+    exponent_personal: boolean;
+    calibration_factor: number | null;
+  };
+  gap_s: number | null;
+  vdot_needed: number | null;
+  weeks_left: number;
+  evolution: {
+    day: string;
+    probable_s: number;
+    optimistic_s: number;
+    conservative_s: number;
+  }[];
+  checklist: {
+    key: string;
+    label: string;
+    status: "ok" | "pending" | "warn";
+    current: string;
+  }[];
+  paces: DanielsPaces | null;
+  explanation: Explanation;
+  paces_explanation: PacesExplanation | null;
+}
+
+export interface TrainingPaces {
+  vdot: number | null;
+  source: "marca" | "vo2max" | null;
+  paces: DanielsPaces | null;
+  explanation: PacesExplanation | null;
+}
+
+export interface Explanation {
+  summary: string;
+  points: { title: string; text: string }[];
+  sources: { label: string; url: string | null }[];
+}
+
+export interface PacesExplanation {
+  summary: string;
+  zones: { key: PaceZone; label: string; percent: string; purpose: string }[];
+  sources: { label: string; url: string | null }[];
+}

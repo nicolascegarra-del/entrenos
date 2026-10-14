@@ -41,6 +41,8 @@ interface TimeChartProps {
   xLabel?: (t: number) => string;
   /** Franja de referencia horizontal (ej. zona segura del ACWR 0,8–1,3). */
   band?: { from: number; to: number; label: string };
+  /** Línea horizontal de referencia (ej. tiempo objetivo). */
+  refLine?: { y: number; label: string };
 }
 
 const shortDate = (t: number) =>
@@ -61,6 +63,7 @@ export function TimeChart({
   zeroLine,
   xLabel = shortDate,
   band,
+  refLine,
 }: TimeChartProps) {
   const times = data.map((d) => d.t as number);
   const [min, max] = [Math.min(...times), Math.max(...times)];
@@ -139,6 +142,20 @@ export function TimeChart({
                 position: "insideTopLeft",
                 fontSize: 10,
                 fill: "var(--muted-foreground)",
+              }}
+            />
+          )}
+          {refLine && (
+            <ReferenceLine
+              y={refLine.y}
+              stroke="var(--foreground)"
+              strokeDasharray="6 4"
+              ifOverflow="extendDomain"
+              label={{
+                value: refLine.label,
+                position: "insideBottomRight",
+                fontSize: 11,
+                fill: "var(--foreground)",
               }}
             />
           )}

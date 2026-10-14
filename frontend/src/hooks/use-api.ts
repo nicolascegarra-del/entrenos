@@ -15,17 +15,21 @@ import type {
   EfficiencyPoint,
   FitnessResponse,
   GarminStatus,
+  GoalReport,
   InsightsResponse,
   MetricDefinition,
   PlannedSession,
   PlannedSessionDetail,
   PlannedSessionInput,
+  RaceGoal,
+  RaceGoalInput,
   RecordRead,
   SeriesPoint,
   Streams,
   Summary,
   SyncMode,
   SyncSettings,
+  TrainingPaces,
   WeekPoint,
 } from "@/types/api";
 
@@ -306,5 +310,89 @@ export function useSaveFeedback(activityId: number) {
       await queryClient.invalidateQueries({ queryKey: ["fitness"] });
       await queryClient.invalidateQueries({ queryKey: ["insights"] });
     },
+  });
+}
+
+// ─── Objetivos ───────────────────────────────────────────────────────────────
+
+export function useGoals() {
+  return useQuery({
+    queryKey: ["goals"],
+    queryFn: () => apiFetch<RaceGoal[]>("/api/v1/goals"),
+  });
+}
+
+export function useGoalReport(id: number) {
+  return useQuery({
+    queryKey: ["goal-report", id],
+    queryFn: () => apiFetch<GoalReport>(`/api/v1/goals/${id}/report`),
+  });
+}
+
+export function useSaveGoal(id?: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RaceGoalInput) =>
+      apiFetch<RaceGoal>(id ? `/api/v1/goals/${id}` : "/api/v1/goals", {
+        method: id ? "PUT" : "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["goals"] });
+      await queryClient.invalidateQueries({ queryKey: ["goal-report"] });
+    },
+  });
+}
+
+export function useDeleteGoal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiFetch<void>(`/api/v1/goals/${id}`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["goals"] }),
+  });
+}
+
+export function useGoalCandidates(id: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["goal-candidates", id],
+    enabled,
+    queryFn: () =>
+      apiFetch<
+        {
+          id: number;
+          name: string;
+          start_time: string;
+          distance_m: number;
+          duration_s: number;
+        }[]
+      >(`/api/v1/goals/${id}/candidates`),
+  });
+}
+
+export function useGoalResult(id: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (activityId: number | null): Promise<unknown> =>
+      activityId == null
+        ? apiFetch<void>(`/api/v1/goals/${id}/result`, { method: "DELETE" })
+        : apiFetch<RaceGoal>(`/api/v1/goals/${id}/result`, {
+            method: "PUT",
+            body: JSON.stringify({ activity_id: activityId }),
+          }),
+    onSuccess: async () => {
+      // La calibración afecta a todos los objetivos y a las predicciones de Progresión.
+      await queryClient.invalidateQueries({ queryKey: ["goals"] });
+      await queryClient.invalidateQueries({ queryKey: ["goal-report"] });
+      await queryClient.invalidateQueries({ queryKey: ["insights"] });
+    },
+  });
+}
+
+export function useTrainingPaces() {
+  return useQuery({
+    queryKey: ["training-paces"],
+    staleTime: 10 * 60_000,
+    queryFn: () => apiFetch<TrainingPaces>("/api/v1/training-paces"),
   });
 }

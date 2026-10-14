@@ -8,7 +8,6 @@ funciones de cálculo son puras; `build_insights` reúne los datos del usuario.
 Aviso: es información de entrenamiento, no consejo médico.
 """
 
-import math
 import statistics
 from dataclasses import asdict, dataclass, field
 from datetime import date, timedelta
@@ -17,8 +16,11 @@ from sqlmodel import Session, col, select
 
 from app.models import Activity, ActivityStream, PlannedSession
 from app.services import progress as prog
+from app.services import race_forecast
+from app.services.es_format import num as _n
 from app.services.metric_catalog import RECORD_DISTANCES
 from app.services.plan_steps import local_day, sport_family
+from app.services.race_models import pace_at_fraction, vdot
 from app.services.strength import exercise_history, exercise_overview
 
 # ─── Referencias (DOI verificados en Crossref) ───────────────────────────────
@@ -50,17 +52,13 @@ KODAMA = _doi("Kodama et al. 2009 · JAMA · capacidad cardiorrespiratoria y mor
 FRIEL = Evidence("Friel · The Triathlete's Training Bible (desacople aeróbico Pa:FC)")
 RIEGEL = Evidence("Riegel 1981 · American Scientist · Athletic records and human endurance")
 DANIELS = Evidence("Daniels · Daniels' Running Formula (VDOT y ritmos de entrenamiento)")
+TANDA = _doi("Tanda 2011 · J Hum Sport Exerc · predicción de maratón con índices de entrenamiento",
+             "10.4100/jhse.2011.63.05")  # fmt: skip
 WATSON = _doi("Watson et al. 2015 · J Clin Sleep Med · consenso AASM: ≥ 7 h de sueño", "10.5664/jcsm.4758")
 MAH = _doi("Mah et al. 2011 · Sleep · más sueño mejora el rendimiento", "10.5665/SLEEP.1132")
 BLAGROVE = _doi("Blagrove et al. 2017 · Sports Med · fuerza y economía de carrera", "10.1007/s40279-017-0835-7")
 
 GOOD, WATCH, ALERT, INFO, NODATA = "good", "watch", "alert", "info", "nodata"
-
-
-def _n(value: float, decimals: int = 0, sign: bool = False) -> str:
-    """Número con coma decimal (es-ES): 1.22 → "1,22"; con `sign`, "+3"."""
-    text = f"{value:{'+' if sign else ''}.{decimals}f}"
-    return text.replace(".", ",")
 
 
 @dataclass
@@ -140,28 +138,6 @@ def decoupling_pct(channels: dict[str, list[float | None]]) -> float | None:
 
     ef1, ef2 = ef(first), ef(second)
     return round((ef1 - ef2) / ef1 * 100, 1)
-
-
-def riegel(time_s: float, from_m: float, to_m: float) -> float:
-    """Predicción de Riegel: T2 = T1 × (D2 / D1)^1,06."""
-    return time_s * (to_m / from_m) ** 1.06
-
-
-def vdot(distance_m: float, time_s: float) -> float:
-    """VDOT de Daniels a partir de una marca (fórmulas de Daniels y Gilbert)."""
-    minutes = time_s / 60
-    velocity = distance_m / minutes  # m/min
-    vo2 = -4.60 + 0.182258 * velocity + 0.000104 * velocity**2
-    fraction = 0.8 + 0.1894393 * math.exp(-0.012778 * minutes) + 0.2989558 * math.exp(-0.1932605 * minutes)
-    return vo2 / fraction
-
-
-def pace_at_fraction(vdot_value: float, fraction: float) -> float:
-    """Ritmo (s/km) cuyo coste de O₂ es `fraction` × VDOT (inversa de la ecuación de Daniels)."""
-    vo2 = vdot_value * fraction
-    a, b, c = 0.000104, 0.182258, -4.60 - vo2
-    velocity = (-b + math.sqrt(b * b - 4 * a * c)) / (2 * a)  # m/min
-    return 1000 / velocity * 60
 
 
 # ─── Reglas por sección ──────────────────────────────────────────────────────
@@ -419,7 +395,7 @@ def records_insight(source: dict | None) -> Insight:
         f"VDOT {_n(source['vdot'], 0)}",
         f"Basado en tu mejor {source['label'].lower()} reciente. Son tramos dentro de entrenamientos, no "
         "carreras: en competición probablemente irías más rápido.",
-        [RIEGEL, DANIELS],
+        [RIEGEL, DANIELS, TANDA],
     )
 
 
@@ -577,11 +553,15 @@ def build_insights(session: Session, user_id: int, days: int) -> dict:
         source["label"] = next(lbl for k, lbl in (
             ("best_5k", "5 km"), ("best_10k", "10 km"), ("best_half", "Media maratón"), ("best_marathon", "Maratón"),
             ("best_mile", "Milla"), ("best_1k", "1 km")) if k == source["key"])  # fmt: skip
+        # Mismo motor que Objetivos (Riegel personal + VDOT + Tanda en maratón) para que no se contradigan.
+        data = race_forecast.training_data(activities, today)
+        calibration = race_forecast.user_calibration(session, user_id)
         for label, meters in (("5 km", 5000), ("10 km", 10000), ("Media maratón", 21097.5), ("Maratón", 42195)):
-            t = riegel(source["time_s"], source["distance_m"], meters)
-            predictions.append(
-                {"label": label, "distance_m": meters, "time_s": round(t), "pace_s_km": round(t / meters * 1000)}
-            )
+            t = race_forecast.forecast(meters, data, calibration).probable_s
+            if t:
+                predictions.append(
+                    {"label": label, "distance_m": meters, "time_s": t, "pace_s_km": round(t / meters * 1000)}
+                )
         v = source["vdot"]
         paces = {
             "easy": [round(pace_at_fraction(v, 0.74)), round(pace_at_fraction(v, 0.59))],

@@ -11,10 +11,12 @@ import {
 } from "react-hook-form";
 import { z } from "zod";
 
+import { PacesExplanationBlock } from "@/components/goals/explanation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useTrainingPaces } from "@/hooks/use-api";
 import { formatDuration } from "@/lib/format";
 import {
   BLOCK_KINDS,
@@ -25,6 +27,8 @@ import {
 import { cn } from "@/lib/utils";
 import type {
   BlockKind,
+  DanielsPaces,
+  PaceZone,
   PlannedBlock,
   PlannedSessionInput,
   TargetMetric,
@@ -129,53 +133,86 @@ function block(partial: Partial<BlockForm>): BlockForm {
   return { ...EMPTY_BLOCK, ...partial };
 }
 
-const TEMPLATES: { label: string; title: string; blocks: BlockForm[] }[] = [
-  {
-    label: "Rodaje",
-    title: "Rodaje suave",
-    blocks: [
-      block({
-        kind: "steady",
-        amount: "45",
-        target_metric: "hr",
-        target_max: "150",
-      }),
-    ],
-  },
-  {
-    label: "Series",
-    title: "Series 6 × 1000 m",
-    blocks: [
-      block({ kind: "warmup", amount: "15" }),
-      block({
-        kind: "interval",
-        repeat: 6,
-        measure: "distance",
-        amount: "1000",
-        target_metric: "pace",
-        target_min: "4:00",
-        target_max: "4:10",
-        recovery_amount: "1:30",
-      }),
-      block({ kind: "cooldown", amount: "10" }),
-    ],
-  },
-  {
-    label: "Tempo",
-    title: "Tempo 20'",
-    blocks: [
-      block({ kind: "warmup", amount: "15" }),
-      block({
-        kind: "steady",
-        amount: "20",
-        target_metric: "pace",
-        target_min: "4:30",
-        target_max: "4:40",
-      }),
-      block({ kind: "cooldown", amount: "10" }),
-    ],
-  },
+const PACE_ZONES: { key: PaceZone; short: string; label: string }[] = [
+  { key: "easy", short: "E", label: "Suave" },
+  { key: "marathon", short: "M", label: "Maratón" },
+  { key: "threshold", short: "T", label: "Umbral" },
+  { key: "interval", short: "I", label: "Intervalos" },
+  { key: "repetition", short: "R", label: "Repeticiones" },
 ];
+
+/** Rango de ritmo de una zona como texto "m:ss" (de más rápido a más lento). */
+function paceRange(
+  paces: DanielsPaces,
+  zone: PaceZone,
+): { target_min: string; target_max: string } {
+  const [fast, slow] = paces[zone];
+  return { target_min: formatDuration(fast), target_max: formatDuration(slow) };
+}
+
+/**
+ * Plantillas de sesión. Con un VDOT disponible, los ritmos se rellenan con las
+ * zonas de Daniels (E para rodaje, I para series de 1000 m, T para el tempo).
+ */
+function buildTemplates(
+  paces: DanielsPaces | null,
+): { label: string; title: string; blocks: BlockForm[] }[] {
+  const pace = (
+    zone: PaceZone,
+    fallback: Partial<BlockForm>,
+  ): Partial<BlockForm> =>
+    paces ? { target_metric: "pace", ...paceRange(paces, zone) } : fallback;
+  return [
+    {
+      label: "Rodaje",
+      title: "Rodaje suave",
+      blocks: [
+        block({
+          kind: "steady",
+          amount: "45",
+          ...pace("easy", { target_metric: "hr", target_max: "150" }),
+        }),
+      ],
+    },
+    {
+      label: "Series",
+      title: "Series 6 × 1000 m",
+      blocks: [
+        block({ kind: "warmup", amount: "15" }),
+        block({
+          kind: "interval",
+          repeat: 6,
+          measure: "distance",
+          amount: "1000",
+          recovery_amount: "2:30",
+          ...pace("interval", {
+            target_metric: "pace",
+            target_min: "4:00",
+            target_max: "4:10",
+          }),
+        }),
+        block({ kind: "cooldown", amount: "10" }),
+      ],
+    },
+    {
+      label: "Tempo",
+      title: "Tempo 20'",
+      blocks: [
+        block({ kind: "warmup", amount: "15" }),
+        block({
+          kind: "steady",
+          amount: "20",
+          ...pace("threshold", {
+            target_metric: "pace",
+            target_min: "4:30",
+            target_max: "4:40",
+          }),
+        }),
+        block({ kind: "cooldown", amount: "10" }),
+      ],
+    },
+  ];
+}
 
 /** Bloque de la API → valores del formulario. */
 function toForm(b: PlannedBlock): BlockForm {
@@ -246,6 +283,8 @@ interface BlockEditorProps {
   errors?: Partial<Record<keyof BlockForm, { message?: string }>>;
   onMove: (to: number) => void;
   onRemove: () => void;
+  paces?: DanielsPaces | null;
+  onPace?: (range: { target_min: string; target_max: string }) => void;
 }
 
 function BlockEditor({
@@ -256,6 +295,8 @@ function BlockEditor({
   errors,
   onMove,
   onRemove,
+  paces,
+  onPace,
 }: BlockEditorProps) {
   const values = useWatch({ control, name: `blocks.${index}` });
   const metric = values?.target_metric;
@@ -414,6 +455,28 @@ function BlockEditor({
               </div>
             </>
           )}
+          {metric === "pace" && paces && onPace && (
+            <div
+              className="col-span-2 flex flex-wrap items-center gap-1 md:col-span-4"
+              role="group"
+              aria-label="Rellenar con tus ritmos de Daniels"
+            >
+              <span className="text-xs text-muted-foreground">Tus ritmos:</span>
+              {PACE_ZONES.map((z) => (
+                <Button
+                  key={z.key}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="min-h-11 md:min-h-8"
+                  title={`${z.label}: ${formatDuration(paces[z.key][0])}–${formatDuration(paces[z.key][1])} /km`}
+                  onClick={() => onPace(paceRange(paces, z.key))}
+                >
+                  {z.short}
+                </Button>
+              ))}
+            </div>
+          )}
         </div>
 
         {Number(values?.repeat) > 1 && (
@@ -486,6 +549,9 @@ export function SessionForm({
     control,
     name: "blocks",
   });
+  const { data: training } = useTrainingPaces();
+  const paces = training?.paces ?? null;
+  const templates = buildTemplates(paces);
 
   const submit = handleSubmit((values) =>
     onSubmit({
@@ -502,7 +568,7 @@ export function SessionForm({
       {!initial && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-muted-foreground">Plantillas:</span>
-          {TEMPLATES.map((t) => (
+          {templates.map((t) => (
             <Button
               key={t.label}
               type="button"
@@ -565,6 +631,18 @@ export function SessionForm({
         </CardContent>
       </Card>
 
+      {paces && training?.explanation && (
+        <details className="rounded-lg border border-border bg-muted/40 p-3">
+          <summary className="cursor-pointer text-sm font-medium">
+            Ritmos según tu VDOT {training.vdot?.toLocaleString("es-ES")} · ¿de
+            dónde salen?
+          </summary>
+          <div className="mt-2">
+            <PacesExplanationBlock explanation={training.explanation} />
+          </div>
+        </details>
+      )}
+
       <div className="space-y-3">
         {fields.map((field, index) => (
           <BlockEditor
@@ -576,6 +654,15 @@ export function SessionForm({
             errors={errors.blocks?.[index] as BlockEditorProps["errors"]}
             onMove={(to) => move(index, to)}
             onRemove={() => remove(index)}
+            paces={paces}
+            onPace={(range) => {
+              setValue(`blocks.${index}.target_min`, range.target_min, {
+                shouldValidate: true,
+              });
+              setValue(`blocks.${index}.target_max`, range.target_max, {
+                shouldValidate: true,
+              });
+            }}
           />
         ))}
         <FieldError

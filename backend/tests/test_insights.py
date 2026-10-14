@@ -6,6 +6,7 @@ from sqlmodel import Session
 from app.core.security import create_token
 from app.models import Activity, DailyMetric, User
 from app.services import insights as ins
+from app.services import race_models as rm
 
 
 def auth(user: User) -> dict:
@@ -20,18 +21,18 @@ def points(ctl_values: list[float], tsb: float = 0) -> list[dict]:
 
 
 def test_vdot_cuando_5k_en_20_min_entonces_aprox_50_como_tablas_de_daniels():
-    assert ins.vdot(5000, 20 * 60) == pytest.approx(49.8, abs=0.5)
+    assert rm.vdot(5000, 20 * 60) == pytest.approx(49.8, abs=0.5)
 
 
 def test_pace_at_fraction_cuando_vdot_50_entonces_ritmos_de_daniels():
-    assert ins.pace_at_fraction(50, 0.86) == pytest.approx(255, abs=8)  # umbral ≈ 4:15 /km
-    assert ins.pace_at_fraction(50, 0.975) == pytest.approx(235, abs=8)  # intervalos ≈ 3:55 /km
-    easy_fast, easy_slow = ins.pace_at_fraction(50, 0.74), ins.pace_at_fraction(50, 0.59)
+    assert rm.pace_at_fraction(50, 0.86) == pytest.approx(255, abs=8)  # umbral ≈ 4:15 /km
+    assert rm.pace_at_fraction(50, 0.975) == pytest.approx(235, abs=8)  # intervalos ≈ 3:55 /km
+    easy_fast, easy_slow = rm.pace_at_fraction(50, 0.74), rm.pace_at_fraction(50, 0.59)
     assert 280 < easy_fast < easy_slow < 360
 
 
 def test_riegel_cuando_5k_20_min_entonces_10k_aprox_41_40():
-    assert ins.riegel(1200, 5000, 10000) == pytest.approx(2501, abs=2)
+    assert rm.riegel(1200, 5000, 10000) == pytest.approx(2501, abs=2)
 
 
 def test_acwr_series_cuando_carga_constante_entonces_cerca_de_1():
