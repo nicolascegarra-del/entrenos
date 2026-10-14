@@ -1,4 +1,5 @@
 import logging
+from datetime import UTC, datetime
 
 import redis
 from sqlmodel import Session, select
@@ -8,6 +9,7 @@ from app.core.db import engine
 from app.models import SyncRun, SyncStatus, User
 from app.services.garmin_client import GarminConnectClient, GarminNotConnectedError, has_tokens
 from app.services.storage import get_storage
+from app.services.sync_schedule import get_user_settings, is_due, last_run_start
 from app.services.sync_service import run_sync
 from app.tasks.celery_app import celery_app
 
@@ -45,9 +47,17 @@ def sync_user_task(user_id: int, days: int = 7, max_new: int | None = 50) -> str
     return sync_user(user_id, days, max_new)
 
 
+def users_due(now: datetime) -> list[int]:
+    """Usuarios con Garmin conectado, en modo automático y cuyo intervalo ya ha pasado."""
+    with Session(engine) as session:
+        return [
+            u.id
+            for u in session.exec(select(User)).all()
+            if has_tokens(u.id) and is_due(get_user_settings(session, u.id), last_run_start(session, u.id), now)
+        ]
+
+
 @celery_app.task(name="garmin.sync_all")
 def sync_all_task() -> dict[int, str]:
-    """Tarea periódica (beat): sincroniza a los usuarios con Garmin conectado."""
-    with Session(engine) as session:
-        user_ids = [u.id for u in session.exec(select(User)).all()]
-    return {uid: sync_user(uid) for uid in user_ids if has_tokens(uid)}
+    """Tarea periódica (beat cada pocos minutos): sincroniza a quien le toque según sus Ajustes."""
+    return {uid: sync_user(uid) for uid in users_due(datetime.now(UTC))}

@@ -216,3 +216,12 @@ export interface Summary {
   compliance_avg: number | null;
   recent: ActivitySummary[];
 }
+
+export type SyncMode = "auto" | "manual";
+
+export interface SyncSettings {
+  mode: SyncMode;
+  interval_min: number;
+  intervals: number[];
+  next_sync_at: string | null;
+}

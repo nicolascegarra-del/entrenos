@@ -22,6 +22,8 @@ import type {
   SeriesPoint,
   Streams,
   Summary,
+  SyncMode,
+  SyncSettings,
   WeekPoint,
 } from "@/types/api";
 
@@ -93,6 +95,8 @@ export function useSyncNow() {
       await new Promise((r) => setTimeout(r, 1500));
       await queryClient.invalidateQueries({ queryKey: ["garmin-status"] });
       await queryClient.invalidateQueries({ queryKey: ["activities"] });
+      // La próxima sincronización automática cuenta desde esta.
+      await queryClient.invalidateQueries({ queryKey: ["sync-settings"] });
     },
   });
 }
@@ -239,5 +243,26 @@ export function useSummary() {
   return useQuery({
     queryKey: ["summary"],
     queryFn: () => apiFetch<Summary>("/api/v1/summary"),
+  });
+}
+
+// ─── Ajustes ─────────────────────────────────────────────────────────────────
+
+export function useSyncSettings() {
+  return useQuery({
+    queryKey: ["sync-settings"],
+    queryFn: () => apiFetch<SyncSettings>("/api/v1/settings/sync"),
+  });
+}
+
+export function useSaveSyncSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { mode: SyncMode; interval_min: number }) =>
+      apiFetch<SyncSettings>("/api/v1/settings/sync", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (data) => queryClient.setQueryData(["sync-settings"], data),
   });
 }

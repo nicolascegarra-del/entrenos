@@ -1,6 +1,7 @@
 from celery import Celery
 
 from app.core.config import get_settings
+from app.services.sync_schedule import TICK_MIN
 
 celery_app = Celery(
     "entrenos",
@@ -13,6 +14,7 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     beat_schedule={
-        "garmin-sync-cada-30-min": {"task": "garmin.sync_all", "schedule": 30 * 60},
+        # Comprueba cada TICK_MIN minutos a quién le toca según el intervalo elegido en Ajustes.
+        "garmin-sync-tick": {"task": "garmin.sync_all", "schedule": TICK_MIN * 60},
     },
 )

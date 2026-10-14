@@ -4,8 +4,10 @@ import {
   CheckCircle2,
   CircleAlert,
   CircleX,
+  Hand,
   Loader2,
   RefreshCw,
+  Timer,
   Watch,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -21,10 +23,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useGarminStatus, useSyncNow } from "@/hooks/use-api";
+import {
+  useGarminStatus,
+  useSaveSyncSettings,
+  useSyncNow,
+  useSyncSettings,
+} from "@/hooks/use-api";
 import { ApiError } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
-import type { SyncRun } from "@/types/api";
+import { cn } from "@/lib/utils";
+import type { SyncMode, SyncRun } from "@/types/api";
 
 function LastRun({ run }: { run: SyncRun }) {
   if (run.status === "running") {
@@ -63,6 +71,137 @@ function LastRun({ run }: { run: SyncRun }) {
   );
 }
 
+/** "15 min", "1 h", "24 h"… */
+function intervalLabel(minutes: number): string {
+  return minutes < 60 ? `${minutes} min` : `${minutes / 60} h`;
+}
+
+const MODES: {
+  value: SyncMode;
+  label: string;
+  description: string;
+  icon: typeof Timer;
+}[] = [
+  {
+    value: "auto",
+    label: "Automática",
+    description: "Sincroniza sola cada cierto tiempo.",
+    icon: Timer,
+  },
+  {
+    value: "manual",
+    label: "Solo manual",
+    description: "Solo cuando pulses «Sincronizar ahora».",
+    icon: Hand,
+  },
+];
+
+/** Modo de sincronización (automática con intervalo o solo manual). Se guarda al cambiar. */
+function SyncModeControl() {
+  const { data, isPending, isError } = useSyncSettings();
+  const save = useSaveSyncSettings();
+  if (isPending) return <Skeleton className="h-28 w-full" />;
+  if (isError)
+    return (
+      <p className="text-sm text-destructive">
+        No se pudieron cargar las preferencias.
+      </p>
+    );
+
+  const update = (body: { mode: SyncMode; interval_min: number }) =>
+    save.mutate(body, {
+      onSuccess: (res) =>
+        toast.success(
+          res.mode === "manual"
+            ? "Sincronización solo manual"
+            : `Sincronización automática cada ${intervalLabel(res.interval_min)}`,
+        ),
+      onError: (err) =>
+        toast.error(
+          err instanceof ApiError ? err.message : "No se pudo guardar.",
+        ),
+    });
+
+  return (
+    <fieldset className="space-y-3" disabled={save.isPending}>
+      <legend className="mb-2 text-sm font-medium">Sincronización</legend>
+      <div
+        className="grid gap-2 sm:grid-cols-2"
+        role="radiogroup"
+        aria-label="Modo de sincronización"
+      >
+        {MODES.map(({ value, label, description, icon: Icon }) => {
+          const selected = data.mode === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() =>
+                !selected &&
+                update({ mode: value, interval_min: data.interval_min })
+              }
+              className={cn(
+                "flex min-h-11 items-start gap-3 rounded-lg border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                selected
+                  ? "border-klyp-accent bg-klyp-accent/10"
+                  : "border-border hover:bg-muted/60",
+              )}
+            >
+              <Icon
+                className={cn(
+                  "mt-0.5 size-5 shrink-0",
+                  selected ? "text-klyp-accent" : "text-muted-foreground",
+                )}
+                aria-hidden
+              />
+              <span>
+                <span className="block text-sm font-medium">{label}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {description}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {data.mode === "auto" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="sync-interval" className="text-sm">
+            Cada
+          </label>
+          <select
+            id="sync-interval"
+            value={data.interval_min}
+            onChange={(e) =>
+              update({ mode: "auto", interval_min: Number(e.target.value) })
+            }
+            className="h-11 rounded-md border border-input bg-background px-3 text-sm shadow-xs focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none md:h-9"
+          >
+            {data.intervals.map((m) => (
+              <option key={m} value={m}>
+                {intervalLabel(m)}
+              </option>
+            ))}
+          </select>
+          {save.isPending && (
+            <Loader2
+              className="size-4 animate-spin text-muted-foreground"
+              aria-hidden
+            />
+          )}
+        </div>
+      )}
+      <p className="text-xs text-muted-foreground" aria-live="polite">
+        {data.next_sync_at
+          ? `Próxima sincronización automática: ${formatDateTime(data.next_sync_at)} (aprox.)`
+          : "La sincronización automática está desactivada."}
+      </p>
+    </fieldset>
+  );
+}
+
 function GarminCard() {
   const { data, isPending, isError, refetch } = useGarminStatus();
   const sync = useSyncNow();
@@ -85,7 +224,9 @@ function GarminCard() {
             <Watch className="size-5 text-klyp-accent" aria-hidden /> Garmin
             Connect
           </CardTitle>
-          <CardDescription>Se sincroniza solo cada 30 minutos.</CardDescription>
+          <CardDescription>
+            Actividades y métricas diarias de tu reloj.
+          </CardDescription>
         </div>
         {data.connected ? (
           <Badge className="gap-1 bg-emerald-600 text-white hover:bg-emerald-600">
@@ -128,6 +269,9 @@ function GarminCard() {
               )}
               Sincronizar ahora
             </Button>
+            <div className="border-t border-border pt-4">
+              <SyncModeControl />
+            </div>
           </>
         ) : (
           <div className="space-y-2 text-sm">

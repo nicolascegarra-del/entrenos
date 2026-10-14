@@ -8,6 +8,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from app.api import activities, auth, garmin, plans, progress
+from app.api import settings as settings_api
 from app.core.config import get_settings
 from app.core.db import engine
 from app.core.errors import register_error_handlers
@@ -64,6 +65,7 @@ app.include_router(activities.router, prefix="/api/v1")
 app.include_router(garmin.router, prefix="/api/v1")
 app.include_router(plans.router, prefix="/api/v1")
 app.include_router(progress.router, prefix="/api/v1")
+app.include_router(settings_api.router, prefix="/api/v1")
 
 
 @app.get("/health", summary="Estado del servicio", tags=["infra"])
