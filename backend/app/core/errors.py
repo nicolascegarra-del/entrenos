@@ -1,6 +1,7 @@
 """Formato de error estándar Klyp: {"error": {"code", "message", "request_id"}}."""
 
 import logging
+import time
 import uuid
 
 from fastapi import FastAPI, HTTPException, Request
@@ -8,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
+access_logger = logging.getLogger("app.access")
 
 _STATUS_CODES = {
     400: "BAD_REQUEST",
@@ -30,8 +32,24 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.middleware("http")
     async def add_request_id(request: Request, call_next):
         request.state.request_id = request.headers.get("X-Request-ID") or f"req_{uuid.uuid4().hex[:12]}"
+        started = time.perf_counter()
         response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
+        if request.url.path != "/health":  # el healthcheck cada 30 s solo sería ruido
+            # Solo método y ruta: la query puede llevar tokens (p. ej. invitaciones).
+            access_logger.info(
+                "%s %s %s",
+                request.method,
+                request.url.path,
+                response.status_code,
+                extra={
+                    "request_id": request.state.request_id,
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status": response.status_code,
+                    "duration_ms": round((time.perf_counter() - started) * 1000),
+                },
+            )
         return response
 
     @app.exception_handler(HTTPException)

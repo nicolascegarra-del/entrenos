@@ -70,7 +70,66 @@ npm run dev | lint | typecheck | test | build
 
 ## Deploy
 
-Docker Compose en Coolify (VPS Contabo) detrás de Nginx + Let's Encrypt. En producción: `APP_ENV=production`, `DEBUG=false`, `CORS_ORIGINS` con el dominio real y servir web y API bajo el mismo dominio para que la cookie `SameSite=Strict` funcione.
+Producción en **Coolify** (VPS Contabo) con `docker-compose.prod.yml`. Coolify pone el proxy y el HTTPS
+(Let's Encrypt); solo el servicio `web` es público y la API, Postgres y Redis quedan en la red interna.
+
+### Qué hace el compose de producción
+
+| Servicio | Función |
+|---|---|
+| `postgres`, `redis` | Base de datos y cola, sin puertos publicados |
+| `predeploy-backup` | Copia de la BD **antes de cada despliegue** (volumen `backups`) |
+| `migrate` | Aplica migraciones y catálogo de métricas una vez; el resto espera a que termine |
+| `api`, `worker`, `beat` | Backend, tareas (sincronización, login de Garmin) y planificador, con healthchecks |
+| `web` | Next.js; reenvía `/api` al backend interno; cabeceras de seguridad y CSP |
+| `backup` | Copia diaria de la BD, se conservan `BACKUP_KEEP_DAYS` días (14 por defecto) |
+
+En producción los logs salen en JSON (formato Klyp) y no incluyen contraseñas, tokens ni la query de las URLs.
+
+### Paso a paso en Coolify
+
+1. **Nuevo recurso** → *Public/Private Repository* → `nicolascegarra-del/entrenos`, rama `v1`.
+   Build pack **Docker Compose**, fichero `/docker-compose.prod.yml`.
+2. **Variables de entorno** (Coolify no despliega hasta que estén las obligatorias):
+
+   | Variable | Valor |
+   |---|---|
+   | `POSTGRES_PASSWORD` | `openssl rand -hex 24` |
+   | `JWT_SECRET_KEY` | `openssl rand -hex 32` |
+   | `GARMIN_TOKEN_KEY` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` — **guárdala aparte**: si se pierde, cada usuario tendrá que reconectar Garmin |
+   | `CORS_ORIGINS` | `["https://entrenos.tudominio.com"]` |
+   | `BACKUP_KEEP_DAYS` | opcional, 14 por defecto |
+   | `LOG_LEVEL` | opcional, `INFO` por defecto |
+
+3. **Dominio**: en *Domains*, asígnalo al servicio **web** con el puerto 3000:
+   `https://entrenos.tudominio.com:3000`. El DNS (registro A) debe apuntar a la IP del VPS.
+4. **Deploy**. El orden es: postgres → copia previa → migraciones → api/worker/beat → web.
+5. **Primer usuario** (terminal del contenedor `api` en Coolify):
+   ```bash
+   python -m app.cli create-user
+   python -m app.cli make-admin
+   ```
+6. Entra en la web → **Ajustes → Garmin Connect** → conecta tu cuenta. Después, en la terminal de `api`:
+   ```bash
+   python -m app.cli garmin-sync --full --days 120
+   ```
+   para traer todo el histórico y 120 días de métricas diarias. A partir de ahí sincroniza sola según Ajustes.
+7. Invita a otras personas desde **Ajustes → Usuarios**.
+
+### Copias de seguridad
+
+- Las copias quedan en el volumen `backups` del servidor (`predeploy-*.sql.gz` y `daily-*.sql.gz`).
+  Para tenerlas también fuera del VPS, sincroniza ese volumen con un almacenamiento externo (p. ej. rclone a S3).
+- Restaurar: `gunzip -c copia.sql.gz | psql -U entrenos -d entrenos` desde el contenedor `postgres`.
+- Los `.FIT` originales están en el volumen `storage`; se pueden volver a descargar de Garmin si se pierden.
+
+### Checklist tras cada despliegue
+
+- [ ] La web carga y `/login` responde.
+- [ ] Inicio de sesión correcto.
+- [ ] Ajustes → Garmin «Conectado» y «Sincronizar ahora» termina bien.
+- [ ] Sin errores en los logs de `api` y `worker` (Coolify → Logs).
+- [ ] Existe la copia `predeploy-*` del despliegue.
 
 ## Contacto / equipo
 

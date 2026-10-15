@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     app_name: str = "app-entrenos"
     app_env: str = "development"
     debug: bool = False
+    log_level: str = "INFO"
 
     database_url: str = "postgresql+psycopg://entrenos:entrenos@localhost:5432/entrenos"
     redis_url: str = "redis://localhost:6379/0"

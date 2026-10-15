@@ -1,5 +1,3 @@
-import logging
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -12,10 +10,11 @@ from app.api import settings as settings_api
 from app.core.config import get_settings
 from app.core.db import engine
 from app.core.errors import register_error_handlers
+from app.core.logging import setup_logging
 from app.core.rate_limit import limiter
 
 settings = get_settings()
-logging.basicConfig(level=logging.DEBUG if settings.debug else logging.INFO)
+setup_logging("api")
 
 app = FastAPI(
     title="APP ENTRENOS API",

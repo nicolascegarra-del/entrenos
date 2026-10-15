@@ -1,0 +1,161 @@
+# Producción en Coolify (Docker Compose desde el repositorio, rama v1).
+#
+# - Solo `web` es pública: en Coolify asigna el dominio a este servicio, puerto 3000
+#   (p. ej. https://entrenos.tudominio.com:3000). Coolify pone HTTPS (Let's Encrypt).
+# - API, Postgres y Redis quedan en la red interna (sin `ports`).
+# - Las variables `${VAR:?}` son obligatorias: Coolify no despliega hasta que tengan valor.
+# - Orden de arranque: postgres → copia previa → migraciones → api/worker/beat → web.
+# Guía completa: README → «Despliegue en Coolify».
+
+name: entrenos
+
+x-backend: &backend
+  build:
+    context: ./backend
+  restart: unless-stopped
+  environment: &backend-env
+    APP_ENV: production
+    DEBUG: "false"
+    LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-entrenos}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-entrenos}
+    REDIS_URL: redis://redis:6379/0
+    JWT_SECRET_KEY: ${JWT_SECRET_KEY:?}
+    GARMIN_TOKEN_KEY: ${GARMIN_TOKEN_KEY:?}
+    CORS_ORIGINS: ${CORS_ORIGINS:?}
+    STORAGE_DIR: /data/storage
+  volumes:
+    - storage:/data/storage
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-entrenos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES_DB:-entrenos}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]  # solo cola, locks y estado efímero
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+
+  # Copia de seguridad de la BD antes de cada despliegue (checklist Klyp: backup antes de migrar).
+  predeploy-backup:
+    image: postgres:16-alpine
+    restart: "no"
+    exclude_from_hc: true
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-entrenos}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?}
+      PGDATABASE: ${POSTGRES_DB:-entrenos}
+    volumes:
+      - backups:/backups
+    command:
+      - sh
+      - -c
+      - pg_dump --no-owner | gzip > /backups/predeploy-$$(date -u +%Y%m%d-%H%M%S).sql.gz && echo "copia previa OK"
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  # Migraciones y catálogo de métricas: una vez por despliegue, antes que el resto.
+  migrate:
+    <<: *backend
+    restart: "no"
+    exclude_from_hc: true
+    command: ["sh", "-c", "alembic upgrade head && python -m app.cli seed-catalog"]
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres: { condition: service_healthy }
+      predeploy-backup: { condition: service_completed_successfully }
+
+  api:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      # La API solo recibe tráfico del proxy interno de la web: confía en su X-Forwarded-For.
+      FORWARDED_ALLOW_IPS: "*"
+    depends_on:
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+
+  worker:
+    <<: *backend
+    command: ["celery", "-A", "app.tasks.celery_app", "worker", "-l", "info", "--concurrency", "2"]
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.tasks.celery_app inspect ping -d celery@$$HOSTNAME -t 10 | grep -q pong"]
+      interval: 60s
+      timeout: 20s
+      start_period: 30s
+      retries: 3
+    depends_on:
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+
+  beat:
+    <<: *backend
+    command: ["celery", "-A", "app.tasks.celery_app", "beat", "-l", "info", "--schedule", "/tmp/celerybeat-schedule"]
+    healthcheck:
+      disable: true
+    depends_on:
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        API_INTERNAL_URL: http://api:8000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/login"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    depends_on:
+      api: { condition: service_healthy }
+
+  # Copia diaria de la BD, conservando BACKUP_KEEP_DAYS días. Para tener copias fuera del
+  # servidor, sincroniza el volumen `backups` (p. ej. con el S3 de Coolify o rclone).
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-entrenos}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?}
+      PGDATABASE: ${POSTGRES_DB:-entrenos}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - backups:/backups
+    command:
+      - sh
+      - -c
+      - |
+        while true; do
+          pg_dump --no-owner | gzip > /backups/daily-$$(date -u +%Y%m%d).sql.gz && echo "copia diaria OK"
+          find /backups -name '*.sql.gz' -mtime +$${BACKUP_KEEP_DAYS} -delete
+          sleep 86400
+        done
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres: { condition: service_healthy }
+
+volumes:
+  pg_data:
+  storage:
+  backups:

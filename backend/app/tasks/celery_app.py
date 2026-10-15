@@ -1,6 +1,8 @@
 from celery import Celery
+from celery.signals import setup_logging as celery_setup_logging
 
 from app.core.config import get_settings
+from app.core.logging import setup_logging
 from app.services.sync_schedule import TICK_MIN
 
 celery_app = Celery(
@@ -18,3 +20,9 @@ celery_app.conf.update(
         "garmin-sync-tick": {"task": "garmin.sync_all", "schedule": TICK_MIN * 60},
     },
 )
+
+
+@celery_setup_logging.connect
+def _configure_logging(**_: object) -> None:
+    """Sustituye el logging de Celery por el estructurado de la app (JSON en producción)."""
+    setup_logging("worker")

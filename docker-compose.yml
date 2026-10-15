@@ -1,18 +1,16 @@
+# Desarrollo local. Para producción en Coolify, ver docker-compose.prod.yml.
 name: app-entrenos
 
 x-backend: &backend
   build: ./backend
   env_file: .env
-  environment:
+  environment: &backend-env
     DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     REDIS_URL: redis://redis:6379/0
     STORAGE_DIR: /data/storage
   volumes:
     - garmin_tokens:/data/garmin-tokens
     - storage:/data/storage
-  depends_on:
-    postgres: { condition: service_healthy }
-    redis: { condition: service_healthy }
 
 services:
   postgres:
@@ -37,23 +35,44 @@ services:
       interval: 5s
       retries: 10
 
+  # Migraciones y catálogo de métricas, una vez antes que el resto.
+  migrate:
+    <<: *backend
+    restart: "no"
+    command: ["sh", "-c", "alembic upgrade head && python -m app.cli seed-catalog"]
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres: { condition: service_healthy }
+
   api:
     <<: *backend
     ports: ["127.0.0.1:8000:8000"]
-    # Confía en X-Forwarded-For del proxy de la web para que el rate limit vea la IP real.
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      REDIS_URL: redis://redis:6379/0
-      STORAGE_DIR: /data/storage
+      <<: *backend-env
+      # Confía en X-Forwarded-For del proxy de la web para que el rate limit vea la IP real.
       FORWARDED_ALLOW_IPS: "*"
+    depends_on:
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
 
   worker:
     <<: *backend
-    command: celery -A app.tasks.celery_app worker -l info --concurrency 2
+    command: ["celery", "-A", "app.tasks.celery_app", "worker", "-l", "info", "--concurrency", "2"]
+    healthcheck:
+      disable: true
+    depends_on:
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
 
   beat:
     <<: *backend
-    command: celery -A app.tasks.celery_app beat -l info --schedule /tmp/celerybeat-schedule
+    command: ["celery", "-A", "app.tasks.celery_app", "beat", "-l", "info", "--schedule", "/tmp/celerybeat-schedule"]
+    healthcheck:
+      disable: true
+    depends_on:
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
 
   web:
     build:
@@ -61,7 +80,8 @@ services:
       args:
         API_INTERNAL_URL: http://api:8000
     ports: ["127.0.0.1:3000:3000"]
-    depends_on: [api]
+    depends_on:
+      api: { condition: service_healthy }
 
 volumes:
   pg_data:
