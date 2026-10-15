@@ -1,12 +1,18 @@
 "use client";
 
-import { Activity, LogOut, Menu, Moon, Sun } from "lucide-react";
+import { Activity, Ellipsis, LogOut, Moon, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useState } from "react";
 
-import { NAV_ITEMS } from "@/components/layout/nav";
+import {
+  isActive,
+  MOBILE_MORE,
+  MOBILE_TABS,
+  NAV_ITEMS,
+  type NavItem,
+} from "@/components/layout/nav";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -17,13 +23,18 @@ import {
 import { logout } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
+function NavLinks({
+  items,
+  onNavigate,
+}: {
+  items: NavItem[];
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
   return (
     <nav className="flex flex-col gap-1" aria-label="Principal">
-      {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-        const active =
-          href === "/" ? pathname === "/" : pathname.startsWith(href);
+      {items.map(({ href, label, icon: Icon }) => {
+        const active = isActive(href, pathname);
         return (
           <Link
             key={href}
@@ -87,43 +98,88 @@ function SidebarFooter() {
   );
 }
 
-/** Estructura de la app: sidebar en desktop (lg+) y menú hamburguesa en móvil/tablet. */
-export function AppShell({ children }: { children: React.ReactNode }) {
+const tabClass = (active: boolean) =>
+  cn(
+    "flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors",
+    active
+      ? "text-sidebar-foreground"
+      : "text-sidebar-foreground/60 hover:text-sidebar-foreground",
+  );
+
+/** Barra de pestañas fija abajo (móvil y tablet), como una app nativa. */
+function BottomNav() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const moreActive = MOBILE_MORE.some(({ href }) => isActive(href, pathname));
+  return (
+    <nav
+      aria-label="Principal"
+      className="fixed inset-x-0 bottom-0 z-30 flex border-t border-sidebar-border bg-sidebar pb-[env(safe-area-inset-bottom)] lg:hidden"
+    >
+      {MOBILE_TABS.map(({ href, label, icon: Icon }) => {
+        const active = isActive(href, pathname);
+        return (
+          <Link
+            key={href}
+            href={href}
+            aria-current={active ? "page" : undefined}
+            className={tabClass(active)}
+          >
+            <Icon
+              className={cn("size-5", active && "text-klyp-accent")}
+              aria-hidden
+            />
+            {label}
+          </Link>
+        );
+      })}
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetTrigger asChild>
+          <button
+            type="button"
+            className={tabClass(moreActive)}
+            aria-current={moreActive ? "page" : undefined}
+          >
+            <Ellipsis
+              className={cn("size-5", moreActive && "text-klyp-accent")}
+              aria-hidden
+            />
+            Más
+          </button>
+        </SheetTrigger>
+        <SheetContent
+          side="bottom"
+          className="flex flex-col gap-4 rounded-t-xl border-sidebar-border bg-sidebar p-4 text-sidebar-foreground pb-[calc(1rem+env(safe-area-inset-bottom))]"
+        >
+          <SheetTitle className="px-3 text-sidebar-foreground">Más</SheetTitle>
+          <NavLinks items={MOBILE_MORE} onNavigate={() => setOpen(false)} />
+          <SidebarFooter />
+        </SheetContent>
+      </Sheet>
+    </nav>
+  );
+}
+
+/** Estructura de la app: sidebar en desktop (lg+) y barra de pestañas inferior en móvil/tablet. */
+export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh bg-background lg:grid lg:grid-cols-[16rem_1fr]">
       <aside className="hidden flex-col gap-6 bg-sidebar p-4 lg:sticky lg:top-0 lg:flex lg:h-dvh">
         <Brand />
-        <NavLinks />
+        <NavLinks items={NAV_ITEMS} />
         <SidebarFooter />
       </aside>
 
-      <header className="sticky top-0 z-20 flex h-14 items-center gap-2 bg-sidebar px-3 lg:hidden">
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-11 text-sidebar-foreground"
-              aria-label="Abrir menú"
-            >
-              <Menu className="size-6" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent
-            side="left"
-            className="flex w-72 flex-col gap-6 border-sidebar-border bg-sidebar p-4"
-          >
-            <SheetTitle className="sr-only">Menú</SheetTitle>
-            <Brand />
-            <NavLinks onNavigate={() => setOpen(false)} />
-            <SidebarFooter />
-          </SheetContent>
-        </Sheet>
+      <header className="sticky top-0 z-20 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center bg-sidebar px-1 pt-[env(safe-area-inset-top)] lg:hidden">
         <Brand />
       </header>
 
-      <main className="mx-auto w-full max-w-6xl p-3 md:p-6">{children}</main>
+      {/* Hueco inferior para que la barra de pestañas no tape el contenido. */}
+      <main className="mx-auto w-full max-w-6xl p-3 pb-[calc(5rem+env(safe-area-inset-bottom))] md:p-6 md:pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-6">
+        {children}
+      </main>
+
+      <BottomNav />
     </div>
   );
 }

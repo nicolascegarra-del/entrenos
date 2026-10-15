@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 // Fuentes empaquetadas con la app (sin depender de Google Fonts en la build).
 import "@fontsource-variable/inter";
@@ -14,6 +14,13 @@ export const metadata: Metadata = {
   title: "APP ENTRENOS",
   description:
     "Tus entrenamientos de Garmin: progresión, planificación y análisis plan vs real.",
+};
+
+// viewport-fit=cover: la barra inferior usa safe-area-inset para no quedar bajo la barra de gestos del móvil.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
