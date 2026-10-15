@@ -10,12 +10,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { InfoTerm } from "@/components/glossary/info-term";
 import { ScoreBadge } from "@/components/plan/status-badge";
 import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSummary } from "@/hooks/use-api";
+import { TodayCard } from "@/components/summary/today-card";
+import { useGoals, useSummary } from "@/hooks/use-api";
 import {
   formatDateTime,
   formatDistance,
@@ -23,15 +25,18 @@ import {
   formatNumber,
   sportInfo,
 } from "@/lib/format";
+import type { GlossaryKey } from "@/lib/glossary";
 import { toIsoDay } from "@/lib/plan";
 
 function Kpi({
   label,
+  term,
   value,
   sub,
   delta,
 }: {
   label: string;
+  term?: GlossaryKey;
   value: string;
   sub?: string;
   /** Cambio respecto a la semana anterior (en %). */
@@ -39,7 +44,10 @@ function Kpi({
 }) {
   return (
     <div className="rounded-lg bg-muted/60 p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="flex items-center gap-1 text-xs text-muted-foreground">
+        {label}
+        {term && <InfoTerm term={term} className="size-3.5" />}
+      </p>
       <p className="mt-0.5 text-xl font-semibold tabular-nums md:text-2xl">
         {value}
       </p>
@@ -65,12 +73,14 @@ const pct = (now: number, before: number) =>
 
 export default function ResumenPage() {
   const { data, isPending, isError, refetch } = useSummary();
+  const { data: goals } = useGoals();
   const today = toIsoDay(new Date());
 
   if (isPending) {
     return (
       <div className="space-y-4" role="status" aria-label="Cargando resumen">
         <Skeleton className="h-10 w-1/3" />
+        <Skeleton className="h-64 md:h-40" />
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           {Array.from({ length: 8 }, (_, i) => (
             <Skeleton key={i} className="h-20" />
@@ -119,9 +129,12 @@ export default function ResumenPage() {
     <section className="space-y-4 md:space-y-6">
       <h1 className="font-heading text-2xl font-bold md:text-3xl">Resumen</h1>
 
+      <TodayCard summary={data} goals={goals} today={today} />
+
+      <h2 className="font-heading text-lg font-semibold">Esta semana</h2>
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <Kpi
-          label="Distancia esta semana"
+          label="Distancia"
           value={formatDistance(now.distance_m)}
           delta={pct(now.distance_m, before.distance_m)}
         />
@@ -137,26 +150,31 @@ export default function ResumenPage() {
         />
         <Kpi
           label="Carga"
+          term="load"
           value={formatNumber(now.load)}
           delta={pct(now.load, before.load)}
         />
         <Kpi
-          label="Forma"
+          label="Frescura"
+          term="tsb"
           value={fitness ? formatNumber(fitness.tsb) : "—"}
           sub={data.form_label ?? undefined}
         />
         <Kpi
-          label="Fitness (CTL)"
+          label="Forma física"
+          term="ctl"
           value={fitness ? formatNumber(fitness.ctl) : "—"}
-          sub="media de 42 días"
+          sub="media de 6 semanas"
         />
         <Kpi
           label="VO2max"
+          term="vo2max"
           value={data.vo2max ? formatNumber(data.vo2max) : "—"}
           sub="ml/kg/min"
         />
         <Kpi
           label="FC en reposo"
+          term="resting_hr"
           value={data.resting_hr ? `${formatNumber(data.resting_hr)}` : "—"}
           sub="ppm"
         />
@@ -170,7 +188,8 @@ export default function ResumenPage() {
             </CardTitle>
             {data.compliance_avg != null && (
               <span className="flex items-center gap-2 text-sm text-muted-foreground">
-                Cumplimiento medio <ScoreBadge score={data.compliance_avg} />
+                Cumplimiento <InfoTerm term="compliance" />
+                <ScoreBadge score={data.compliance_avg} />
               </span>
             )}
           </CardHeader>

@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   CalendarDays,
   Flag,
   Footprints,
@@ -27,6 +28,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/plan", label: "Plan", icon: CalendarDays, mobile: "tab" },
   { href: "/progresion", label: "Progresión", icon: TrendingUp, mobile: "tab" },
   { href: "/objetivos", label: "Objetivos", icon: Flag, mobile: "more" },
+  { href: "/glosario", label: "Glosario", icon: BookOpen, mobile: "more" },
   { href: "/ajustes", label: "Ajustes", icon: Settings, mobile: "more" },
 ];
 

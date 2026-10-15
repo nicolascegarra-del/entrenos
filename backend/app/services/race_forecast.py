@@ -247,7 +247,7 @@ def checklist(distance_m: float, data: TrainingData, tsb_race: float | None, wee
         items.append(
             {
                 "key": "taper",
-                "label": "Llegar fresco: forma (TSB) entre +5 y +25 el día de la carrera",
+                "label": "Llegar fresco: frescura (TSB) entre +5 y +25 el día de la carrera",
                 "status": "ok" if 5 <= tsb_race <= 25 else "warn",
                 "current": f"{num(tsb_race, 0, sign=True)} previsto con 10 días de afinamiento",
             }

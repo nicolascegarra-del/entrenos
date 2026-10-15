@@ -210,6 +210,13 @@ export interface Summary {
   last_week: WeekTotals;
   fitness: FitnessPoint | null;
   form_label: string | null;
+  /** Semáforo de hoy a partir de frescura y carga reciente. */
+  readiness: {
+    status: "good" | "watch" | "alert" | "nodata";
+    title: string;
+    message: string;
+    acwr: number | null;
+  };
   vo2max: number | null;
   resting_hr: number | null;
   planned_this_week: {

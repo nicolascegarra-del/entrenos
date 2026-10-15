@@ -4,6 +4,7 @@ import { ShieldAlert, Trophy } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import { InfoTerm } from "@/components/glossary/info-term";
 import { INSIGHT_STATUS, InsightCallout } from "@/components/progress/insight";
 import { TimeChart, rollingMean } from "@/components/progress/time-chart";
 import { EmptyState, ErrorState } from "@/components/states";
@@ -32,6 +33,7 @@ import {
   formatPace,
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import type { GlossaryKey } from "@/lib/glossary";
 import type { Insight, InsightSection, InsightsResponse } from "@/types/api";
 
 const PERIODS = [
@@ -81,12 +83,15 @@ const weekLabel = (v: number) =>
 
 function Section({
   title,
+  term,
   description,
   insight,
   children,
   className,
 }: {
   title: string;
+  /** Entrada del glosario que explica la sección (icono ⓘ junto al título). */
+  term?: GlossaryKey;
   description?: string;
   insight?: Insight;
   children?: React.ReactNode;
@@ -95,7 +100,10 @@ function Section({
   return (
     <Card className={cn("shadow-sm", className)}>
       <CardHeader>
-        <CardTitle className="font-heading text-lg">{title}</CardTitle>
+        <CardTitle className="flex items-center gap-2 font-heading text-lg">
+          {title}
+          {term && <InfoTerm term={term} />}
+        </CardTitle>
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
       <CardContent>
@@ -162,7 +170,7 @@ function FitnessSection({
   const { data: devices } = useDevices();
   if (isPending)
     return (
-      <Section title="Forma" className="lg:col-span-2">
+      <Section title="Forma física y frescura" className="lg:col-span-2">
         <Loading />
       </Section>
     );
@@ -175,7 +183,11 @@ function FitnessSection({
     );
   if (!data.points.length)
     return (
-      <Section title="Forma" insight={insight} className="lg:col-span-2">
+      <Section
+        title="Forma física y frescura"
+        insight={insight}
+        className="lg:col-span-2"
+      >
         <NoData />
       </Section>
     );
@@ -188,19 +200,22 @@ function FitnessSection({
   const last = data.points[data.points.length - 1];
   return (
     <Section
-      title="Forma"
-      description={`Carga por FC (hrTSS) con umbral ${data.lthr ? `${data.lthr} ppm` : "estimado"} y reposo ${Math.round(data.hr_rest)} ppm; sin FC, por RPE.`}
+      title="Forma física y frescura"
+      term="tsb"
+      description={`Calculadas con tu pulso (umbral ${data.lthr ? `${data.lthr} ppm` : "estimado"}, reposo ${Math.round(data.hr_rest)} ppm); en sesiones sin pulso, con tu esfuerzo percibido.`}
       insight={insight}
       className="lg:col-span-2"
     >
       <div className="mb-4 grid grid-cols-3 gap-2">
         {[
-          { label: "Fitness (CTL)", value: last.ctl },
-          { label: "Fatiga (ATL)", value: last.atl },
-          { label: "Forma (TSB)", value: last.tsb },
+          { label: "Forma física", term: "ctl" as const, value: last.ctl },
+          { label: "Fatiga", term: "atl" as const, value: last.atl },
+          { label: "Frescura", term: "tsb" as const, value: last.tsb },
         ].map((k) => (
           <div key={k.label} className="rounded-lg bg-muted/60 p-3">
-            <p className="text-xs text-muted-foreground">{k.label}</p>
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              {k.label} <InfoTerm term={k.term} className="size-3.5" />
+            </p>
             <p className="text-xl font-semibold tabular-nums">
               {formatNumber(k.value)}
             </p>
@@ -210,7 +225,7 @@ function FitnessSection({
       <div className="grid gap-4 md:grid-cols-2">
         <figure>
           <figcaption className="mb-1 text-sm font-medium">
-            Fitness y fatiga
+            Forma física y fatiga
           </figcaption>
           <TimeChart
             data={rows}
@@ -219,7 +234,7 @@ function FitnessSection({
             series={[
               {
                 key: "ctl",
-                label: "Fitness (42 d)",
+                label: "Forma física (6 sem.)",
                 color: "var(--chart-1)",
                 kind: "line",
               },
@@ -234,7 +249,7 @@ function FitnessSection({
         </figure>
         <figure>
           <figcaption className="mb-1 text-sm font-medium">
-            Forma = fitness − fatiga
+            Frescura = forma física − fatiga
           </figcaption>
           <TimeChart
             data={rows}
@@ -244,7 +259,7 @@ function FitnessSection({
             series={[
               {
                 key: "tsb",
-                label: "Forma",
+                label: "Frescura",
                 color: "var(--chart-3)",
                 kind: "area",
               },
@@ -266,8 +281,9 @@ function AcwrSection({
   const rows = (data?.acwr ?? []).map((p) => ({ t: t(p.day), value: p.acwr }));
   return (
     <Section
-      title="Carga aguda : crónica"
-      description="Carga de los últimos 7 días frente a la de los últimos 28 (medias exponenciales)."
+      title="Carga reciente frente a la habitual"
+      term="acwr"
+      description="Últimos 7 días comparados con las últimas 4 semanas. Lo normal es entre 0,8 y 1,3."
       insight={insight}
     >
       {!data ? (
@@ -282,7 +298,7 @@ function AcwrSection({
           series={[
             {
               key: "value",
-              label: "ACWR",
+              label: "Relación (ACWR)",
               color: "var(--chart-1)",
               kind: "line",
             },
@@ -298,7 +314,7 @@ function VolumeSection({ days, insight }: { days: number; insight?: Insight }) {
   const { data, isPending, isError, refetch } = useWeekly(Math.ceil(days / 7));
   const cfg = VOLUME[metric];
   return (
-    <Section title="Volumen semanal" insight={insight}>
+    <Section title="Volumen semanal" term="load" insight={insight}>
       <div
         className="mb-3 flex gap-1"
         role="group"
@@ -360,6 +376,7 @@ function IntensitySection({
   return (
     <Section
       title="Distribución de intensidad"
+      term="intensity"
       description="Minutos por semana en zonas de FC: suave (Z1–Z2), moderada (Z3) e intensa (Z4–Z5)."
       insight={insight}
     >
@@ -434,6 +451,7 @@ function IntensitySection({
 
 function MetricSection({
   title,
+  term,
   metric,
   days,
   unit,
@@ -444,6 +462,7 @@ function MetricSection({
   transform = (v) => v,
 }: {
   title: string;
+  term?: GlossaryKey;
   metric: string;
   days: number;
   unit: string;
@@ -456,7 +475,12 @@ function MetricSection({
   const { data, isPending, isError, refetch } = useMetricSeries(metric, days);
   const { data: devices } = useDevices();
   return (
-    <Section title={title} description={description} insight={insight}>
+    <Section
+      title={title}
+      term={term}
+      description={description}
+      insight={insight}
+    >
       {isPending ? (
         <Loading />
       ) : isError ? (
@@ -500,6 +524,7 @@ function EfficiencySection({
   return (
     <Section
       title="Eficiencia aeróbica"
+      term="efficiency"
       description="Metros por minuto por pulsación en carrera: si sube, corres más rápido a la misma FC."
       insight={insight}
       className="lg:col-span-2"
@@ -540,8 +565,9 @@ function EfficiencySection({
       )}
       {decoupling.length > 0 && (
         <div className="mt-3">
-          <p className="text-sm font-medium">
+          <p className="flex items-center gap-1.5 text-sm font-medium">
             Desacople en rodajes largos a ritmo constante
+            <InfoTerm term="decoupling" />
           </p>
           <ul className="mt-1 flex flex-wrap gap-2">
             {decoupling.map((d) => (
@@ -621,8 +647,8 @@ function RecordsSection({
       {data && data.predictions.length > 0 && (
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <div>
-            <p className="mb-2 text-sm font-medium">
-              Tiempos estimados (Riegel)
+            <p className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+              Tiempos estimados <InfoTerm term="predictions" />
             </p>
             <ul className="space-y-1 text-sm">
               {data.predictions.map((p) => (
@@ -643,8 +669,9 @@ function RecordsSection({
           </div>
           {paces && (
             <div>
-              <p className="mb-2 text-sm font-medium">
-                Ritmos de entrenamiento (VDOT)
+              <p className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+                Ritmos de entrenamiento según tu nivel de carrera
+                <InfoTerm term="vdot" />
               </p>
               <ul className="space-y-1 text-sm">
                 {[
@@ -740,6 +767,7 @@ export default function ProgresionPage() {
         <IntensitySection data={insights} insight={s.intensity} />
         <MetricSection
           title="FC en reposo"
+          term="resting_hr"
           metric="resting_hr"
           days={days}
           unit="ppm"
@@ -749,6 +777,7 @@ export default function ProgresionPage() {
         />
         <MetricSection
           title="VO2max"
+          term="vo2max"
           metric="vo2max"
           days={days}
           unit="ml/kg/min"

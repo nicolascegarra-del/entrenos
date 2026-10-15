@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from datetime import date, timedelta
 from typing import Annotated
 
@@ -9,10 +10,11 @@ from app.api.deps import CurrentUser, SessionDep
 from app.models import Device, PlannedSession
 from app.schemas.activity import ActivitySummary
 from app.services import progress as svc
-from app.services.insights import build_insights
+from app.services.insights import acwr_series, build_insights
 from app.services.metric_catalog import CATALOG
 from app.services.plan_steps import local_day, sport_family
 from app.services.profile import age_grade, age_on, get_profile
+from app.services.readiness import readiness
 
 router = APIRouter(tags=["progresión"])
 
@@ -90,11 +92,19 @@ class PlannedBrief(BaseModel):
     activity_id: int | None
 
 
+class ReadinessOut(BaseModel):
+    status: str
+    title: str
+    message: str
+    acwr: float | None
+
+
 class SummaryResponse(BaseModel):
     this_week: WeekTotals
     last_week: WeekTotals
     fitness: FitnessPoint | None
     form_label: str | None
+    readiness: ReadinessOut
     vo2max: float | None
     resting_hr: float | None
     planned_this_week: list[PlannedBrief]
@@ -108,7 +118,7 @@ def _since(days: int) -> date:
 
 @router.get(
     "/progress/fitness",
-    summary="Carga, fitness (CTL), fatiga (ATL) y forma (TSB)",
+    summary="Carga, forma física (CTL), fatiga (ATL) y frescura (TSB)",
     description="Carga hrTSS por actividad (FC media vs umbral y reposo); CTL/ATL con medias de 42/7 días.",
 )
 def fitness(session: SessionDep, user: CurrentUser, days: Days = 180) -> FitnessResponse:
@@ -196,6 +206,8 @@ def summary(session: SessionDep, user: CurrentUser) -> SummaryResponse:
     totals = [WeekTotals(**{k: w[k] for k in ("distance_m", "duration_s", "count", "load")}) for w in weeks]
     series = svc.fitness_series(per_day, today, today)
     current = FitnessPoint(**series[-1]) if series else None
+    acwr_today = acwr_series(per_day, today, today)
+    acwr = acwr_today[-1]["acwr"] if acwr_today else None
 
     planned = session.exec(
         select(PlannedSession)
@@ -217,6 +229,7 @@ def summary(session: SessionDep, user: CurrentUser) -> SummaryResponse:
         last_week=totals[0],
         fitness=current,
         form_label=svc.form_label(current.tsb) if current else None,
+        readiness=ReadinessOut(**asdict(readiness(current.tsb if current else None, acwr)), acwr=acwr),
         vo2max=latest("vo2max") or latest("vo2max_running"),
         resting_hr=latest("resting_hr"),
         planned_this_week=[PlannedBrief.model_validate(p, from_attributes=True) for p in planned],

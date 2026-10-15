@@ -148,7 +148,7 @@ def decoupling_pct(channels: dict[str, list[float | None]]) -> float | None:
 
 def fitness_insight(points: list[dict]) -> Insight:
     if len(points) < 8:
-        return Insight(NODATA, "Forma", "Necesito al menos una semana de datos para analizar tu forma.")
+        return Insight(NODATA, "Forma física", "Necesito al menos una semana de datos para analizar tu forma física.")
     last, week_ago = points[-1], points[-8]
     ramp = last["ctl"] - week_ago["ctl"]
     tsb, label = last["tsb"], prog.form_label(last["tsb"])
@@ -156,38 +156,38 @@ def fitness_insight(points: list[dict]) -> Insight:
     if ramp > 8:
         return Insight(
             ALERT,
-            f"Fitness subiendo muy rápido (+{_n(ramp, 1)}/semana)",
-            f"Tu fitness ha subido {_n(ramp, 1)} puntos en 7 días. Subidas sostenidas por encima de 5–8 por semana "
-            "aumentan la fatiga acumulada; conviene una semana más suave pronto.",
+            f"Forma física subiendo muy rápido (+{_n(ramp, 1)}/semana)",
+            f"Tu forma física ha subido {_n(ramp, 1)} puntos en 7 días. Subidas sostenidas por encima de "
+            "5–8 por semana aumentan la fatiga acumulada; conviene una semana más suave pronto.",
             evidence,
         )
     if tsb < -30:
         return Insight(
             ALERT,
             "Fatiga alta",
-            f"Tu forma está en {_n(tsb, 0)}: la fatiga reciente supera con mucho a tu fitness. Prioriza descanso o "
-            "sesiones suaves unos días.",
+            f"Tu frescura está en {_n(tsb, 0)}: la fatiga reciente supera con mucho a tu forma física. "
+            "Prioriza descanso o sesiones suaves unos días.",
             evidence,
         )
     if ramp < -3 and last["ctl"] > 5:
         return Insight(
             WATCH,
-            "Perdiendo fitness",
-            f"Tu fitness ha bajado {_n(abs(ramp), 1)} puntos esta semana. Es normal en una descarga o un descanso; si "
-            "no es intencionado, recupera la regularidad.",
+            "Perdiendo forma física",
+            f"Tu forma física ha bajado {_n(abs(ramp), 1)} puntos esta semana. Es normal en una descarga o un "
+            "descanso; si no es intencionado, recupera la regularidad.",
             evidence,
         )
     if 0 < ramp <= 8:
         return Insight(
             GOOD,
             f"Progresión sostenible (+{_n(ramp, 1)}/semana) · {label}",
-            f"Tu fitness sube a un ritmo asumible y tu forma está en {_n(tsb, 0)} ({label.lower()}).",
+            f"Tu forma física sube a un ritmo asumible y tu frescura está en {_n(tsb, 0)} ({label.lower()}).",
             evidence,
         )
     return Insight(
         INFO,
         f"Estable · {label}",
-        f"Tu fitness se mantiene ({_n(last['ctl'], 0)}) y tu forma está en {_n(tsb, 0)}.",
+        f"Tu forma física se mantiene ({_n(last['ctl'], 0)}) y tu frescura está en {_n(tsb, 0)}.",
         evidence,
     )
 

@@ -167,11 +167,13 @@ def test_api_summary_cuando_semana_con_plan_entonces_resumen_completo(client, hi
     assert res["compliance_avg"] == 88
     assert res["form_label"] in {"Muy descansado", "Fresco", "Equilibrado", "Cargado", "Sobrecarga"}
     assert len(res["recent"]) == 5
+    assert res["readiness"]["status"] in {"good", "watch", "alert"} and res["readiness"]["message"]
 
 
 def test_api_summary_cuando_usuario_sin_datos_entonces_vacio_sin_error(client, user):
     res = client.get("/api/v1/summary", headers=auth(user)).json()
     assert res["fitness"] is None and res["this_week"]["count"] == 0 and res["recent"] == []
+    assert res["readiness"]["status"] == "nodata" and res["readiness"]["acwr"] is None
 
 
 def test_api_progress_cuando_sin_auth_entonces_401(client):
