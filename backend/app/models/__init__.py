@@ -2,6 +2,7 @@
 
 from app.models.account import GarminCredential, GarminStatus, Invitation, Sex, UserProfile, WeightLog
 from app.models.activity import Activity, ActivityRaw, ActivityStream, Device, Lap
+from app.models.ai import AiProvider, AiProviderConfig, ChatConversation, ChatMessage
 from app.models.goal import RaceGoal
 from app.models.health import AthleteZones, DailyMetric
 from app.models.metric import MetricDefinition, MetricScope
@@ -12,6 +13,10 @@ from app.models.sync import SyncRun, SyncStatus
 from app.models.user import User
 
 __all__ = [
+    "AiProvider",
+    "AiProviderConfig",
+    "ChatConversation",
+    "ChatMessage",
     "GarminCredential",
     "GarminStatus",
     "Invitation",

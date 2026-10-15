@@ -5,6 +5,7 @@ import {
   Footprints,
   LayoutDashboard,
   Settings,
+  Sparkles,
   TrendingUp,
   type LucideIcon,
 } from "lucide-react";
@@ -28,6 +29,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/plan", label: "Plan", icon: CalendarDays, mobile: "tab" },
   { href: "/progresion", label: "Progresión", icon: TrendingUp, mobile: "tab" },
   { href: "/objetivos", label: "Objetivos", icon: Flag, mobile: "more" },
+  { href: "/asistente", label: "Asistente IA", icon: Sparkles, mobile: "more" },
   { href: "/glosario", label: "Glosario", icon: BookOpen, mobile: "more" },
   { href: "/ajustes", label: "Ajustes", icon: Settings, mobile: "more" },
 ];

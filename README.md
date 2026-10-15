@@ -96,7 +96,7 @@ En producción los logs salen en JSON (formato Klyp) y no incluyen contraseñas,
    |---|---|
    | `POSTGRES_PASSWORD` | `openssl rand -hex 24` |
    | `JWT_SECRET_KEY` | `openssl rand -hex 32` |
-   | `GARMIN_TOKEN_KEY` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` — **guárdala aparte**: si se pierde, cada usuario tendrá que reconectar Garmin |
+   | `GARMIN_TOKEN_KEY` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` — **guárdala aparte**: cifra los tokens de Garmin y las claves de IA; si se pierde, cada usuario tendrá que reconectar Garmin y volver a poner su clave de IA |
    | `CORS_ORIGINS` | `["https://entrenos.tudominio.com"]` |
    | `BACKUP_KEEP_DAYS` | opcional, 14 por defecto |
    | `LOG_LEVEL` | opcional, `INFO` por defecto |

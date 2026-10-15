@@ -7,6 +7,7 @@ import {
   CalendarDays,
   Clock,
   Footprints,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -127,7 +128,19 @@ export default function ResumenPage() {
   const { this_week: now, last_week: before, fitness } = data;
   return (
     <section className="space-y-4 md:space-y-6">
-      <h1 className="font-heading text-2xl font-bold md:text-3xl">Resumen</h1>
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="font-heading text-2xl font-bold md:text-3xl">Resumen</h1>
+        <Button
+          asChild
+          variant="outline"
+          size="sm"
+          className="min-h-11 md:min-h-8"
+        >
+          <Link href="/asistente">
+            <Sparkles aria-hidden /> Pregúntale a la IA
+          </Link>
+        </Button>
+      </div>
 
       <TodayCard summary={data} goals={goals} today={today} />
 

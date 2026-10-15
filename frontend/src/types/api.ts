@@ -449,3 +449,55 @@ export interface InvitationRow {
   expires_at: string;
   token: string | null;
 }
+
+// ─── Asistente IA ────────────────────────────────────────────────────────────
+
+export type AiProviderId = "openai" | "gemini" | "anthropic";
+
+export interface AiProviderRow {
+  provider: AiProviderId;
+  label: string;
+  keys_url: string;
+  privacy: string;
+  default_model: string;
+  suggested_models: string[];
+  configured: boolean;
+  model: string | null;
+  key_last4: string | null;
+  enabled: boolean;
+  is_default: boolean;
+  updated_at: string | null;
+}
+
+export interface AiProviders {
+  providers: AiProviderRow[];
+  daily_limit: number;
+  used_today: number;
+}
+
+export interface AiProviderInput {
+  /** Vacía o null = conservar la clave guardada. */
+  api_key: string | null;
+  model: string;
+  enabled: boolean;
+  is_default: boolean;
+}
+
+export interface ChatMessage {
+  id: number;
+  role: "user" | "assistant";
+  content: string;
+  provider: string | null;
+  model: string | null;
+  created_at: string;
+}
+
+export interface ConversationBrief {
+  id: number;
+  title: string;
+  updated_at: string;
+}
+
+export interface Conversation extends ConversationBrief {
+  messages: ChatMessage[];
+}

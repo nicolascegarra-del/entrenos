@@ -20,7 +20,8 @@ x-backend: &backend
     DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-entrenos}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-entrenos}
     REDIS_URL: redis://redis:6379/0
     JWT_SECRET_KEY: ${JWT_SECRET_KEY:?}
-    GARMIN_TOKEN_KEY: ${GARMIN_TOKEN_KEY:?}
+    GARMIN_TOKEN_KEY: ${GARMIN_TOKEN_KEY:?}  # cifra tokens de Garmin y claves de IA
+    CHAT_DAILY_LIMIT: ${CHAT_DAILY_LIMIT:-100}
     CORS_ORIGINS: ${CORS_ORIGINS:?}
     STORAGE_DIR: /data/storage
   volumes:

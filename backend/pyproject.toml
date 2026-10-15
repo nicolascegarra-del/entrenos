@@ -18,6 +18,7 @@ dependencies = [
     "garminconnect>=0.3.17",
     "fitparse>=1.2.0",
     "cryptography>=43.0",
+    "httpx>=0.28",
 ]
 
 [project.optional-dependencies]

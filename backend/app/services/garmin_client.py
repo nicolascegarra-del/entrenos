@@ -15,11 +15,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import InvalidToken
 from garminconnect import Garmin, GarminConnectAuthenticationError
 from sqlmodel import Session
 
 from app.core.config import get_settings
+from app.core.crypto import decrypt_secret, encrypt_secret
 from app.core.db import engine
 from app.models import GarminCredential, GarminStatus
 
@@ -44,19 +45,12 @@ class GarminSource(Protocol):
 # ─── Cifrado de tokens ───────────────────────────────────────────────────────
 
 
-def _fernet() -> Fernet:
-    key = get_settings().garmin_token_key
-    if not key:
-        raise RuntimeError("Falta GARMIN_TOKEN_KEY para cifrar los tokens de Garmin.")
-    return Fernet(key.encode())
-
-
 def encrypt_tokens(tokens_json: str) -> str:
-    return _fernet().encrypt(tokens_json.encode()).decode()
+    return encrypt_secret(tokens_json)
 
 
 def decrypt_tokens(tokens_enc: str) -> str:
-    return _fernet().decrypt(tokens_enc.encode()).decode()
+    return decrypt_secret(tokens_enc)
 
 
 def save_tokens(session: Session, user_id: int, tokens_json: str, display_name: str | None = None) -> None:

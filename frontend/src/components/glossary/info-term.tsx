@@ -1,6 +1,6 @@
 "use client";
 
-import { Info } from "lucide-react";
+import { Info, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -49,12 +49,20 @@ export function InfoTerm({
         </p>
         <p>{entry.what}</p>
         <p className="text-muted-foreground">{entry.read}</p>
-        <Link
-          href={`/glosario#${term}`}
-          className="inline-block text-xs font-medium text-klyp-accent hover:underline"
-        >
-          Ver el glosario completo
-        </Link>
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
+          <Link
+            href={`/asistente?q=${encodeURIComponent(`Explícame mi ${entry.name.toLowerCase()}: qué valor tengo y qué significa para mí`)}`}
+            className="inline-flex items-center gap-1 text-xs font-medium text-klyp-accent hover:underline"
+          >
+            <Sparkles className="size-3" aria-hidden /> Pregúntale a la IA
+          </Link>
+          <Link
+            href={`/glosario#${term}`}
+            className="inline-block text-xs font-medium text-klyp-accent hover:underline"
+          >
+            Ver el glosario
+          </Link>
+        </div>
       </PopoverContent>
     </Popover>
   );

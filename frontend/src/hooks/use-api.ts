@@ -7,7 +7,12 @@ import {
 
 import { apiFetch } from "@/lib/api";
 import type {
+  AiProviderId,
+  AiProviderInput,
+  AiProviders,
   ConnectState,
+  Conversation,
+  ConversationBrief,
   InvitationRow,
   Me,
   Profile,
@@ -527,5 +532,71 @@ export function useDeleteInvitation() {
       apiFetch<void>(`/api/v1/invitations/${id}`, { method: "DELETE" }),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["invitations"] }),
+  });
+}
+
+// ─── Asistente IA ────────────────────────────────────────────────────────────
+
+export function useAiProviders() {
+  return useQuery({
+    queryKey: ["ai-providers"],
+    queryFn: () => apiFetch<AiProviders>("/api/v1/ai/providers"),
+  });
+}
+
+export function useSaveAiProvider(provider: AiProviderId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: AiProviderInput) =>
+      apiFetch<AiProviders>(`/api/v1/ai/providers/${provider}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (data) => queryClient.setQueryData(["ai-providers"], data),
+  });
+}
+
+export function useDeleteAiProvider(provider: AiProviderId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<void>(`/api/v1/ai/providers/${provider}`, { method: "DELETE" }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["ai-providers"] }),
+  });
+}
+
+export function useTestAiProvider(provider: AiProviderId) {
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ ok: boolean; models: string[] }>(
+        `/api/v1/ai/providers/${provider}/test`,
+        { method: "POST" },
+      ),
+  });
+}
+
+export function useConversations() {
+  return useQuery({
+    queryKey: ["conversations"],
+    queryFn: () => apiFetch<ConversationBrief[]>("/api/v1/chat/conversations"),
+  });
+}
+
+export function useConversation(id: number | null) {
+  return useQuery({
+    queryKey: ["conversation", id],
+    enabled: id != null,
+    queryFn: () => apiFetch<Conversation>(`/api/v1/chat/conversations/${id}`),
+  });
+}
+
+export function useDeleteConversation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiFetch<void>(`/api/v1/chat/conversations/${id}`, { method: "DELETE" }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["conversations"] }),
   });
 }

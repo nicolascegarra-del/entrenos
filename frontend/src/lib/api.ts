@@ -20,7 +20,7 @@ interface TokenResponse {
   expires_in: number;
 }
 
-async function parseError(res: Response): Promise<ApiError> {
+export async function parseError(res: Response): Promise<ApiError> {
   try {
     const { error } = await res.json();
     return new ApiError(res.status, error.code, error.message, error.field);
@@ -59,14 +59,15 @@ export function refreshAccessToken(): Promise<boolean> {
 }
 
 /**
- * Llama a la API añadiendo el access token; si caduca, lo renueva una vez y reintenta.
+ * Petición autenticada: añade el access token y, si ha caducado, lo renueva una vez
+ * y reintenta. Devuelve la respuesta tal cual (sirve también para streaming).
  * @param path - Ruta relativa, ej. "/api/v1/auth/me".
  */
-export async function apiFetch<T>(
+export async function authFetch(
   path: string,
   init: RequestInit = {},
   retry = true,
-): Promise<T> {
+): Promise<Response> {
   const token = useAuthStore.getState().accessToken;
   const headers = new Headers(init.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -79,8 +80,18 @@ export async function apiFetch<T>(
     credentials: "include",
   });
   if (res.status === 401 && retry && (await refreshAccessToken())) {
-    return apiFetch<T>(path, init, false);
+    return authFetch(path, init, false);
   }
+  return res;
+}
+
+/** Llama a la API (JSON) y lanza `ApiError` con el formato Klyp si falla. */
+export async function apiFetch<T>(
+  path: string,
+  init: RequestInit = {},
+  retry = true,
+): Promise<T> {
+  const res = await authFetch(path, init, retry);
   if (!res.ok) throw await parseError(res);
   return (res.status === 204 ? undefined : await res.json()) as T;
 }

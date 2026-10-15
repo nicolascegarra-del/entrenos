@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { AiProvidersCard } from "@/components/settings/ai-providers-card";
 import { GarminConnectForm } from "@/components/settings/garmin-connect-form";
 import { ProfileCard } from "@/components/settings/profile-card";
 import { UsersCard } from "@/components/settings/users-card";
@@ -328,6 +329,9 @@ export default function AjustesPage() {
       <div className="grid max-w-5xl gap-4 md:gap-6 lg:grid-cols-2">
         <GarminCard />
         <ProfileCard />
+        <div className="lg:col-span-2">
+          <AiProvidersCard />
+        </div>
         {me?.is_admin && (
           <div className="lg:col-span-2">
             <UsersCard />

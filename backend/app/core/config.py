@@ -28,6 +28,16 @@ class Settings(BaseSettings):
     # Clave Fernet para cifrar los tokens de Garmin en la BD. Generar con:
     # python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     garmin_token_key: str = ""
+    # Clave Fernet genérica para secretos en BD (Garmin y claves de IA). Si falta, se usa GARMIN_TOKEN_KEY,
+    # así que las instalaciones existentes no tienen que cambiar nada.
+    secrets_key: str = ""
+
+    # Asistente IA: mensajes por usuario y día (protege el saldo de cada clave).
+    chat_daily_limit: int = 100
+
+    @property
+    def fernet_key(self) -> str:
+        return self.secrets_key or self.garmin_token_key
 
     @property
     def is_production(self) -> bool:
