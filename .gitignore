@@ -16,7 +16,7 @@ node_modules/
 .env
 .env.*
 !.env.example
-data/
+/data/
 
 # Artefactos de build/tests
 .coverage
