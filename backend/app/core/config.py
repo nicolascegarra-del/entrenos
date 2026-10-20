@@ -35,9 +35,32 @@ class Settings(BaseSettings):
     # Asistente IA: mensajes por usuario y día (protege el saldo de cada clave).
     chat_daily_limit: int = 100
 
+    # URL pública de la web: se usa en los enlaces de los emails (invitaciones, recuperar contraseña).
+    app_public_url: str = "http://localhost:3000"
+
+    # Email: auto = SMTP si hay SMTP_HOST, si no desactivado | smtp | file (guarda .eml en STORAGE_DIR/outbox) |
+    # disabled. Sirve cualquier SMTP: Brevo, Resend, el de tu dominio o Mailpit en local.
+    email_backend: str = "auto"
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_security: str = "starttls"  # starttls | ssl | none
+
+    # Carpeta de las copias de seguridad (solo lectura) para mostrar la última en Admin → Sistema.
+    backup_dir: str = "/backups"
+
     @property
     def fernet_key(self) -> str:
         return self.secrets_key or self.garmin_token_key
+
+    @property
+    def email_mode(self) -> str:
+        """Backend de email efectivo: smtp | file | disabled."""
+        if self.email_backend == "auto":
+            return "smtp" if self.smtp_host else "disabled"
+        return self.email_backend
 
     @property
     def is_production(self) -> bool:

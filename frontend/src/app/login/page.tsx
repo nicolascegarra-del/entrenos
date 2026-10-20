@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Activity, Loader2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuthOptions } from "@/hooks/use-api";
 import { ApiError, login } from "@/lib/api";
 
 const schema = z.object({
@@ -28,6 +30,7 @@ type FormValues = z.infer<typeof schema>;
 export default function LoginPage() {
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
+  const { data: options } = useAuthOptions();
   const {
     register,
     handleSubmit,
@@ -113,6 +116,29 @@ export default function LoginPage() {
               Entrar
             </Button>
           </form>
+          <div className="mt-4 space-y-2 text-center text-sm">
+            <p>
+              <Link
+                href="/recuperar"
+                className="font-medium text-klyp-accent hover:underline"
+              >
+                ¿Has olvidado tu contraseña?
+              </Link>
+            </p>
+            {options && options.registration !== "invite" && (
+              <p>
+                ¿No tienes cuenta?{" "}
+                <Link
+                  href="/registro"
+                  className="font-medium text-klyp-accent hover:underline"
+                >
+                  {options.registration === "approval"
+                    ? "Solicita una"
+                    : "Créala"}
+                </Link>
+              </p>
+            )}
+          </div>
         </CardContent>
       </Card>
     </main>

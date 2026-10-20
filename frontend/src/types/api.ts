@@ -435,19 +435,86 @@ export interface Me {
   is_admin: boolean;
 }
 
-export interface UserRow {
+// ─── Administración ──────────────────────────────────────────────────────────
+
+export type UserStatus = "active" | "pending" | "disabled";
+export type RegistrationMode = "invite" | "open" | "approval";
+
+export interface AdminUserRow {
   id: number;
   email: string;
   is_admin: boolean;
+  status: UserStatus;
+  locked: boolean;
   created_at: string;
+  last_login_at: string | null;
   garmin: "none" | "ok" | "expired";
+  last_sync: { at: string; status: string; error: string | null } | null;
+  activities: number;
+  ai_questions_30d: number;
+  ai_tokens_30d: number;
+}
+
+export interface UsersPage {
+  items: AdminUserRow[];
+  total: number;
+}
+
+export interface LinkOut {
+  link: string;
+  expires_at: string;
+  emailed: boolean;
 }
 
 export interface InvitationRow {
   id: number;
   email: string;
+  status: "pending" | "used" | "expired";
+  created_at: string;
   expires_at: string;
-  token: string | null;
+  used_at: string | null;
+  used_by_email: string | null;
+}
+
+export interface InvitationCreated extends InvitationRow {
+  link: string;
+  emailed: boolean;
+}
+
+export interface AdminSettings {
+  registration_mode: RegistrationMode;
+  email_enabled: boolean;
+}
+
+export interface AuditRow {
+  id: number;
+  created_at: string;
+  actor_email: string | null;
+  action: string;
+  target_email: string | null;
+  detail: Record<string, unknown>;
+}
+
+export interface SystemStatus {
+  worker_ok: boolean | null;
+  last_heartbeat: string | null;
+  last_sync_at: string | null;
+  garmin_expired: string[];
+  sync_failing: { email: string; at: string; error: string | null }[];
+  last_backup: {
+    file: string;
+    at: string;
+    size_mb: number;
+    count: number;
+  } | null;
+  email_mode: "smtp" | "file" | "disabled";
+  users_by_status: Partial<Record<UserStatus, number>>;
+  pending_requests: number;
+}
+
+export interface AuthOptions {
+  registration: RegistrationMode;
+  email_enabled: boolean;
 }
 
 // ─── Asistente IA ────────────────────────────────────────────────────────────

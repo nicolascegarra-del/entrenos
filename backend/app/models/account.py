@@ -75,3 +75,4 @@ class Invitation(SQLModel, table=True):
     created_at: datetime = created_at_field()
     expires_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
     used_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True)))
+    used_by: int | None = Field(default=None, foreign_key="user.id", ondelete="SET NULL")

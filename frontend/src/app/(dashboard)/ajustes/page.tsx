@@ -12,10 +12,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { AccountCard } from "@/components/settings/account-card";
 import { AiProvidersCard } from "@/components/settings/ai-providers-card";
 import { GarminConnectForm } from "@/components/settings/garmin-connect-form";
 import { ProfileCard } from "@/components/settings/profile-card";
-import { UsersCard } from "@/components/settings/users-card";
 import { ErrorState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   useDisconnectGarmin,
   useGarminStatus,
-  useMe,
   useSaveSyncSettings,
   useSyncNow,
   useSyncSettings,
@@ -322,7 +321,6 @@ function GarminCard() {
 }
 
 export default function AjustesPage() {
-  const { data: me } = useMe();
   return (
     <section className="space-y-4">
       <h1 className="font-heading text-2xl font-bold md:text-3xl">Ajustes</h1>
@@ -332,11 +330,9 @@ export default function AjustesPage() {
         <div className="lg:col-span-2">
           <AiProvidersCard />
         </div>
-        {me?.is_admin && (
-          <div className="lg:col-span-2">
-            <UsersCard />
-          </div>
-        )}
+        <div className="lg:col-span-2">
+          <AccountCard />
+        </div>
       </div>
     </section>
   );

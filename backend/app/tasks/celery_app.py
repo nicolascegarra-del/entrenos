@@ -9,7 +9,7 @@ celery_app = Celery(
     "entrenos",
     broker=get_settings().redis_url,
     backend=get_settings().redis_url,
-    include=["app.tasks.sync", "app.tasks.garmin_connect"],
+    include=["app.tasks.sync", "app.tasks.garmin_connect", "app.tasks.email", "app.tasks.heartbeat"],
 )
 celery_app.conf.update(
     timezone="UTC",
@@ -18,6 +18,8 @@ celery_app.conf.update(
     beat_schedule={
         # Comprueba cada TICK_MIN minutos a quién le toca según el intervalo elegido en Ajustes.
         "garmin-sync-tick": {"task": "garmin.sync_all", "schedule": TICK_MIN * 60},
+        # Latido para Admin → Sistema: demuestra que beat programa y el worker ejecuta.
+        "heartbeat": {"task": "system.heartbeat", "schedule": 60},
     },
 )
 

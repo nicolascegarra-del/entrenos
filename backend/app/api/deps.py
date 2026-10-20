@@ -6,8 +6,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlmodel import Session
 
 from app.core.db import get_session
-from app.core.security import decode_token
-from app.models import User
+from app.core.security import decode_token_claims
+from app.models import User, UserStatus
 
 SessionDep = Annotated[Session, Depends(get_session)]
 _bearer = HTTPBearer(auto_error=False)
@@ -21,11 +21,12 @@ def get_current_user(
     if credentials is None:
         raise unauthorized
     try:
-        user_id = decode_token(credentials.credentials, "access")
+        user_id, version = decode_token_claims(credentials.credentials, "access")
     except jwt.InvalidTokenError as exc:
         raise unauthorized from exc
     user = session.get(User, user_id)
-    if user is None:
+    # Un usuario desactivado o con las sesiones cerradas (versión distinta) deja de estar autenticado.
+    if user is None or user.status != UserStatus.ACTIVE or user.token_version != version:
         raise unauthorized
     return user
 

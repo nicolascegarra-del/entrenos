@@ -22,10 +22,20 @@ x-backend: &backend
     JWT_SECRET_KEY: ${JWT_SECRET_KEY:?}
     GARMIN_TOKEN_KEY: ${GARMIN_TOKEN_KEY:?}  # cifra tokens de Garmin y claves de IA
     CHAT_DAILY_LIMIT: ${CHAT_DAILY_LIMIT:-100}
+    APP_PUBLIC_URL: ${APP_PUBLIC_URL:?}  # p. ej. https://entrenos.tudominio.com (enlaces de los emails)
+    EMAIL_BACKEND: ${EMAIL_BACKEND:-auto}
+    SMTP_HOST: ${SMTP_HOST:-}
+    SMTP_PORT: ${SMTP_PORT:-587}
+    SMTP_USER: ${SMTP_USER:-}
+    SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    SMTP_FROM: ${SMTP_FROM:-}
+    SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+    BACKUP_DIR: /backups
     CORS_ORIGINS: ${CORS_ORIGINS:?}
     STORAGE_DIR: /data/storage
   volumes:
     - storage:/data/storage
+    - backups:/backups:ro  # solo para mostrar la última copia en Admin → Sistema
 
 services:
   postgres:

@@ -280,44 +280,53 @@ def admin(session: Session) -> User:
     return a
 
 
+def _token(link: str) -> str:
+    return link.split("token=", 1)[1]
+
+
 def test_invitations_cuando_no_admin_entonces_403(client, user):
-    assert client.post("/api/v1/invitations", json={"email": "n@example.com"}, headers=auth(user)).status_code == 403
-    assert client.get("/api/v1/users", headers=auth(user)).status_code == 403
+    res = client.post("/api/v1/admin/invitations", json={"email": "n@example.com"}, headers=auth(user))
+    assert res.status_code == 403
+    assert client.get("/api/v1/admin/users", headers=auth(user)).status_code == 403
 
 
 def test_invitacion_cuando_flujo_completo_entonces_usuario_creado_y_logueado(client, session, admin):
-    inv = client.post("/api/v1/invitations", json={"email": "Nueva@Example.com"}, headers=auth(admin)).json()
-    assert inv["email"] == "nueva@example.com" and inv["token"]
+    inv = client.post("/api/v1/admin/invitations", json={"email": "Nueva@Example.com"}, headers=auth(admin)).json()
+    token = _token(inv["link"])
+    assert inv["email"] == "nueva@example.com" and inv["status"] == "pending" and not inv["emailed"]
     stored = session.exec(select(Invitation)).one()
-    assert stored.token_hash != inv["token"]  # en BD solo el hash
-    assert client.get(f"/api/v1/invitations/check?token={inv['token']}").json() == {"email": "nueva@example.com"}
-    res = client.post("/api/v1/auth/register", json={"token": inv["token"], "password": "una-clave-larga"})
+    assert stored.token_hash != token  # en BD solo el hash
+    assert client.get(f"/api/v1/invitations/check?token={token}").json() == {"email": "nueva@example.com"}
+    res = client.post("/api/v1/auth/register", json={"token": token, "password": "una-clave-larga"})
     assert res.status_code == 200 and res.json()["access_token"]
     assert "refresh_token" in res.headers["set-cookie"]
-    again = client.post("/api/v1/auth/register", json={"token": inv["token"], "password": "una-clave-larga"})
+    again = client.post("/api/v1/auth/register", json={"token": token, "password": "una-clave-larga"})
     assert again.status_code == 400  # un solo uso
-    users = client.get("/api/v1/users", headers=auth(admin)).json()
+    users = client.get("/api/v1/admin/users", headers=auth(admin)).json()["items"]
     assert {u["email"] for u in users} == {"admin@example.com", "nueva@example.com"}
+    used = client.get("/api/v1/admin/invitations", headers=auth(admin)).json()[0]
+    assert used["status"] == "used" and used["used_by_email"] == "nueva@example.com"
 
 
 def test_invitacion_cuando_caducada_entonces_400(client, session, admin):
-    inv = client.post("/api/v1/invitations", json={"email": "tarde@example.com"}, headers=auth(admin)).json()
+    inv = client.post("/api/v1/admin/invitations", json={"email": "tarde@example.com"}, headers=auth(admin)).json()
     stored = session.exec(select(Invitation)).one()
     stored.expires_at = datetime.now(UTC) - timedelta(minutes=1)
     session.add(stored)
     session.commit()
-    res = client.post("/api/v1/auth/register", json={"token": inv["token"], "password": "una-clave-larga"})
+    res = client.post("/api/v1/auth/register", json={"token": _token(inv["link"]), "password": "una-clave-larga"})
     assert res.status_code == 400 and "caducado" in res.json()["error"]["message"]
 
 
 def test_invitacion_cuando_email_ya_existe_entonces_409_y_clave_corta_422(client, user, admin):
-    assert client.post("/api/v1/invitations", json={"email": user.email}, headers=auth(admin)).status_code == 409
-    inv = client.post("/api/v1/invitations", json={"email": "otro@example.com"}, headers=auth(admin)).json()
-    res = client.post("/api/v1/auth/register", json={"token": inv["token"], "password": "corta"})
+    res = client.post("/api/v1/admin/invitations", json={"email": user.email}, headers=auth(admin))
+    assert res.status_code == 409
+    inv = client.post("/api/v1/admin/invitations", json={"email": "otro@example.com"}, headers=auth(admin)).json()
+    res = client.post("/api/v1/auth/register", json={"token": _token(inv["link"]), "password": "corta"})
     assert res.status_code == 422
 
 
 def test_anular_invitacion_cuando_admin_entonces_desaparece(client, admin):
-    inv = client.post("/api/v1/invitations", json={"email": "x@example.com"}, headers=auth(admin)).json()
-    assert client.delete(f"/api/v1/invitations/{inv['id']}", headers=auth(admin)).status_code == 204
-    assert client.get("/api/v1/invitations", headers=auth(admin)).json() == []
+    inv = client.post("/api/v1/admin/invitations", json={"email": "x@example.com"}, headers=auth(admin)).json()
+    assert client.delete(f"/api/v1/admin/invitations/{inv['id']}", headers=auth(admin)).status_code == 204
+    assert client.get("/api/v1/admin/invitations", headers=auth(admin)).json() == []

@@ -98,6 +98,8 @@ En producción los logs salen en JSON (formato Klyp) y no incluyen contraseñas,
    | `JWT_SECRET_KEY` | `openssl rand -hex 32` |
    | `GARMIN_TOKEN_KEY` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` — **guárdala aparte**: cifra los tokens de Garmin y las claves de IA; si se pierde, cada usuario tendrá que reconectar Garmin y volver a poner su clave de IA |
    | `CORS_ORIGINS` | `["https://entrenos.tudominio.com"]` |
+   | `APP_PUBLIC_URL` | `https://entrenos.tudominio.com` (enlaces de los emails) |
+   | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_SECURITY` | Opcionales: datos SMTP de Brevo, Resend o tu dominio. Sin ellos no se envían emails y los enlaces de invitación y de contraseña se copian desde Admin |
    | `BACKUP_KEEP_DAYS` | opcional, 14 por defecto |
    | `LOG_LEVEL` | opcional, `INFO` por defecto |
 

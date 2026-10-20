@@ -19,23 +19,28 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode(), hashed.encode())
 
 
-def create_token(user_id: int, token_type: TokenType) -> str:
+def create_token(user_id: int, token_type: TokenType, version: int = 0) -> str:
+    """Firma un JWT; `version` (claim `tv`) permite invalidar todas las sesiones del usuario."""
     settings = get_settings()
     if token_type == "access":
         delta = timedelta(minutes=settings.jwt_access_expire_minutes)
     else:
         delta = timedelta(days=settings.jwt_refresh_expire_days)
     now = datetime.now(UTC)
-    payload = {"sub": str(user_id), "type": token_type, "iat": now, "exp": now + delta}
+    payload = {"sub": str(user_id), "type": token_type, "tv": version, "iat": now, "exp": now + delta}
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=ALGORITHM)
 
 
 def decode_token(token: str, expected_type: TokenType) -> int:
+    return decode_token_claims(token, expected_type)[0]
+
+
+def decode_token_claims(token: str, expected_type: TokenType) -> tuple[int, int]:
     """
     Valida firma, expiración y tipo del token.
 
     Returns:
-        El id de usuario del token.
+        El id de usuario y la versión de sesión (`tv`) del token.
 
     Raises:
         jwt.InvalidTokenError: Si el token no es válido o no es del tipo esperado.
@@ -43,4 +48,4 @@ def decode_token(token: str, expected_type: TokenType) -> int:
     payload = jwt.decode(token, get_settings().jwt_secret_key, algorithms=[ALGORITHM])
     if payload.get("type") != expected_type:
         raise jwt.InvalidTokenError("Tipo de token incorrecto")
-    return int(payload["sub"])
+    return int(payload["sub"]), int(payload.get("tv", 0))

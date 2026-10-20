@@ -2,6 +2,7 @@
 
 from app.models.account import GarminCredential, GarminStatus, Invitation, Sex, UserProfile, WeightLog
 from app.models.activity import Activity, ActivityRaw, ActivityStream, Device, Lap
+from app.models.admin import AppSetting, AuditLog, PasswordReset
 from app.models.ai import AiProvider, AiProviderConfig, ChatConversation, ChatMessage
 from app.models.goal import RaceGoal
 from app.models.health import AthleteZones, DailyMetric
@@ -10,7 +11,7 @@ from app.models.plan import BlockKind, MatchMode, PlannedBlock, PlannedSession
 from app.models.settings import SYNC_INTERVALS, SyncMode, UserSettings
 from app.models.strength import ActivityFeedback, StrengthSet
 from app.models.sync import SyncRun, SyncStatus
-from app.models.user import User
+from app.models.user import User, UserStatus
 
 __all__ = [
     "AiProvider",
@@ -44,5 +45,9 @@ __all__ = [
     "SyncRun",
     "SyncStatus",
     "User",
+    "UserStatus",
+    "AppSetting",
+    "AuditLog",
+    "PasswordReset",
     "UserSettings",
 ]

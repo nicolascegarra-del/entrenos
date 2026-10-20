@@ -124,3 +124,36 @@ export async function registerWithInvitation(
   );
   useAuthStore.getState().setAccessToken(data.access_token);
 }
+
+/**
+ * Crea una cuenta sin invitación (registro abierto o con aprobación).
+ * @returns "active" si ya hay sesión iniciada, "pending" si espera aprobación.
+ */
+export async function signup(
+  email: string,
+  password: string,
+): Promise<"active" | "pending"> {
+  const data = await apiFetch<{
+    status: "active" | "pending";
+    access_token: string | null;
+  }>(
+    "/api/v1/auth/signup",
+    { method: "POST", body: JSON.stringify({ email, password }) },
+    false,
+  );
+  if (data.access_token)
+    useAuthStore.getState().setAccessToken(data.access_token);
+  return data.status;
+}
+
+/** Cambia la contraseña; la API cierra las demás sesiones y devuelve tokens nuevos. */
+export async function changePassword(
+  current_password: string,
+  new_password: string,
+): Promise<void> {
+  const data = await apiFetch<TokenResponse>("/api/v1/auth/password", {
+    method: "POST",
+    body: JSON.stringify({ current_password, new_password }),
+  });
+  useAuthStore.getState().setAccessToken(data.access_token);
+}

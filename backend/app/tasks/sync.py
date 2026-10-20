@@ -6,7 +6,7 @@ from sqlmodel import Session, select
 
 from app.core.config import get_settings
 from app.core.db import engine
-from app.models import SyncRun, SyncStatus, User
+from app.models import SyncRun, SyncStatus, User, UserStatus
 from app.services.garmin_client import GarminConnectClient, GarminNotConnectedError, has_tokens
 from app.services.profile import apply_garmin_profile
 from app.services.storage import get_storage
@@ -57,7 +57,7 @@ def users_due(now: datetime) -> list[int]:
     with Session(engine) as session:
         return [
             u.id
-            for u in session.exec(select(User)).all()
+            for u in session.exec(select(User).where(User.status == UserStatus.ACTIVE)).all()
             if has_tokens(u.id) and is_due(get_user_settings(session, u.id), last_run_start(session, u.id), now)
         ]
 

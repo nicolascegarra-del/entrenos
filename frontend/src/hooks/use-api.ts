@@ -7,6 +7,13 @@ import {
 
 import { apiFetch } from "@/lib/api";
 import type {
+  AdminSettings,
+  AuditRow,
+  AuthOptions,
+  InvitationCreated,
+  RegistrationMode,
+  SystemStatus,
+  UsersPage,
   AiProviderId,
   AiProviderInput,
   AiProviders,
@@ -17,7 +24,6 @@ import type {
   Me,
   Profile,
   ProfileInput,
-  UserRow,
   ActivityDetail,
   ActivityFeedback,
   ActivityPage,
@@ -494,44 +500,119 @@ export function useDisconnectGarmin() {
   });
 }
 
-// ─── Usuarios e invitaciones (administrador) ─────────────────────────────────
+// ─── Administración ──────────────────────────────────────────────────────────
 
-export function useUsers(enabled: boolean) {
+export function useAdminUsers(q: string) {
   return useQuery({
-    queryKey: ["users"],
-    enabled,
-    queryFn: () => apiFetch<UserRow[]>("/api/v1/users"),
+    queryKey: ["admin-users", q],
+    queryFn: () =>
+      apiFetch<UsersPage>(
+        `/api/v1/admin/users?limit=200${q ? `&q=${encodeURIComponent(q)}` : ""}`,
+      ),
   });
 }
 
-export function useInvitations(enabled: boolean) {
-  return useQuery({
-    queryKey: ["invitations"],
-    enabled,
-    queryFn: () => apiFetch<InvitationRow[]>("/api/v1/invitations"),
-  });
-}
-
-export function useCreateInvitation() {
+/** Acción sobre un usuario; refresca la lista y el estado del sistema. */
+export function useAdminUserAction() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (email: string) =>
-      apiFetch<InvitationRow>("/api/v1/invitations", {
-        method: "POST",
-        body: JSON.stringify({ email }),
+    mutationFn: ({
+      path,
+      method = "POST",
+      body,
+    }: {
+      path: string;
+      method?: string;
+      body?: unknown;
+    }) =>
+      apiFetch<unknown>(`/api/v1/admin/users/${path}`, {
+        method,
+        body: body === undefined ? undefined : JSON.stringify(body),
       }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["invitations"] }),
+    onSuccess: async () => {
+      for (const key of ["admin-users", "admin-system", "admin-audit"]) {
+        await queryClient.invalidateQueries({ queryKey: [key] });
+      }
+    },
   });
 }
 
-export function useDeleteInvitation() {
+export function useAdminInvitations() {
+  return useQuery({
+    queryKey: ["admin-invitations"],
+    queryFn: () => apiFetch<InvitationRow[]>("/api/v1/admin/invitations"),
+  });
+}
+
+export function useInvitationAction() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) =>
-      apiFetch<void>(`/api/v1/invitations/${id}`, { method: "DELETE" }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["invitations"] }),
+    mutationFn: ({
+      path = "",
+      method = "POST",
+      body,
+    }: {
+      path?: string;
+      method?: string;
+      body?: unknown;
+    }) =>
+      apiFetch<InvitationCreated | undefined>(
+        `/api/v1/admin/invitations${path}`,
+        {
+          method,
+          body: body === undefined ? undefined : JSON.stringify(body),
+        },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin-invitations"] });
+      await queryClient.invalidateQueries({ queryKey: ["admin-audit"] });
+    },
+  });
+}
+
+export function useAdminSettings() {
+  return useQuery({
+    queryKey: ["admin-settings"],
+    queryFn: () => apiFetch<AdminSettings>("/api/v1/admin/settings"),
+  });
+}
+
+export function useSaveAdminSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (registration_mode: RegistrationMode) =>
+      apiFetch<AdminSettings>("/api/v1/admin/settings", {
+        method: "PUT",
+        body: JSON.stringify({ registration_mode }),
+      }),
+    onSuccess: async (data) => {
+      queryClient.setQueryData(["admin-settings"], data);
+      await queryClient.invalidateQueries({ queryKey: ["admin-audit"] });
+    },
+  });
+}
+
+export function useAdminAudit() {
+  return useQuery({
+    queryKey: ["admin-audit"],
+    queryFn: () => apiFetch<AuditRow[]>("/api/v1/admin/audit?limit=100"),
+  });
+}
+
+export function useAdminSystem() {
+  return useQuery({
+    queryKey: ["admin-system"],
+    refetchInterval: 60_000,
+    queryFn: () => apiFetch<SystemStatus>("/api/v1/admin/system"),
+  });
+}
+
+/** Opciones públicas del login (modo de registro y si hay correo). */
+export function useAuthOptions() {
+  return useQuery({
+    queryKey: ["auth-options"],
+    staleTime: 5 * 60_000,
+    queryFn: () => apiFetch<AuthOptions>("/api/v1/auth/options", {}, false),
   });
 }
 

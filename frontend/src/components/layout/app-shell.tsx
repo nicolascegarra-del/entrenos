@@ -12,6 +12,7 @@ import {
   MOBILE_TABS,
   NAV_ITEMS,
   type NavItem,
+  visibleFor,
 } from "@/components/layout/nav";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +21,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { useMe } from "@/hooks/use-api";
 import { logout } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -110,7 +112,9 @@ const tabClass = (active: boolean) =>
 function BottomNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const moreActive = MOBILE_MORE.some(({ href }) => isActive(href, pathname));
+  const { data: me } = useMe();
+  const more = visibleFor(MOBILE_MORE, !!me?.is_admin);
+  const moreActive = more.some(({ href }) => isActive(href, pathname));
   return (
     <nav
       aria-label="Principal"
@@ -152,7 +156,7 @@ function BottomNav() {
           className="flex flex-col gap-4 rounded-t-xl border-sidebar-border bg-sidebar p-4 text-sidebar-foreground pb-[calc(1rem+env(safe-area-inset-bottom))]"
         >
           <SheetTitle className="px-3 text-sidebar-foreground">Más</SheetTitle>
-          <NavLinks items={MOBILE_MORE} onNavigate={() => setOpen(false)} />
+          <NavLinks items={more} onNavigate={() => setOpen(false)} />
           <SidebarFooter />
         </SheetContent>
       </Sheet>
@@ -162,11 +166,12 @@ function BottomNav() {
 
 /** Estructura de la app: sidebar en desktop (lg+) y barra de pestañas inferior en móvil/tablet. */
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const { data: me } = useMe();
   return (
     <div className="min-h-dvh bg-background lg:grid lg:grid-cols-[16rem_1fr]">
       <aside className="hidden flex-col gap-6 bg-sidebar p-4 lg:sticky lg:top-0 lg:flex lg:h-dvh">
         <Brand />
-        <NavLinks items={NAV_ITEMS} />
+        <NavLinks items={visibleFor(NAV_ITEMS, !!me?.is_admin)} />
         <SidebarFooter />
       </aside>
 

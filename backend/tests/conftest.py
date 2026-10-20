@@ -78,3 +78,25 @@ def user(session: Session) -> User:
 @pytest.fixture
 def client() -> TestClient:
     return TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def outbox(monkeypatch) -> list[dict]:
+    """Emails encolados durante el test (no se envía nada). Por defecto el correo está desactivado."""
+    from app.tasks import email as email_task
+
+    sent: list[dict] = []
+    monkeypatch.setattr(
+        email_task.send_email_task, "delay", lambda to, subject, text, html=None: sent.append(
+            {"to": to, "subject": subject, "text": text, "html": html}
+        ),
+    )  # fmt: skip
+    monkeypatch.setattr(get_settings(), "email_backend", "disabled")
+    return sent
+
+
+@pytest.fixture
+def mail_on(monkeypatch, outbox) -> list[dict]:
+    """Activa el correo (backend de fichero) y devuelve la bandeja de salida."""
+    monkeypatch.setattr(get_settings(), "email_backend", "file")
+    return outbox
