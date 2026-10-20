@@ -4,7 +4,7 @@ import httpx
 import pytest
 
 from app.models import AiProvider
-from app.services.llm import LLMError, list_models, stream_chat
+from app.services.llm import LLMError, check_model, list_models, stream_chat
 
 
 def _sse(*events: dict, done: bool = False) -> bytes:
@@ -81,7 +81,7 @@ def test_stream_claude_cuando_sse_entonces_texto_y_tokens():
     [
         (401, "{}", "clave de API no es válida"),
         (429, '{"error": {"code": "insufficient_quota"}}', "saldo"),
-        (404, '{"error": "model not found"}', "modelo no existe"),
+        (404, '{"error": "model not found"}', "no está disponible para tu clave"),
         (503, "{}", "no está disponible"),
     ],
 )
@@ -118,3 +118,30 @@ def test_list_models_cuando_gemini_entonces_filtra_por_generate_content():
 def test_list_models_cuando_clave_mala_entonces_llmerror():
     with pytest.raises(LLMError, match="clave"):
         list_models(AiProvider.ANTHROPIC, "k", client=_client(lambda r: httpx.Response(401, json={})))
+
+
+def test_stream_cuando_modelo_retirado_entonces_muestra_explicacion_del_proveedor():
+    # Respuesta real de Google (oct. 2026) para un modelo que sigue en la lista pero ya no se puede usar.
+    body = {"error": {"code": 404, "status": "NOT_FOUND", "message": (
+        "This model models/gemini-2.5-flash-lite is no longer available to new users. Please update your code "
+        "to use models/gemini-3.5-flash-lite for the latest features and improvements."
+    )}}  # fmt: skip
+    with pytest.raises(LLMError) as exc:
+        _collect(AiProvider.GEMINI, lambda r: httpx.Response(404, json=body))
+    assert "elige otro en Ajustes" in exc.value.message
+    assert "gemini-3.5-flash-lite" in exc.value.message
+
+
+def test_detalle_del_proveedor_cuando_incluye_la_clave_entonces_la_oculta():
+    body = '{"error": {"message": "Key sk-test-1234 is not allowed for this model"}}'
+    with pytest.raises(LLMError) as exc:
+        _collect(AiProvider.OPENAI, lambda r: httpx.Response(400, content=body.encode()))
+    assert "sk-test-1234" not in exc.value.message and "••••" in exc.value.message
+
+
+def test_check_model_cuando_responde_entonces_ok_y_cuando_falla_entonces_llmerror():
+    ok = _client(lambda r: httpx.Response(200, content=_sse({"choices": [{"delta": {"content": "OK"}}]}, done=True)))
+    check_model(AiProvider.OPENAI, "k", "gpt-x", client=ok)
+    bad = _client(lambda r: httpx.Response(404, json={"error": {"message": "gone"}}))
+    with pytest.raises(LLMError, match="gone"):
+        check_model(AiProvider.OPENAI, "k", "gpt-x", client=bad)

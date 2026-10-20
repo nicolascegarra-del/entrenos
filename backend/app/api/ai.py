@@ -27,7 +27,7 @@ from app.core.rate_limit import limiter
 from app.models import Activity, AiProvider, AiProviderConfig, ChatConversation, ChatMessage, User
 from app.services.ai_context import conversation_title, format_context, system_prompt
 from app.services.insights import build_insights
-from app.services.llm import PROVIDERS, LLMError, list_models, stream_chat
+from app.services.llm import PROVIDERS, LLMError, check_model, list_models, stream_chat
 from app.services.plan_steps import local_day
 from app.services.profile import age_on, get_profile
 
@@ -70,8 +70,18 @@ class ProviderIn(BaseModel):
     is_default: bool = False
 
 
+class ModelsIn(BaseModel):
+    api_key: str | None = Field(default=None, min_length=8, max_length=300, description="Vacía = usar la guardada")
+
+
+class ModelsOut(BaseModel):
+    models: list[str]
+    recommended: list[str]
+
+
 class TestOut(BaseModel):
     ok: bool
+    model: str
     models: list[str]
 
 
@@ -206,7 +216,11 @@ def get_providers(session: SessionDep, user: CurrentUser) -> ProvidersOut:
 @router.put(
     "/ai/providers/{provider}",
     summary="Guardar la cuenta de un asistente",
-    description="La clave se cifra al guardarla y no se devuelve nunca. Sin `api_key` se conserva la actual.",
+    description=(
+        "La clave se cifra al guardarla y no se devuelve nunca. Sin `api_key` se conserva la actual. Si cambian la "
+        "clave o el modelo, se comprueba antes que el modelo responde."
+    ),
+    responses={400: {"description": "La clave o el modelo no funcionan (mensaje con el motivo)"}},
 )
 def save_provider(provider: AiProvider, body: ProviderIn, session: SessionDep, user: CurrentUser) -> ProvidersOut:
     configs = _configs(session, user.id)
@@ -216,6 +230,13 @@ def save_provider(provider: AiProvider, body: ProviderIn, session: SessionDep, u
         if not api_key:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Introduce la clave de API.")
         config = AiProviderConfig(user_id=user.id, provider=provider, model=body.model, key_enc="", key_last4="")
+    # Si cambia la clave o el modelo, se comprueba que el modelo responde antes de guardar: los proveedores
+    # siguen listando modelos retirados y así nunca queda guardado uno que falle.
+    if body.enabled and (api_key or body.model != config.model):
+        try:
+            check_model(provider, api_key or decrypt_secret(config.key_enc), body.model)
+        except LLMError as exc:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, exc.message) from exc
     if api_key:
         config.key_enc, config.key_last4 = encrypt_secret(api_key), api_key[-4:]
     config.model, config.enabled = body.model, body.enabled
@@ -249,21 +270,50 @@ def delete_provider(provider: AiProvider, session: SessionDep, user: CurrentUser
 
 
 @router.post(
+    "/ai/providers/{provider}/models",
+    summary="Modelos de chat disponibles en la cuenta",
+    description="Con la clave del cuerpo (al configurar) o la guardada. Los recomendados van primero.",
+    responses={400: {"description": "La clave no funciona"}},
+)
+@limiter.limit("20/minute")
+def provider_models(
+    request: Request, provider: AiProvider, body: ModelsIn, session: SessionDep, user: CurrentUser
+) -> ModelsOut:
+    config = _configs(session, user.id).get(provider)
+    api_key = body.api_key.strip() if body.api_key else None
+    if api_key is None:
+        if config is None:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Introduce la clave de API.")
+        api_key = decrypt_secret(config.key_enc)
+    try:
+        models = list_models(provider, api_key)
+    except LLMError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, exc.message) from exc
+    recommended = [m for m in PROVIDERS[provider].suggested_models if m in models]
+    return ModelsOut(models=[m for m in models if m not in recommended], recommended=recommended)
+
+
+@router.post(
     "/ai/providers/{provider}/test",
-    summary="Probar la clave guardada",
-    description="Pide la lista de modelos al proveedor: si responde, la clave funciona.",
-    responses={400: {"description": "La clave no funciona (mensaje con el motivo)"}},
+    summary="Probar la clave y el modelo guardados",
+    description=(
+        "Pide la lista de modelos (comprueba la clave) y una respuesta mínima al modelo elegido (comprueba que "
+        "sigue disponible: los proveedores listan modelos retirados)."
+    ),
+    responses={400: {"description": "La clave o el modelo no funcionan (mensaje con el motivo)"}},
 )
 @limiter.limit("10/minute")
 def test_provider(request: Request, provider: AiProvider, session: SessionDep, user: CurrentUser) -> TestOut:
     config = _configs(session, user.id).get(provider)
     if config is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Guarda primero la clave de este asistente.")
+    api_key = decrypt_secret(config.key_enc)
     try:
-        models = list_models(provider, decrypt_secret(config.key_enc))
+        models = list_models(provider, api_key)
+        check_model(provider, api_key, config.model)
     except LLMError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, exc.message) from exc
-    return TestOut(ok=True, models=models)
+    return TestOut(ok=True, model=config.model, models=models)
 
 
 # ─── Conversaciones ──────────────────────────────────────────────────────────

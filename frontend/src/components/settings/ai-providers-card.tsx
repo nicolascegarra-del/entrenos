@@ -5,10 +5,11 @@ import {
   ExternalLink,
   KeyRound,
   Loader2,
+  RefreshCw,
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -24,13 +25,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  useAiModels,
   useAiProviders,
   useDeleteAiProvider,
   useSaveAiProvider,
   useTestAiProvider,
 } from "@/hooks/use-api";
 import { ApiError } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import type { AiProviderRow } from "@/types/api";
+
+const selectClass =
+  "h-11 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm shadow-xs focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none md:h-9";
 
 const errorText = (e: unknown) =>
   e instanceof ApiError ? e.message : "No se pudo completar la operación.";
@@ -49,11 +55,30 @@ function ProviderBlock({ p }: { p: AiProviderRow }) {
   const [model, setModel] = useState(p.model ?? p.default_model);
   const [enabled, setEnabled] = useState(p.configured ? p.enabled : true);
   const [isDefault, setIsDefault] = useState(p.is_default);
-  const [models, setModels] = useState<string[]>([]);
+  const [list, setList] = useState<{
+    models: string[];
+    recommended: string[];
+  } | null>(null);
   const save = useSaveAiProvider(p.provider);
   const remove = useDeleteAiProvider(p.provider);
   const test = useTestAiProvider(p.provider);
-  const listId = `modelos-${p.provider}`;
+  const loadModels = useAiModels(p.provider);
+  const { mutate: fetchModels } = loadModels;
+
+  const load = (key: string | null) =>
+    fetchModels(key, {
+      onSuccess: (data) => setList(data),
+      onError: (err) => toast.error(errorText(err)),
+    });
+
+  // Con una cuenta guardada, la lista se pide al abrir el formulario.
+  useEffect(() => {
+    if (editing && p.configured && !list) load(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing]);
+
+  const known = list ? [...list.recommended, ...list.models] : [];
+  const fallback = [...new Set([model, ...p.suggested_models])];
 
   const onSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,9 +103,8 @@ function ProviderBlock({ p }: { p: AiProviderRow }) {
   const onTest = () =>
     test.mutate(undefined, {
       onSuccess: (data) => {
-        setModels(data.models);
         toast.success(
-          `La clave funciona: ${data.models.length} modelos disponibles.`,
+          `Todo correcto: ${data.model} responde (${data.models.length} modelos en tu cuenta).`,
         );
       },
       onError: (err) => toast.error(errorText(err)),
@@ -140,24 +164,72 @@ function ProviderBlock({ p }: { p: AiProviderRow }) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor={`modelo-${p.provider}`}>Modelo</Label>
-            <Input
-              id={`modelo-${p.provider}`}
-              list={listId}
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              required
-              pattern="[A-Za-z0-9._:/\-]{1,100}"
-              className="h-11 md:h-9"
-            />
-            <datalist id={listId}>
-              {[...new Set([...p.suggested_models, ...models])].map((m) => (
-                <option key={m} value={m} />
-              ))}
-            </datalist>
+            <div className="flex gap-2">
+              <select
+                id={`modelo-${p.provider}`}
+                className={selectClass}
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                disabled={loadModels.isPending}
+              >
+                {list ? (
+                  <>
+                    {!known.includes(model) && (
+                      <option value={model}>
+                        {model} (actual · ya no aparece en tu cuenta)
+                      </option>
+                    )}
+                    {list.recommended.length > 0 && (
+                      <optgroup label="Recomendados">
+                        {list.recommended.map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    <optgroup label="Todos los de tu cuenta">
+                      {list.models.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </>
+                ) : (
+                  fallback.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))
+                )}
+              </select>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="size-11 shrink-0 md:size-9"
+                aria-label="Actualizar la lista de modelos"
+                title="Actualizar la lista de modelos"
+                disabled={
+                  loadModels.isPending ||
+                  (!p.configured && apiKey.trim().length < 8)
+                }
+                onClick={() => load(apiKey.trim() || null)}
+              >
+                <RefreshCw
+                  className={cn(loadModels.isPending && "animate-spin")}
+                />
+              </Button>
+            </div>
             <p className="text-xs text-muted-foreground">
-              {models.length
-                ? "Elige uno de la lista de tu cuenta."
-                : `Recomendado: ${p.default_model} (económico). Pulsa «Probar» tras guardar para ver todos los de tu cuenta.`}
+              {loadModels.isPending
+                ? "Cargando los modelos de tu cuenta…"
+                : list
+                  ? "Lista de tu cuenta. Al guardar se comprueba que el modelo responde."
+                  : p.configured
+                    ? "Pulsa ⟳ para ver los modelos de tu cuenta."
+                    : "Pega la clave y pulsa ⟳ para ver los modelos de tu cuenta."}
             </p>
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
@@ -188,7 +260,7 @@ function ProviderBlock({ p }: { p: AiProviderRow }) {
               disabled={save.isPending}
             >
               {save.isPending && <Loader2 className="animate-spin" />}
-              Guardar
+              {save.isPending ? "Comprobando…" : "Guardar"}
             </Button>
             {p.configured && (
               <>

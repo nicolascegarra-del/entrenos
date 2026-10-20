@@ -566,10 +566,20 @@ export function useDeleteAiProvider(provider: AiProviderId) {
   });
 }
 
+export function useAiModels(provider: AiProviderId) {
+  return useMutation({
+    mutationFn: (apiKey: string | null) =>
+      apiFetch<{ models: string[]; recommended: string[] }>(
+        `/api/v1/ai/providers/${provider}/models`,
+        { method: "POST", body: JSON.stringify({ api_key: apiKey }) },
+      ),
+  });
+}
+
 export function useTestAiProvider(provider: AiProviderId) {
   return useMutation({
     mutationFn: () =>
-      apiFetch<{ ok: boolean; models: string[] }>(
+      apiFetch<{ ok: boolean; model: string; models: string[] }>(
         `/api/v1/ai/providers/${provider}/test`,
         { method: "POST" },
       ),

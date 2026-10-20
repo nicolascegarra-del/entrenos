@@ -34,6 +34,14 @@ def _events(text: str) -> list[tuple[str, dict]]:
     return out
 
 
+@pytest.fixture(autouse=True)
+def _model_ok(monkeypatch):
+    """Por defecto el modelo responde al guardar (sin llamar a ningún proveedor)."""
+    checked = []
+    monkeypatch.setattr(ai_api, "check_model", lambda provider, key, model: checked.append((provider, key, model)))
+    return checked
+
+
 @pytest.fixture
 def fake_llm(monkeypatch):
     calls = []
@@ -89,8 +97,23 @@ def test_borrar_predeterminado_entonces_pasa_a_otro_activo(client, user):
 def test_probar_clave_cuando_valida_entonces_modelos(client, user, monkeypatch):
     _save(client, user)
     monkeypatch.setattr(ai_api, "list_models", lambda provider, key: ["gpt-5-mini"] if key == KEY else [])
+    checked = []
+    monkeypatch.setattr(ai_api, "check_model", lambda provider, key, model: checked.append(model))
     res = client.post("/api/v1/ai/providers/openai/test", headers=auth(user))
-    assert res.json() == {"ok": True, "models": ["gpt-5-mini"]}
+    assert res.json() == {"ok": True, "model": "gpt-5-mini", "models": ["gpt-5-mini"]}
+    assert checked == ["gpt-5-mini"]
+
+
+def test_probar_clave_cuando_modelo_retirado_entonces_400_aunque_la_clave_valga(client, user, monkeypatch):
+    _save(client, user)
+    monkeypatch.setattr(ai_api, "list_models", lambda provider, key: ["gpt-5-mini"])
+
+    def retired(provider, key, model):
+        raise LLMError("El modelo no está disponible para tu clave; elige otro en Ajustes.", 404)
+
+    monkeypatch.setattr(ai_api, "check_model", retired)
+    res = client.post("/api/v1/ai/providers/openai/test", headers=auth(user))
+    assert res.status_code == 400 and "elige otro" in res.json()["error"]["message"]
 
 
 def test_probar_clave_cuando_invalida_entonces_400_con_motivo(client, user, monkeypatch):
@@ -249,3 +272,52 @@ def test_contexto_cuando_datos_entonces_secciones_con_formato_es():
 def test_titulo_conversacion_cuando_largo_entonces_corta_por_palabra():
     title = conversation_title("¿Qué ritmo debería llevar en los rodajes suaves esta semana si quiero mejorar mi 10K?")
     assert len(title) <= 61 and title.endswith("…") and " " not in title[-2:]
+
+
+# ─── Lista de modelos y validación al guardar ────────────────────────────────
+
+
+def test_guardar_cuando_modelo_retirado_entonces_400_y_no_se_guarda(client, user, monkeypatch, session: Session):
+    def retired(provider, key, model):
+        raise LLMError("El modelo no está disponible para tu clave; elige otro en Ajustes.", 404)
+
+    monkeypatch.setattr(ai_api, "check_model", retired)
+    res = client.put("/api/v1/ai/providers/gemini", json={"api_key": KEY, "model": "gemini-2.5-flash-lite"},
+                     headers=auth(user))  # fmt: skip
+    assert res.status_code == 400 and "elige otro" in res.json()["error"]["message"]
+    assert session.exec(select(AiProviderConfig)).first() is None
+
+
+def test_guardar_cuando_cambia_modelo_entonces_lo_comprueba_con_la_clave_guardada(client, user, _model_ok):
+    _save(client, user)
+    _save(client, user, api_key=None, model="gpt-5")
+    assert _model_ok[-1] == ("openai", KEY, "gpt-5")
+
+
+def test_guardar_cuando_solo_cambia_predeterminado_entonces_no_llama_al_proveedor(client, user, _model_ok):
+    _save(client, user)
+    calls = len(_model_ok)
+    _save(client, user, api_key=None, is_default=True)
+    assert len(_model_ok) == calls
+
+
+def test_modelos_cuando_clave_nueva_entonces_recomendados_primero(client, user, monkeypatch):
+    seen = []
+    monkeypatch.setattr(
+        ai_api, "list_models",
+        lambda provider, key: seen.append(key) or ["gemini-3.5-pro", "gemini-3.5-flash", "gemini-flash-latest"],
+    )  # fmt: skip
+    res = client.post("/api/v1/ai/providers/gemini/models", json={"api_key": KEY}, headers=auth(user))
+    assert res.json() == {"models": ["gemini-3.5-pro"], "recommended": ["gemini-3.5-flash", "gemini-flash-latest"]}
+    assert seen == [KEY]
+
+
+def test_modelos_cuando_sin_clave_ni_cuenta_entonces_422(client, user):
+    assert client.post("/api/v1/ai/providers/gemini/models", json={}, headers=auth(user)).status_code == 422
+
+
+def test_modelos_cuando_cuenta_guardada_entonces_usa_su_clave(client, user, monkeypatch):
+    _save(client, user)
+    monkeypatch.setattr(ai_api, "list_models", lambda provider, key: ["gpt-5-mini"] if key == KEY else [])
+    res = client.post("/api/v1/ai/providers/openai/models", json={}, headers=auth(user))
+    assert res.json()["recommended"] == ["gpt-5-mini"]

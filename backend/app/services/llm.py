@@ -41,8 +41,9 @@ PROVIDERS: dict[AiProvider, ProviderInfo] = {
     ),
     AiProvider.GEMINI: ProviderInfo(
         label="Gemini (Google)",
-        default_model="gemini-2.5-flash",
-        suggested_models=("gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite"),
+        # Google retira los modelos antiguos para cuentas nuevas aunque sigan en su lista (los 2.5, en 2026).
+        default_model="gemini-3.5-flash",
+        suggested_models=("gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-flash-latest"),
         keys_url="https://aistudio.google.com/app/apikey",
         privacy="Tiene nivel gratuito, pero en él Google puede usar lo que envías para mejorar sus productos. "
         "Con facturación activada, no.",
@@ -74,18 +75,34 @@ class Chunk:
     output_tokens: int | None = None
 
 
-def _error_for(status: int, body: str) -> LLMError:
-    """Traduce el error HTTP del proveedor a un mensaje claro en español."""
+def _provider_detail(body: str, api_key: str = "") -> str:
+    """Mensaje de error que da el propio proveedor (JSON `error.message`), recortado y sin la clave."""
+    try:
+        data = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return ""
+    error = data.get("error") if isinstance(data, dict) else None
+    message = error.get("message", "") if isinstance(error, dict) else ""
+    if api_key:
+        message = message.replace(api_key, "••••")
+    message = " ".join(str(message).split())
+    return message[:240] + ("…" if len(message) > 240 else "")
+
+
+def _error_for(status: int, body: str, api_key: str = "") -> LLMError:
+    """Traduce el error HTTP del proveedor a un mensaje claro en español (con su explicación si la da)."""
     lower = body.lower()
+    detail = _provider_detail(body, api_key)
+    said = f" El proveedor indica: «{detail}»" if detail else ""
     if status in (401, 403) or "api key not valid" in lower or "invalid x-api-key" in lower:
         return LLMError("La clave de API no es válida o no tiene permisos.", status)
     if status == 404 or "model_not_found" in lower or "not found" in lower and "model" in lower:
-        return LLMError("El modelo no existe o tu clave no tiene acceso a él.", status)
+        return LLMError(f"El modelo no está disponible para tu clave; elige otro en Ajustes.{said}", status)
     if status == 429 or "insufficient_quota" in lower or "credit balance" in lower or "quota" in lower:
         return LLMError("Has superado el límite del proveedor o no te queda saldo en la cuenta.", status)
     if status >= 500:
         return LLMError("El proveedor no está disponible ahora mismo. Inténtalo en un rato.", status)
-    return LLMError(f"El proveedor rechazó la petición (código {status}).", status)
+    return LLMError(f"El proveedor rechazó la petición (código {status}).{said}", status)
 
 
 def _sse_data(response: httpx.Response) -> Iterator[dict]:
@@ -208,7 +225,7 @@ def stream_chat(
     try:
         with client.stream("POST", url, headers=headers, json=body) as response:
             if response.status_code >= 400:
-                raise _error_for(response.status_code, response.read().decode(errors="replace"))
+                raise _error_for(response.status_code, response.read().decode(errors="replace"), api_key)
             yield from parse(_sse_data(response))
     except httpx.TimeoutException as exc:
         raise LLMError("El proveedor tardó demasiado en responder.") from exc
@@ -222,7 +239,8 @@ def stream_chat(
 def _keep_chat_model(provider: AiProvider, model_id: str) -> bool:
     """Filtra la lista de modelos a los que sirven para conversar (fuera audio, imagen, embeddings…)."""
     excluded = ("embedding", "audio", "realtime", "tts", "transcribe", "image", "search", "moderation", "dall-e",
-                "whisper", "davinci", "babbage", "live", "aqa", "veo", "imagen", "computer-use")  # fmt: skip
+                "whisper", "davinci", "babbage", "live", "aqa", "veo", "imagen", "computer-use", "customtools",
+                "banana", "omni")  # fmt: skip
     if any(word in model_id for word in excluded):
         return False
     if provider is AiProvider.OPENAI:
@@ -262,7 +280,7 @@ def list_models(provider: AiProvider, api_key: str, client: httpx.Client | None 
         if own:
             client.close()
     if response.status_code >= 400:
-        raise _error_for(response.status_code, response.text)
+        raise _error_for(response.status_code, response.text, api_key)
     data = response.json()
     if provider is AiProvider.GEMINI:
         ids = [
@@ -273,3 +291,18 @@ def list_models(provider: AiProvider, api_key: str, client: httpx.Client | None 
     else:
         ids = [m["id"] for m in data.get("data", [])]
     return sorted({m for m in ids if _keep_chat_model(provider, m)}, reverse=True)
+
+
+def check_model(provider: AiProvider, api_key: str, model: str, client: httpx.Client | None = None) -> None:
+    """
+    Comprueba que el modelo elegido responde de verdad con una petición mínima.
+
+    Hace falta además de `list_models`: los proveedores siguen listando modelos retirados
+    para cuentas nuevas, que luego fallan al usarlos.
+
+    Raises:
+        LLMError: Si el modelo no está disponible o la petición falla.
+    """
+    messages = [{"role": "user", "content": "Responde solo: OK"}]
+    for _ in stream_chat(provider, api_key, model, "Prueba de conexión.", messages, client=client):
+        pass
