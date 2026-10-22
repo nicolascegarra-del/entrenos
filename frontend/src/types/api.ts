@@ -637,3 +637,48 @@ export interface EmailSettingsInput {
   sender: string;
   public_url: string;
 }
+
+// ─── Curva de ritmos y zonas ─────────────────────────────────────────────────
+
+export interface PaceBest {
+  pace_s_km: number;
+  speed: number;
+  activity_id: number;
+  day: string;
+}
+
+export interface PaceCurve {
+  durations: {
+    seconds: number;
+    best: PaceBest | null;
+    previous: PaceBest | null;
+  }[];
+  quarters: { label: string; paces: Record<string, number> }[];
+  critical_speed: {
+    speed: number;
+    pace_s_km: number;
+    d_prime_m: number;
+  } | null;
+}
+
+export interface ZoneSet {
+  valid_from: string;
+  thresholds: {
+    lthr: number | null;
+    lthr_source: "garmin" | "fc_max" | null;
+    threshold_pace_s_km: number | null;
+    pace_source: "vdot" | "velocidad_critica" | "mejor_hora" | null;
+    vdot: number | null;
+  };
+  zones: {
+    hr: { name: string; min: number; max: number | null }[];
+    pace: { name: string; fast: number | null; slow: number | null }[];
+  };
+}
+
+export interface ZonesReport {
+  current: ZoneSet | null;
+  previous: ZoneSet | null;
+  history: ZoneSet[];
+  changed_recently: boolean;
+}

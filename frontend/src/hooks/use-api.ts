@@ -36,6 +36,8 @@ import type {
   GarminStatus,
   GoalReport,
   InsightsResponse,
+  PaceCurve,
+  ZonesReport,
   MetricDefinition,
   PlannedSession,
   PlannedSessionDetail,
@@ -289,6 +291,21 @@ export function useSaveSyncSettings() {
         body: JSON.stringify(body),
       }),
     onSuccess: (data) => queryClient.setQueryData(["sync-settings"], data),
+  });
+}
+
+export function usePaceCurve(days: number) {
+  return useQuery({
+    queryKey: ["pace-curve", days],
+    queryFn: () =>
+      apiFetch<PaceCurve>(`/api/v1/progress/pace-curve?days=${days}`),
+  });
+}
+
+export function useZones() {
+  return useQuery({
+    queryKey: ["zones"],
+    queryFn: () => apiFetch<ZonesReport>("/api/v1/progress/zones"),
   });
 }
 

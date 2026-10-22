@@ -78,6 +78,17 @@ export const GLOSSARY = {
     what: "Minutos por semana en zonas de pulso: suave (Z1–Z2), moderada (Z3) e intensa (Z4–Z5).",
     read: "Los corredores de fondo suelen hacer ~80 % suave y ~20 % moderado o intenso. Mucho tiempo en zona moderada cansa sin mejorar tanto.",
   },
+  pace_curve: {
+    name: "Curva de mejores ritmos",
+    what: "Tu mejor ritmo sostenido durante 1, 5, 10, 20, 30 y 60 minutos, sacado de todas tus carreras. Incluye la velocidad crítica: el ritmo más rápido que se puede mantener en estado estable (unos 30–40 min).",
+    read: "Si la línea del periodo actual queda por encima de la anterior, has mejorado en esa duración. Mejorar en 1–5 min indica velocidad; en 20–60 min, resistencia aeróbica.",
+  },
+  zones: {
+    name: "Zonas de entrenamiento",
+    abbr: "Friel",
+    what: "Rangos de pulso y de ritmo calculados a partir de tu umbral (FC umbral y ritmo umbral). Se recalculan solos cuando tu umbral cambia.",
+    read: "Z1–Z2 para rodajes suaves (la mayor parte del entrenamiento), Z3 tempo, Z4 umbral y Z5 series cortas e intensas.",
+  },
   predictions: {
     name: "Tiempos estimados",
     abbr: "Riegel",

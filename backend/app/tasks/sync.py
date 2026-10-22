@@ -13,6 +13,7 @@ from app.services.profile import apply_garmin_profile
 from app.services.storage import get_storage
 from app.services.sync_schedule import get_user_settings, is_due, last_run_start
 from app.services.sync_service import run_sync
+from app.services.zones import refresh_zones
 from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,7 @@ def sync_user(user_id: int, days: int = 7, max_new: int | None = 50) -> str:
                 source.persist()  # Garmin renueva los tokens durante el uso
                 # Mantiene el perfil (y el historial de peso) al día sin pisar lo editado a mano.
                 apply_garmin_profile(session, user_id, source.get_user_profile())
+                refresh_zones(session, user_id)  # umbral nuevo → zonas nuevas (con historial)
             return run.status
     finally:
         lock.release()

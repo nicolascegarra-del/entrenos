@@ -12,9 +12,11 @@ from app.schemas.activity import ActivitySummary
 from app.services import progress as svc
 from app.services.insights import acwr_series, build_insights
 from app.services.metric_catalog import CATALOG
+from app.services.pace_curve import build_pace_curve
 from app.services.plan_steps import local_day, sport_family
 from app.services.profile import age_grade, age_on, get_profile
 from app.services.readiness import readiness
+from app.services.zones import zones_report
 
 router = APIRouter(tags=["progresión"])
 
@@ -252,3 +254,27 @@ def summary(session: SessionDep, user: CurrentUser) -> SummaryResponse:
 )
 def insights(session: SessionDep, user: CurrentUser, days: Days = 180) -> dict:
     return build_insights(session, user.id, days)
+
+
+@router.get(
+    "/progress/pace-curve",
+    summary="Curva de mejores ritmos por duración y velocidad crítica",
+    description=(
+        "Mejor ritmo sostenido 1, 5, 10, 20, 30 y 60 min en el periodo y en el periodo anterior, evolución por "
+        "trimestres y velocidad crítica (CS) con D′ (modelo distancia–tiempo de Monod y Scherrer)."
+    ),
+)
+def pace_curve(session: SessionDep, user: CurrentUser, days: Days = 180) -> dict:
+    return build_pace_curve(session, svc.user_activities(session, user.id), days)
+
+
+@router.get(
+    "/progress/zones",
+    summary="Umbrales y zonas de FC y ritmo (con historial)",
+    description=(
+        "FC umbral (Garmin o 89 % de la FC máx.), ritmo umbral (Daniels T del VDOT o 96 % de la velocidad "
+        "crítica) y zonas de Friel. Se guardan zonas nuevas cuando el umbral cambia de forma apreciable."
+    ),
+)
+def zones(session: SessionDep, user: CurrentUser) -> dict:
+    return zones_report(session, user.id)

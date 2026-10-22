@@ -6,7 +6,9 @@ import { useState } from "react";
 
 import { InfoTerm } from "@/components/glossary/info-term";
 import { INSIGHT_STATUS, InsightCallout } from "@/components/progress/insight";
+import { PaceCurveChart } from "@/components/progress/pace-curve";
 import { TimeChart, rollingMean } from "@/components/progress/time-chart";
+import { ZonesCard } from "@/components/progress/zones-card";
 import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,8 +25,10 @@ import {
   useFitness,
   useInsights,
   useMetricSeries,
+  usePaceCurve,
   useRecords,
   useWeekly,
+  useZones,
 } from "@/hooks/use-api";
 import {
   formatDate,
@@ -588,6 +592,54 @@ function EfficiencySection({
   );
 }
 
+function PaceCurveSection({ days }: { days: number }) {
+  const { data, isPending, isError, refetch } = usePaceCurve(days);
+  const period = PERIODS.find((p) => p.days === days)?.label ?? `${days} días`;
+  return (
+    <Section
+      title="Curva de mejores ritmos"
+      term="pace_curve"
+      description="Tu mejor ritmo sostenido durante 1, 5, 10, 20, 30 y 60 minutos, comparado con el periodo anterior."
+      className="lg:col-span-2"
+    >
+      {isPending ? (
+        <Loading />
+      ) : isError ? (
+        <ErrorState
+          message="No se pudo calcular la curva de ritmos."
+          onRetry={() => refetch()}
+        />
+      ) : !data.durations.some((d) => d.best) ? (
+        <NoData text="Aún no hay carreras con datos de distancia en este periodo." />
+      ) : (
+        <PaceCurveChart data={data} periodLabel={`Últimos ${period}`} />
+      )}
+    </Section>
+  );
+}
+
+function ZonesSection() {
+  const { data, isPending, isError, refetch } = useZones();
+  return (
+    <Section
+      title="Tus zonas de entrenamiento"
+      term="zones"
+      className="lg:col-span-2"
+    >
+      {isPending ? (
+        <Loading />
+      ) : isError ? (
+        <ErrorState
+          message="No se pudieron calcular tus zonas."
+          onRetry={() => refetch()}
+        />
+      ) : (
+        <ZonesCard data={data} />
+      )}
+    </Section>
+  );
+}
+
 function RecordsSection({
   insight,
   data,
@@ -803,6 +855,8 @@ export default function ProgresionPage() {
           className="lg:col-span-2"
         />
         <EfficiencySection days={days} insight={s.efficiency} data={insights} />
+        <PaceCurveSection days={days} />
+        <ZonesSection />
         <RecordsSection insight={s.records} data={insights} />
       </div>
 
