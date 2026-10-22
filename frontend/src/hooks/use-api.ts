@@ -7,6 +7,8 @@ import {
 
 import { apiFetch } from "@/lib/api";
 import type {
+  GeoPlace,
+  RaceDayPlan,
   CompareResult,
   RouteDetail,
   RouteSummary,
@@ -566,6 +568,41 @@ export function useSaveGoal(id?: number) {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["goals"] });
       await queryClient.invalidateQueries({ queryKey: ["goal-report"] });
+      await queryClient.invalidateQueries({ queryKey: ["race-day"] });
+    },
+  });
+}
+
+export function useRaceDay(id: number) {
+  return useQuery({
+    queryKey: ["race-day", id],
+    queryFn: () => apiFetch<RaceDayPlan>(`/api/v1/goals/${id}/race-day`),
+  });
+}
+
+export function useGeocode() {
+  return useMutation({
+    mutationFn: (q: string) =>
+      apiFetch<GeoPlace[]>(`/api/v1/goals/geocode?q=${encodeURIComponent(q)}`),
+  });
+}
+
+/** Subir (texto del .gpx) o quitar (null) el recorrido de la carrera. */
+export function useGoalCourse(id: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (
+      body: { gpx: string; name: string } | null,
+    ): Promise<RaceGoal | void> =>
+      body
+        ? apiFetch<RaceGoal>(`/api/v1/goals/${id}/course`, {
+            method: "PUT",
+            body: JSON.stringify(body),
+          })
+        : apiFetch<void>(`/api/v1/goals/${id}/course`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["race-day", id] });
+      queryClient.invalidateQueries({ queryKey: ["goal-report", id] });
     },
   });
 }

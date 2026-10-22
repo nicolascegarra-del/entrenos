@@ -15,6 +15,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { RaceDayCard } from "@/components/goals/race-day-card";
 import {
   ForecastExplanation,
   PacesExplanationBlock,
@@ -531,6 +532,9 @@ export default function ObjetivoPage() {
           <ForecastCard report={data} />
           <ForecastExplanation explanation={data.explanation} />
         </div>
+        {goal.days_left >= 0 && goal.result_time_s == null && (
+          <RaceDayCard goalId={goal.id} />
+        )}
         <ResultCard report={data} />
         {evolution.length >= 2 && (
           <Card className="shadow-sm lg:col-span-2">

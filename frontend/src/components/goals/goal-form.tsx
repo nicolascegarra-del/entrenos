@@ -2,9 +2,11 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
+import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 
+import { PlaceSearch, type PlaceValue } from "@/components/goals/place-search";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,6 +33,8 @@ const schema = z
     distance: z.string(),
     free_km: z.string(),
     target: z.string(),
+    start_time: z.string(),
+    gain: z.string(),
   })
   .superRefine((v, ctx) => {
     if (v.distance === "free" && !(Number(v.free_km.replace(",", ".")) > 0))
@@ -45,6 +49,13 @@ const schema = z
         code: "custom",
         path: ["target"],
         message: "Formato h:mm:ss (ej. 0:50:00)",
+      });
+    const gain = v.gain.trim();
+    if (gain && !(Number(gain) >= 0 && Number(gain) <= 20000))
+      ctx.addIssue({
+        code: "custom",
+        path: ["gain"],
+        message: "Metros entre 0 y 20.000",
       });
   });
 
@@ -85,8 +96,22 @@ export function GoalForm({
       target: initial?.target_time_s
         ? formatDuration(initial.target_time_s)
         : "",
+      start_time: initial?.start_time?.slice(0, 5) ?? "",
+      gain:
+        initial?.elevation_gain_m != null
+          ? String(initial.elevation_gain_m)
+          : "",
     },
   });
+  const [place, setPlace] = useState<PlaceValue | null>(
+    initial?.lat != null && initial?.lon != null
+      ? {
+          name: initial.location_name || "Lugar elegido",
+          lat: initial.lat,
+          lon: initial.lon,
+        }
+      : null,
+  );
   const distance = useWatch({ control, name: "distance" });
 
   const submit = handleSubmit((v) =>
@@ -98,6 +123,11 @@ export function GoalForm({
           ? Number(v.free_km.replace(",", ".")) * 1000
           : Number(v.distance),
       target_time_s: v.target.trim() ? parseClock(v.target) : null,
+      start_time: v.start_time || null,
+      location_name: place?.name ?? "",
+      lat: place?.lat ?? null,
+      lon: place?.lon ?? null,
+      elevation_gain_m: v.gain.trim() ? Number(v.gain) : null,
     }),
   );
 
@@ -165,6 +195,30 @@ export function GoalForm({
               {...register("target")}
             />
             <FieldError message={errors.target?.message} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="start_time">Hora de salida (opcional)</Label>
+            <Input
+              id="start_time"
+              type="time"
+              className="h-11 md:h-9"
+              {...register("start_time")}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="gain">Desnivel positivo en m (opcional)</Label>
+            <Input
+              id="gain"
+              inputMode="numeric"
+              placeholder="Si no subes el GPX"
+              className="h-11 md:h-9"
+              aria-invalid={!!errors.gain}
+              {...register("gain")}
+            />
+            <FieldError message={errors.gain?.message} />
+          </div>
+          <div className="md:col-span-2">
+            <PlaceSearch value={place} onChange={setPlace} />
           </div>
         </CardContent>
       </Card>

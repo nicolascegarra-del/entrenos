@@ -20,6 +20,7 @@ const goal = (
   predicted_time_s: null,
   probable_s: null,
   days_left,
+  has_course: false,
 });
 
 describe("nextGoal", () => {

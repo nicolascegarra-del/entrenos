@@ -313,6 +313,13 @@ export interface RaceGoalInput {
   race_date: string;
   distance_m: number;
   target_time_s: number | null;
+  /** Hora de salida «HH:MM» (para el clima). */
+  start_time?: string | null;
+  location_name?: string;
+  lat?: number | null;
+  lon?: number | null;
+  /** Desnivel positivo total si no hay GPX. */
+  elevation_gain_m?: number | null;
 }
 
 export interface RaceGoal extends RaceGoalInput {
@@ -322,6 +329,7 @@ export interface RaceGoal extends RaceGoalInput {
   predicted_time_s: number | null;
   probable_s: number | null;
   days_left: number;
+  has_course: boolean;
 }
 
 export type PaceZone =
@@ -930,3 +938,72 @@ export interface CompareResult {
   track_a: [number, number][];
   track_b: [number, number][];
 }
+
+// ─── Día de carrera ──────────────────────────────────────────────────────────
+
+export interface GeoPlace {
+  name: string;
+  region: string;
+  country: string;
+  lat: number;
+  lon: number;
+}
+
+export interface PacingKm {
+  km: number;
+  distance_m: number;
+  factor: number;
+  time_s: number;
+  pace_s_km: number;
+  cum_s: number;
+}
+
+export type RaceDayPlan =
+  | { available: false; reason: string }
+  | {
+      available: true;
+      base_s: number;
+      base_source: "forecast" | "target";
+      elevation_pct: number;
+      heat_pct: number;
+      adjusted_s: number;
+      target_s: number | null;
+      weather: {
+        source: "forecast" | "history" | "climate";
+        label: string;
+        temp_c: number | null;
+        temp_max_c: number | null;
+        dew_point_c: number | null;
+        humidity_pct: number | null;
+        wind_kmh: number | null;
+        rain_prob_pct: number | null;
+      } | null;
+      weather_error: string | null;
+      heat: {
+        pct: number;
+        status: "good" | "watch" | "alert";
+        advice: string;
+        evidence: string[];
+      } | null;
+      course: {
+        source: "gpx" | "gain";
+        name?: string;
+        gain_m: number;
+        loss_m: number;
+        distance_m?: number;
+        profile?: [number, number][];
+        track?: [number, number][];
+      } | null;
+      pacing: PacingKm[];
+      pacing_target: PacingKm[] | null;
+      fueling: {
+        carbs_g_h: [number, number];
+        gels: number;
+        gel_times_min: number[];
+        fluid_ml_h: [number, number];
+        sodium: boolean;
+        note: string;
+        evidence: string[];
+      };
+      elevation_evidence: string[];
+    };

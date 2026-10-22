@@ -1,9 +1,9 @@
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from sqlalchemy import Column, DateTime, Index
 from sqlmodel import Field, SQLModel
 
-from app.models.base import created_at_field
+from app.models.base import created_at_field, jsonb_field
 
 
 class RaceGoal(SQLModel, table=True):
@@ -21,6 +21,14 @@ class RaceGoal(SQLModel, table=True):
     race_date: date
     distance_m: float = Field(gt=0)
     target_time_s: float | None = Field(default=None, gt=0)
+    # Día de carrera: hora de salida, lugar (para el clima) y desnivel o recorrido GPX.
+    start_time: time | None = None
+    location_name: str = Field(default="", max_length=160)
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lon: float | None = Field(default=None, ge=-180, le=180)
+    elevation_gain_m: float | None = Field(default=None, ge=0, le=20000)
+    course: dict | None = jsonb_field(nullable=True)  # perfil del GPX: puntos (distancia, altitud) y trazado
+    weather_cache: dict | None = jsonb_field(nullable=True)  # última consulta a Open-Meteo
     # Calibración (se rellena al marcar la carrera real).
     result_activity_id: int | None = Field(default=None, foreign_key="activity.id", ondelete="SET NULL")
     result_time_s: float | None = None
