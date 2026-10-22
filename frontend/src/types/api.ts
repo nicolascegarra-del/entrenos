@@ -828,3 +828,46 @@ export interface NotificationConfig {
   }[];
   recent: { title: string; kind: string; sent_at: string }[];
 }
+
+// ─── Rachas, logros y retos ──────────────────────────────────────────────────
+
+export type AchievementKind = "milestone" | "streak" | "record" | "challenge";
+
+export interface AchievementsReport {
+  streak: {
+    current: number;
+    best: number;
+    target: number;
+    this_week: number;
+    weeks: { start: string; count: number; ok: boolean }[];
+  };
+  challenges: {
+    key: "km" | "sessions" | "elevation";
+    title: string;
+    unit: string;
+    target: number;
+    current: number;
+    done: boolean;
+    month: string;
+    ends: string;
+  }[];
+  achievements: {
+    key: string;
+    kind: AchievementKind;
+    title: string;
+    description: string;
+    achieved_on: string;
+    activity_id: number | null;
+  }[];
+  upcoming: {
+    key: string;
+    group: "single_run" | "run_km" | "count" | "elevation" | "streak";
+    title: string;
+    description: string;
+    current: number;
+    target: number;
+    unit: string;
+    pct: number;
+  }[];
+  milestones: { unlocked: number; total: number };
+}

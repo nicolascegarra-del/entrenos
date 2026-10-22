@@ -7,6 +7,7 @@ from sqlmodel import Session, select
 from app.core.config import get_settings
 from app.core.db import engine
 from app.models import SyncRun, SyncStatus, User, UserStatus
+from app.services.achievements import evaluate as evaluate_achievements
 from app.services.garmin_client import GarminConnectClient, GarminNotConnectedError, has_tokens
 from app.services.gear import assign_default as assign_default_gear
 from app.services.gear import import_garmin_gear
@@ -68,6 +69,7 @@ def sync_user(user_id: int, days: int = 7, max_new: int | None = 50) -> str:
                 assign_default_gear(session, user_id)  # carreras nuevas → zapatilla por defecto
                 if run.new_activities:
                     _safe(lambda s, u: overload(s, u, injury_report(s, u)), session, user_id)
+                    _safe(evaluate_achievements, session, user_id)  # logros nuevos (y su aviso)
             else:
                 _safe(sync_failed, session, user_id, False)
             return run.status

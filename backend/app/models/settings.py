@@ -22,3 +22,4 @@ class UserSettings(SQLModel, table=True):
     user_id: int = Field(foreign_key="user.id", primary_key=True, ondelete="CASCADE")
     sync_mode: SyncMode = Field(default=SyncMode.AUTO, sa_column=Column(String(16), nullable=False))
     sync_interval_min: int = DEFAULT_SYNC_INTERVAL
+    weekly_goal_sessions: int = Field(default=3, ge=1, le=14)  # racha: semanas con al menos N entrenos

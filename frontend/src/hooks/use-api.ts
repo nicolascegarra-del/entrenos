@@ -7,6 +7,7 @@ import {
 
 import { apiFetch } from "@/lib/api";
 import type {
+  AchievementsReport,
   AdminSettings,
   AdminSettingsInput,
   EmailSettings,
@@ -374,6 +375,27 @@ export function useSetActivityGear(activityId: number) {
       queryClient.invalidateQueries({ queryKey: ["activity", activityId] });
       queryClient.invalidateQueries({ queryKey: ["gear"] });
     },
+  });
+}
+
+// ─── Logros ──────────────────────────────────────────────────────────────────
+
+export function useAchievements() {
+  return useQuery({
+    queryKey: ["achievements"],
+    queryFn: () => apiFetch<AchievementsReport>("/api/v1/achievements"),
+  });
+}
+
+export function useSetWeeklyGoal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (sessions: number) =>
+      apiFetch<AchievementsReport>("/api/v1/achievements/weekly-goal", {
+        method: "PUT",
+        body: JSON.stringify({ sessions }),
+      }),
+    onSuccess: (data) => queryClient.setQueryData(["achievements"], data),
   });
 }
 

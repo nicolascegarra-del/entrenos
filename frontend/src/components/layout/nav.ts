@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Sparkles,
   TrendingUp,
+  Trophy,
   type LucideIcon,
 } from "lucide-react";
 
@@ -33,6 +34,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/plan", label: "Plan", icon: CalendarDays, mobile: "tab" },
   { href: "/progresion", label: "Progresión", icon: TrendingUp, mobile: "tab" },
   { href: "/objetivos", label: "Objetivos", icon: Flag, mobile: "more" },
+  { href: "/logros", label: "Logros", icon: Trophy, mobile: "more" },
   { href: "/material", label: "Material", icon: PackageOpen, mobile: "more" },
   { href: "/asistente", label: "Asistente IA", icon: Sparkles, mobile: "more" },
   { href: "/glosario", label: "Glosario", icon: BookOpen, mobile: "more" },

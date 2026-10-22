@@ -6,6 +6,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from app.api import (
+    achievements,
     activities,
     admin,
     ai,
@@ -90,6 +91,7 @@ app.include_router(admin.router, prefix="/api/v1")
 app.include_router(training_plans.router, prefix="/api/v1")
 app.include_router(gear.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
+app.include_router(achievements.router, prefix="/api/v1")
 
 
 @app.get("/health", summary="Estado del servicio", tags=["infra"])

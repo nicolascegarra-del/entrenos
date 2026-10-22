@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
   CalendarDays,
   ChevronRight,
+  Flame,
   Clock,
   Footprints,
   Sparkles,
@@ -20,7 +21,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TodayCard } from "@/components/summary/today-card";
-import { useGoals, useInjuryRisk, useSummary } from "@/hooks/use-api";
+import {
+  useAchievements,
+  useGoals,
+  useInjuryRisk,
+  useSummary,
+} from "@/hooks/use-api";
 import {
   formatDateTime,
   formatDistance,
@@ -102,6 +108,34 @@ function InjuryBanner() {
   );
 }
 
+/** Racha semanal y reto de km del mes, con enlace a Logros. */
+function StreakStrip() {
+  const { data } = useAchievements();
+  if (!data) return null;
+  const km = data.challenges.find((c) => c.key === "km");
+  return (
+    <Link
+      href="/logros"
+      className="flex min-h-11 flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border p-3 text-sm hover:bg-muted/60"
+    >
+      <span className="flex items-center gap-1.5 font-medium">
+        <Flame className="size-4 text-klyp-accent" aria-hidden />
+        Racha: {data.streak.current}{" "}
+        {data.streak.current === 1 ? "semana" : "semanas"}
+      </span>
+      <span className="text-muted-foreground tabular-nums">
+        Esta semana {data.streak.this_week}/{data.streak.target} entrenos
+      </span>
+      {km && (
+        <span className="text-muted-foreground tabular-nums">
+          {km.title}: {formatNumber(km.current, 1)}/{formatNumber(km.target)} km
+        </span>
+      )}
+      <ChevronRight className="ml-auto size-4 shrink-0" aria-hidden />
+    </Link>
+  );
+}
+
 export default function ResumenPage() {
   const { data, isPending, isError, refetch } = useSummary();
   const { data: goals } = useGoals();
@@ -174,6 +208,7 @@ export default function ResumenPage() {
 
       <TodayCard summary={data} goals={goals} today={today} />
       <InjuryBanner />
+      <StreakStrip />
 
       <h2 className="font-heading text-lg font-semibold">Esta semana</h2>
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
