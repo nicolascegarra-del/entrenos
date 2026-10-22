@@ -126,3 +126,11 @@ def test_umbral_de_ritmo_elige_la_estimacion_mas_rapida(session, user, monkeypat
     monkeypatch.setattr(zones, "forecast", lambda distance, data: F())
     t = zones.estimate_thresholds(session, user.id)
     assert t["pace_source"] == "mejor_hora" and t["threshold_pace_s_km"] == 400
+
+
+def test_la_curva_guardada_no_rompe_el_listado_de_actividades(client, user, session):
+    _run(session, user, 3, [(900, 3.0)])
+    client.get("/api/v1/progress/pace-curve", headers=auth(user))  # guarda la curva en metrics
+    res = client.get("/api/v1/activities", headers=auth(user))
+    assert res.status_code == 200 and "pace_curve" not in res.json()["items"][0]["metrics"]
+    assert client.get("/api/v1/summary", headers=auth(user)).status_code == 200

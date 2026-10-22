@@ -1,6 +1,13 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+
+def numeric_metrics(value: object) -> object:
+    """Solo las métricas numéricas: `metrics` también guarda cálculos internos (p. ej. la curva de ritmos)."""
+    if isinstance(value, dict):
+        return {k: v for k, v in value.items() if isinstance(v, int | float) and not isinstance(v, bool)}
+    return value
 
 
 class ActivitySummary(BaseModel):
@@ -14,6 +21,9 @@ class ActivitySummary(BaseModel):
     avg_hr: float | None
     elevation_gain_m: float | None
     metrics: dict[str, float]
+    gear_id: int | None = None
+
+    _numeric = field_validator("metrics", mode="before")(numeric_metrics)
 
 
 class ActivityPage(BaseModel):
