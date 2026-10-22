@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Column, DateTime, Float, Index, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, Float, Index, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel import Field, SQLModel
 
@@ -50,6 +50,8 @@ class Activity(SQLModel, table=True):
     elevation_gain_m: float | None = None
     calories: float | None = None
     metrics: dict = jsonb_field()
+    # Carrera disputada a tope (Garmin «race» o marcada a mano): solo estas alimentan el VDOT si las hay.
+    is_race: bool = Field(default=False, sa_column=Column(Boolean, nullable=False, server_default=text("false")))
     gear_id: int | None = Field(default=None, foreign_key="gear.id", index=True, ondelete="SET NULL")
     created_at: datetime = created_at_field()
     updated_at: datetime = Field(

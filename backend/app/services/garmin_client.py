@@ -161,6 +161,9 @@ class GarminConnectClient:
         with Session(engine) as session:
             save_tokens(session, self.user_id, self._api.client.dumps(), name)
 
+    def get_lactate_threshold(self) -> dict:
+        return self._safe("lactate", lambda: self._api.get_lactate_threshold(latest=True)) or {}
+
     def get_user_profile(self) -> dict:
         return self._safe("profile", self._api.get_user_profile) or {}
 

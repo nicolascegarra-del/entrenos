@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlmodel import col, distinct, or_, select
 
 from app.api.deps import CurrentUser, SessionDep
@@ -15,8 +16,14 @@ from app.schemas.activity import (
     StreamsResponse,
 )
 from app.services.streams import downsample
+from app.services.zones import refresh_zones
 
 router = APIRouter(prefix="/activities", tags=["actividades"])
+
+
+class RaceIn(BaseModel):
+    is_race: bool
+
 
 _NOT_FOUND = {404: {"description": "La actividad no existe o no es tuya."}}
 
@@ -121,3 +128,18 @@ def get_streams(
         query = query.where(col(ActivityStream.channel).in_([c.strip() for c in channels.split(",")]))
     data = downsample({s.channel: s.values for s in session.exec(query).all()}, max_points)
     return StreamsResponse(points=max((len(v) for v in data.values()), default=0), channels=data)
+
+
+@router.put(
+    "/{activity_id}/race",
+    summary="Marcar o desmarcar como carrera a tope",
+    description="Si hay carreras marcadas en el último año, solo ellas alimentan el VDOT y las previsiones.",
+    responses={404: {"description": "No encontrada"}},
+)
+def set_race(activity_id: int, body: RaceIn, session: SessionDep, user: CurrentUser) -> dict:
+    activity = _get_owned(session, user, activity_id)
+    activity.is_race = body.is_race
+    session.add(activity)
+    session.commit()
+    refresh_zones(session, user.id)  # el VDOT cambia → umbral y zonas pueden cambiar
+    return {"activity_id": activity.id, "is_race": activity.is_race}

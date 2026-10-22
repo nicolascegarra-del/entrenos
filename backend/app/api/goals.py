@@ -15,8 +15,9 @@ from app.services.forecast_explain import explain_paces
 from app.services.limits import QuotaError, check_goal_quota
 from app.services.plan_steps import local_day, sport_family
 from app.services.race_forecast import forecast, full_report, goal_forecast, training_data, user_calibration
-from app.services.race_models import daniels_paces, riegel
+from app.services.race_models import riegel
 from app.services.weather import WeatherError, geocode
+from app.services.zones import effective_paces
 
 router = APIRouter(prefix="/goals", tags=["objetivos"])
 
@@ -258,11 +259,24 @@ paces_router = APIRouter(tags=["objetivos"])
 def training_paces(session: SessionDep, user: CurrentUser) -> dict:
     data = training_data(prog.user_activities(session, user.id), date.today())
     f = forecast(10000, data)
-    if not f.vdot_current:
-        return {"vdot": None, "source": None, "paces": None, "explanation": None}
+    eff = effective_paces(session, user.id)
+    if eff is None:
+        return {"vdot": None, "source": None, "paces": None, "explanation": None, "basis": None}
     return {
-        "vdot": f.vdot_current,
+        "vdot": eff["vdot"],
         "source": f.vdot_source,
-        "paces": daniels_paces(f.vdot_current),
-        "explanation": explain_paces(f),
+        "paces": eff["paces"],
+        "explanation": explain_paces(f) if f.vdot_current else None,
+        **{
+            k: eff[k]
+            for k in (
+                "basis",
+                "vdot_marks",
+                "vdot_from_races",
+                "vdot_threshold",
+                "threshold_pace_s_km",
+                "threshold_source",
+                "alternatives",
+            )
+        },
     }

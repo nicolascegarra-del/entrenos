@@ -3,6 +3,7 @@
 import { Info } from "lucide-react";
 
 import { formatDate, formatDuration } from "@/lib/format";
+import { thresholdAlternatives, type ThresholdSource } from "@/lib/thresholds";
 import type { ZoneSet, ZonesReport } from "@/types/api";
 
 const LTHR_SOURCE = {
@@ -11,6 +12,7 @@ const LTHR_SOURCE = {
 } as const;
 
 const PACE_SOURCE = {
+  garmin: "el umbral de lactato que calcula tu reloj Garmin",
   vdot: "ritmo umbral (T) de Daniels según tu nivel de carrera",
   velocidad_critica: "estimado a partir de tu velocidad crítica",
   mejor_hora:
@@ -46,6 +48,35 @@ export function zonesChange(current: ZoneSet, previous: ZoneSet): string[] {
     );
   }
   return out;
+}
+
+function Alternatives({
+  candidates,
+  chosen,
+}: {
+  candidates?: Partial<Record<ThresholdSource, number>>;
+  chosen?: ThresholdSource | null;
+}) {
+  const items = thresholdAlternatives(candidates, chosen);
+  if (items.length < 2) return null;
+  return (
+    <details className="mb-2 text-xs text-muted-foreground">
+      <summary className="cursor-pointer">
+        Otras estimaciones del umbral
+      </summary>
+      <ul className="mt-1 space-y-0.5 tabular-nums">
+        {items.map((a) => (
+          <li
+            key={a.key}
+            className={a.chosen ? "font-medium text-foreground" : ""}
+          >
+            {a.label}: {a.pace}
+            {a.chosen ? " (la que se usa)" : ""}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
 }
 
 /** Umbrales y zonas de FC y ritmo (Friel), con aviso cuando han cambiado. */
@@ -114,6 +145,7 @@ export function ZonesCard({ data }: { data: ZonesReport }) {
             <p className="mb-2 text-xs text-muted-foreground">
               {t.pace_source ? PACE_SOURCE[t.pace_source] : ""}
             </p>
+            <Alternatives candidates={t.candidates} chosen={t.pace_source} />
             <table className="w-full text-sm tabular-nums">
               <caption className="sr-only">Zonas de ritmo</caption>
               <tbody>

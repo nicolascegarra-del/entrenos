@@ -65,6 +65,7 @@ class Forecast:
     source_time_s: float | None = None
     source_day: date | None = None
     spread_pct: float | None = None
+    source_is_race: bool = False  # las marcas salen de carreras a tope, no de entrenos
 
 
 @dataclass
@@ -76,6 +77,7 @@ class TrainingData:
     km_per_week: float  # carrera, media de 8 semanas
     avg_pace_s_km: float | None  # ritmo medio de carrera en 8 semanas
     longest_run_m: float  # tirada más larga en 12 semanas
+    from_races: bool = False  # `efforts` sale solo de carreras marcadas
 
 
 # ─── Cálculo puro ────────────────────────────────────────────────────────────
@@ -125,6 +127,7 @@ def forecast(
         v, d, t, day = source
         result.vdot_current, result.vdot_source = round(v, 1), "marca"
         result.source_distance_m, result.source_time_s, result.source_day = d, t, day
+        result.source_is_race = data.from_races
         km = num(d / 1000, 1).removesuffix(",0")
         label = "Riegel (exponente personal)" if personal else "Riegel"
         detail = f"Desde {km} km en {_clock(t)} con exponente {num(exponent, 3)}"
@@ -165,7 +168,7 @@ def forecast(
         times = [m.time_s for m in models]
         spread_pct = max(spread_pct, (max(times) - min(times)) / 2 / probable)
     optimistic_extra = 0.0
-    if result.vdot_source == "marca":
+    if result.vdot_source == "marca" and not result.source_is_race:
         optimistic_extra = TRAINING_MARKS_EXTRA
         result.warnings.append(
             "Tus marcas son tramos de entrenamiento, no carreras: la previsión probablemente sea conservadora."
@@ -283,9 +286,14 @@ def training_data(activities: list[Activity], as_of: date) -> TrainingData:
     runs = [a for a in activities if sport_family(a.sport) == "running"]
     dated = [(a, local_day(a.start_time, a.timezone)) for a in runs]
     efforts: dict[str, tuple[float, float, date]] = {}
-    for a, day in dated:
-        if not (as_of - timedelta(days=365) < day <= as_of):
-            continue
+    in_year = [(a, day) for a, day in dated if as_of - timedelta(days=365) < day <= as_of]
+    # Si hay carreras a tope en el último año, solo ellas: los entrenos no deben bajar el nivel.
+    races = [(a, day) for a, day in in_year if a.is_race]
+    for a, day in races:
+        seconds = a.moving_duration_s or a.duration_s
+        if (a.distance_m or 0) >= 1000 and seconds:
+            efforts[f"race_{a.id}"] = (float(a.distance_m), float(seconds), day)
+    for a, day in races or in_year:
         for key, distance in RECORD_DISTANCES.items():
             time_s = a.metrics.get(key)
             if time_s and (key not in efforts or time_s < efforts[key][1]):
@@ -302,6 +310,7 @@ def training_data(activities: list[Activity], as_of: date) -> TrainingData:
         km_per_week=km / 8,
         avg_pace_s_km=seconds / km if km else None,
         longest_run_m=longest,
+        from_races=bool(races),
     )
 
 

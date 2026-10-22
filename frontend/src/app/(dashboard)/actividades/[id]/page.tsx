@@ -10,6 +10,7 @@ import { useMemo } from "react";
 import { FeedbackCard } from "@/components/activity/feedback-card";
 import { GearSelect } from "@/components/activity/gear-select";
 import { LapsTable } from "@/components/activity/laps-table";
+import { RaceToggle } from "@/components/activity/race-toggle";
 import { RouteCard } from "@/components/activity/route-card";
 import {
   StreamCharts,
@@ -216,6 +217,7 @@ export default function ActivityDetailPage() {
             </Badge>
           )}
           {usesShoes(activity.sport) && <GearSelect activity={activity} />}
+          {usesShoes(activity.sport) && <RaceToggle activity={activity} />}
         </div>
       </header>
 

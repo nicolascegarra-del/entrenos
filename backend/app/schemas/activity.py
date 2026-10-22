@@ -22,6 +22,7 @@ class ActivitySummary(BaseModel):
     elevation_gain_m: float | None
     metrics: dict[str, float]
     gear_id: int | None = None
+    is_race: bool = False
 
     _numeric = field_validator("metrics", mode="before")(numeric_metrics)
 

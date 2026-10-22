@@ -368,6 +368,29 @@ export function useDeleteGear() {
   });
 }
 
+export function useSetRace(activityId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (isRace: boolean) =>
+      apiFetch<{ activity_id: number; is_race: boolean }>(
+        `/api/v1/activities/${activityId}/race`,
+        { method: "PUT", body: JSON.stringify({ is_race: isRace }) },
+      ),
+    onSuccess: () => {
+      for (const key of [
+        "activity",
+        "insights",
+        "training-paces",
+        "zones",
+        "goals",
+        "goal-report",
+        "race-day",
+      ])
+        queryClient.invalidateQueries({ queryKey: [key] });
+    },
+  });
+}
+
 export function useSetActivityGear(activityId: number) {
   const queryClient = useQueryClient();
   return useMutation({

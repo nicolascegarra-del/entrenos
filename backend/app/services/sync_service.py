@@ -68,6 +68,7 @@ def _apply_raw(session: Session, activity: Activity, raw: ActivityRaw, device_na
         "distance_m", "avg_hr", "max_hr", "elevation_gain_m", "calories", "metrics",
     ):  # fmt: skip
         setattr(activity, field, getattr(parsed, field))
+    activity.is_race = bool(activity.is_race or parsed.is_race)  # no se pierde la marca puesta a mano
     activity.device_id = _upsert_device(
         session, activity.user_id, parsed.garmin_device_id, device_names, parsed.start_time
     )

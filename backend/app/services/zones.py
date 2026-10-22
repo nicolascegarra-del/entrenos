@@ -2,9 +2,12 @@
 Umbrales y zonas de entrenamiento de carrera, con historial y recálculo automático.
 
 - FC umbral (LTHR): la última que dio Garmin o el 89 % de la FC máx. (`progress.user_thresholds`).
-- Ritmo umbral: el más rápido entre el ritmo T de Daniels del VDOT actual, el 96 % de la velocidad
-  crítica (la CS queda algo por encima del umbral de lactato; Jones y Vanhatalo, 2017) y el mejor ritmo
-  sostenido 60 min en los últimos 120 días (el umbral es, por definición, ~el ritmo de una hora).
+- Ritmo umbral: el que calcula Garmin (umbral de lactato del reloj, del último año) si lo hay; si no,
+  el más rápido entre el ritmo T de Daniels del VDOT actual, el 96 % de la velocidad crítica (la CS
+  queda algo por encima del umbral de lactato; Jones y Vanhatalo, 2017) y el mejor ritmo sostenido
+  60 min en los últimos 120 días (el umbral es, por definición, ~el ritmo de una hora).
+- Ritmos de entrenamiento (E/M/T/I/R de Daniels): del VDOT de tus marcas o del VDOT equivalente a tu
+  ritmo umbral, el mayor de los dos, para que nunca salgan más lentos que el umbral efectivo.
 - Zonas de FC y de ritmo de Friel (5 zonas, porcentajes del umbral).
 
 Cada vez que el umbral cambia de forma apreciable se guarda una fila nueva en `AthleteZones`
@@ -15,11 +18,14 @@ from datetime import date, timedelta
 
 from sqlmodel import Session, col, select
 
-from app.models import AthleteZones
+from app.models import AthleteZones, DailyMetric
 from app.services import progress as prog
 from app.services.pace_curve import best_curve, critical_speed
 from app.services.race_forecast import forecast, training_data
 from app.services.race_models import daniels_paces
+
+GARMIN_LT_MAX_AGE_D = 365
+LT_SPEED_RANGE = (2.0, 7.0)  # m/s razonables (8:20 a 2:23 /km)
 
 SPORT = "running"
 CS_TO_THRESHOLD = 0.96
@@ -50,6 +56,46 @@ def pace_zones(threshold_pace: float) -> list[dict]:
     ]  # fmt: skip
 
 
+def normalize_lt_speed(value: float | None) -> float | None:
+    """Garmin da la velocidad umbral en decenas de m/s (0,308 = 3,08 m/s); se aceptan ambas unidades."""
+    if not value:
+        return None
+    speed = value * 10 if value < 1.5 else value
+    return round(speed, 3) if LT_SPEED_RANGE[0] <= speed <= LT_SPEED_RANGE[1] else None
+
+
+def store_garmin_threshold(session: Session, user_id: int, data: dict | None) -> bool:
+    """Guarda el umbral de lactato de Garmin (velocidad y FC) en la métrica diaria de su fecha."""
+    entry = (data or {}).get("speed_and_heart_rate") or {}
+    speed = normalize_lt_speed(entry.get("speed"))
+    if speed is None:
+        return False
+    try:
+        day = date.fromisoformat(str(entry.get("calendarDate"))[:10])
+    except ValueError:
+        day = date.today()
+    row = session.exec(select(DailyMetric).where(DailyMetric.user_id == user_id, DailyMetric.day == day)).first()
+    row = row or DailyMetric(user_id=user_id, day=day)
+    metrics = {**(row.metrics or {}), "lt_speed": speed}
+    if entry.get("heartRate"):
+        metrics["lt_hr"] = entry["heartRate"]
+    row.metrics = metrics
+    session.add(row)
+    session.commit()
+    return True
+
+
+def garmin_threshold(session: Session, user_id: int, today: date) -> tuple[float, date] | None:
+    """Último ritmo umbral de Garmin (s/km) del último año y su fecha."""
+    rows = session.exec(
+        select(DailyMetric)
+        .where(DailyMetric.user_id == user_id, DailyMetric.day >= today - timedelta(days=GARMIN_LT_MAX_AGE_D))
+        .order_by(col(DailyMetric.day).desc())
+    ).all()
+    row = next((r for r in rows if (r.metrics or {}).get("lt_speed")), None)
+    return (round(1000 / row.metrics["lt_speed"]), row.day) if row else None
+
+
 def estimate_thresholds(session: Session, user_id: int, today: date | None = None) -> dict:
     """Umbrales actuales con su origen (para explicarlo en la interfaz)."""
     today = today or date.today()
@@ -69,7 +115,12 @@ def estimate_thresholds(session: Session, user_id: int, today: date | None = Non
         candidates["velocidad_critica"] = 1000 / (cs[0] * CS_TO_THRESHOLD)
     if 3600 in curve:
         candidates["mejor_hora"] = 1000 / curve[3600].speed
-    pace_source = min(candidates, key=candidates.get) if candidates else None
+    garmin = garmin_threshold(session, user_id, today)
+    if garmin:
+        candidates["garmin"] = garmin[0]
+    # Garmin manda (lo mide el reloj con tu FC y ritmo reales); si no, el más rápido de los estimados.
+    fastest = min(candidates, key=candidates.get) if candidates else None
+    pace_source = "garmin" if garmin else fastest
     pace = round(candidates[pace_source]) if pace_source else None
     return {
         "lthr": round(thr.lthr) if thr.lthr else None,
@@ -77,6 +128,55 @@ def estimate_thresholds(session: Session, user_id: int, today: date | None = Non
         "threshold_pace_s_km": pace,
         "pace_source": pace_source,
         "vdot": f.vdot_current,
+        "vdot_source": getattr(f, "vdot_source", None),
+        "vdot_from_races": getattr(f, "source_is_race", False),
+        "candidates": {k: round(v) for k, v in candidates.items()},
+        "garmin_date": garmin[1].isoformat() if garmin else None,
+    }
+
+
+def vdot_for_threshold(pace_s_km: float) -> float | None:
+    """VDOT cuyo ritmo T (punto medio de Daniels) es `pace_s_km` (búsqueda binaria; T baja al subir el VDOT)."""
+    lo, hi = 15.0, 90.0
+
+    def t_mid(v: float) -> float:
+        fast, slow = daniels_paces(v)["threshold"]
+        return (fast + slow) / 2
+
+    if not (t_mid(hi) <= pace_s_km <= t_mid(lo)):
+        return None
+    for _ in range(40):
+        mid = (lo + hi) / 2
+        if t_mid(mid) > pace_s_km:
+            lo = mid
+        else:
+            hi = mid
+    return round((lo + hi) / 2, 1)
+
+
+def effective_paces(session: Session, user_id: int, today: date | None = None) -> dict | None:
+    """
+    Ritmos de entrenamiento coherentes con el umbral: VDOT = el mayor entre el de tus marcas y el
+    equivalente a tu ritmo umbral efectivo. Devuelve también de dónde sale cada valor.
+    """
+    thr = estimate_thresholds(session, user_id, today)
+    vdot_marks = thr["vdot"]
+    vdot_thr = vdot_for_threshold(thr["threshold_pace_s_km"]) if thr["threshold_pace_s_km"] else None
+    if not vdot_marks and not vdot_thr:
+        return None
+    basis = "umbral" if vdot_thr and (not vdot_marks or vdot_thr > vdot_marks) else "marcas"
+    v = vdot_thr if basis == "umbral" else vdot_marks
+    return {
+        "vdot": round(v, 1),
+        "basis": basis,
+        "vdot_marks": vdot_marks,
+        "vdot_source": thr["vdot_source"],
+        "vdot_from_races": thr["vdot_from_races"],
+        "vdot_threshold": vdot_thr,
+        "threshold_pace_s_km": thr["threshold_pace_s_km"],
+        "threshold_source": thr["pace_source"],
+        "alternatives": thr["candidates"],
+        "paces": daniels_paces(v),
     }
 
 
@@ -103,6 +203,13 @@ def refresh_zones(session: Session, user_id: int, today: date | None = None) -> 
     if thresholds["lthr"] is None and thresholds["threshold_pace_s_km"] is None:
         return current
     if current is not None and not _changed(current.thresholds, thresholds):
+        # Mismo umbral: no hay zonas nuevas, pero se actualizan las alternativas y fuentes que se muestran.
+        kept = {k: current.thresholds.get(k) for k in ("lthr", "threshold_pace_s_km", "pace_source")}
+        merged = {**thresholds, **kept}
+        if merged != current.thresholds:
+            current.thresholds = merged
+            session.add(current)
+            session.commit()
         return current
     zones = {
         "hr": hr_zones(thresholds["lthr"]) if thresholds["lthr"] else [],

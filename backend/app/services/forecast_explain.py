@@ -128,7 +128,7 @@ def _range(f: Forecast, data: TrainingData, distance_m: float) -> Point:
         diff = (max(times) - min(times)) / f.probable_s * 100
         reasons.append(f"los modelos difieren entre sí un {num(diff, 0)} %")
     reasons.append("cuanto más larga es la carrera, más influyen el día, el calor y el ritmo de salida")
-    if f.vdot_source == "marca":
+    if f.vdot_source == "marca" and not f.source_is_race:
         reasons.append("el lado optimista se amplía porque tus marcas son de entrenamiento")
     if data.longest_run_m and distance_m > data.longest_run_m * 1.05:
         reasons.append(

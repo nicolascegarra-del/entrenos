@@ -21,8 +21,9 @@ from app.services.es_format import num as _n
 from app.services.metric_catalog import RECORD_DISTANCES
 from app.services.plan_steps import local_day, sport_family
 from app.services.profile import age_on, get_profile, vo2max_percentile
-from app.services.race_models import pace_at_fraction, vdot
+from app.services.race_models import vdot
 from app.services.strength import exercise_history, exercise_overview
+from app.services.zones import effective_paces
 
 # ─── Referencias (DOI verificados en Crossref) ───────────────────────────────
 
@@ -592,11 +593,26 @@ def build_insights(session: Session, user_id: int, days: int) -> dict:
                 predictions.append(
                     {"label": label, "distance_m": meters, "time_s": t, "pace_s_km": round(t / meters * 1000)}
                 )
-        v = source["vdot"]
+    # Mismos ritmos que el planificador: del umbral efectivo si es más rápido que tus marcas.
+    eff = effective_paces(session, user_id, today)
+    if eff:
+        p = eff["paces"]
         paces = {
-            "easy": [round(pace_at_fraction(v, 0.74)), round(pace_at_fraction(v, 0.59))],
-            "threshold": round(pace_at_fraction(v, 0.86)),
-            "interval": round(pace_at_fraction(v, 0.975)),
+            "easy": list(p["easy"]),
+            "threshold": round(sum(p["threshold"]) / 2),
+            "interval": round(sum(p["interval"]) / 2),
+            **{
+                k: eff[k]
+                for k in (
+                    "vdot",
+                    "basis",
+                    "vdot_marks",
+                    "vdot_from_races",
+                    "threshold_pace_s_km",
+                    "threshold_source",
+                    "alternatives",
+                )
+            },
         }
 
     sessions_per_week = [w["count"] for w in weeks[:-1]]

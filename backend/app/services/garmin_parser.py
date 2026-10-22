@@ -75,6 +75,7 @@ class ParsedActivity:
     elevation_gain_m: float | None
     calories: float | None
     metrics: dict[str, float] = field(default_factory=dict)
+    is_race: bool = False
 
 
 def parse_summary(summary: dict) -> ParsedActivity:
@@ -106,6 +107,7 @@ def parse_summary(summary: dict) -> ParsedActivity:
         elevation_gain_m=_clean(summary.get("elevationGain")),
         calories=_clean(summary.get("calories")),
         metrics=metrics,
+        is_race=((summary.get("eventType") or {}).get("typeKey") == "race"),
     )
 
 

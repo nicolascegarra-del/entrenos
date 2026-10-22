@@ -1,3 +1,5 @@
+import type { ThresholdSource } from "@/lib/thresholds";
+
 /** Tipos de la API (espejo de app/schemas del backend). */
 
 export interface ActivitySummary {
@@ -12,6 +14,7 @@ export interface ActivitySummary {
   elevation_gain_m: number | null;
   metrics: Record<string, number>;
   gear_id: number | null;
+  is_race: boolean;
 }
 
 export interface ActivityPage {
@@ -281,11 +284,14 @@ export interface InsightsResponse {
     time_s: number;
     pace_s_km: number;
   }[];
-  training_paces: {
-    easy: [number, number];
-    threshold: number;
-    interval: number;
-  } | null;
+  training_paces:
+    | ({
+        easy: [number, number];
+        threshold: number;
+        interval: number;
+        vdot: number;
+      } & PacesBasis)
+    | null;
   disclaimer: string;
 }
 
@@ -381,7 +387,17 @@ export interface GoalReport {
   } | null;
 }
 
-export interface TrainingPaces {
+/** De dónde salen los ritmos de entrenamiento y las alternativas del umbral. */
+export interface PacesBasis {
+  basis: "marcas" | "umbral" | null;
+  vdot_marks?: number | null;
+  vdot_from_races?: boolean;
+  threshold_pace_s_km?: number | null;
+  threshold_source?: ThresholdSource | null;
+  alternatives?: Partial<Record<ThresholdSource, number>>;
+}
+
+export interface TrainingPaces extends PacesBasis {
   vdot: number | null;
   source: "marca" | "vo2max" | null;
   paces: DanielsPaces | null;
@@ -679,8 +695,10 @@ export interface ZoneSet {
     lthr: number | null;
     lthr_source: "garmin" | "fc_max" | null;
     threshold_pace_s_km: number | null;
-    pace_source: "vdot" | "velocidad_critica" | "mejor_hora" | null;
+    pace_source: ThresholdSource | null;
     vdot: number | null;
+    candidates?: Partial<Record<ThresholdSource, number>>;
+    garmin_date?: string | null;
   };
   zones: {
     hr: { name: string; min: number; max: number | null }[];

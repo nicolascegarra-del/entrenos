@@ -38,6 +38,7 @@ import {
   formatNumber,
   formatPace,
 } from "@/lib/format";
+import { THRESHOLD_LABEL } from "@/lib/thresholds";
 import { cn } from "@/lib/utils";
 import type { GlossaryKey } from "@/lib/glossary";
 import type { Insight, InsightSection, InsightsResponse } from "@/types/api";
@@ -752,6 +753,19 @@ function RecordsSection({
               <p className="mb-2 flex items-center gap-1.5 text-sm font-medium">
                 Ritmos de entrenamiento según tu nivel de carrera
                 <InfoTerm term="vdot" />
+              </p>
+              <p className="mb-2 text-xs text-muted-foreground">
+                {paces.basis === "umbral"
+                  ? `Calculados desde tu ritmo umbral (${formatDuration(paces.threshold_pace_s_km ?? 0)} /km, ${
+                      THRESHOLD_LABEL[paces.threshold_source ?? "vdot"]
+                    }) porque es más rápido que lo que dicen tus marcas: así no salen más lentos que tus zonas.`
+                  : `Desde tu nivel de carrera (VDOT ${formatNumber(paces.vdot, 1)}, ${
+                      paces.vdot_from_races
+                        ? "de tus carreras"
+                        : "de tus mejores tramos de entreno"
+                    }).`}
+                {!paces.vdot_from_races &&
+                  " Marca tus carreras a tope en su actividad para afinarlo."}
               </p>
               <ul className="space-y-1 text-sm">
                 {[
