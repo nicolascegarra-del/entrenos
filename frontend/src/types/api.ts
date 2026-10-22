@@ -803,3 +803,28 @@ export interface InjuryReport {
   week_km: number;
   disclaimer: string;
 }
+
+// ─── Notificaciones ──────────────────────────────────────────────────────────
+
+export interface NotificationPrefs {
+  daily_session: boolean;
+  daily_hour: number;
+  timezone: string;
+  overload: boolean;
+  sync_error: boolean;
+  achievements: boolean;
+  plan_changes: boolean;
+}
+
+export interface NotificationConfig {
+  public_key: string;
+  prefs: NotificationPrefs;
+  devices: {
+    id: number;
+    user_agent: string;
+    created_at: string;
+    last_ok_at: string | null;
+    endpoint_host: string;
+  }[];
+  recent: { title: string; kind: string; sent_at: string }[];
+}

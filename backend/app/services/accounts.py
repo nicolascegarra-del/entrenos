@@ -28,7 +28,9 @@ from app.models import (
     DailyMetric,
     Device,
     EmailVerification,
+    Gear,
     Lap,
+    NotificationPrefs,
     PasswordReset,
     PlannedBlock,
     PlannedSession,
@@ -231,6 +233,10 @@ def export_user_data(session: Session, user: User) -> dict:
             session.exec(select(PlannedBlock).where(col(PlannedBlock.session_id).in_(plan_ids))).all()
         ),
         "race_goals": _dump(session.exec(select(RaceGoal).where(RaceGoal.user_id == uid)).all()),
+        "gear": _dump(session.exec(select(Gear).where(Gear.user_id == uid)).all()),
+        "notification_prefs": _dump(
+            session.exec(select(NotificationPrefs).where(NotificationPrefs.user_id == uid)).all()
+        ),
         "training_plans": _dump(training_plans),
         "training_plan_weeks": _dump(
             session.exec(select(TrainingPlanWeek).where(col(TrainingPlanWeek.plan_id).in_(plan_ids_tp))).all()

@@ -10,7 +10,9 @@ from app.models import SyncRun, SyncStatus, User, UserStatus
 from app.services.garmin_client import GarminConnectClient, GarminNotConnectedError, has_tokens
 from app.services.gear import assign_default as assign_default_gear
 from app.services.gear import import_garmin_gear
+from app.services.injury import injury_report
 from app.services.limits import history_since
+from app.services.notifications import overload, sync_failed
 from app.services.profile import apply_garmin_profile
 from app.services.storage import get_storage
 from app.services.sync_schedule import get_user_settings, is_due, last_run_start
@@ -29,6 +31,15 @@ def _lock(user_id: int):
     return client.lock(f"garmin-sync:{user_id}", timeout=LOCK_TIMEOUT_S, blocking=False)
 
 
+def _safe(fn, session: Session, user_id: int, *args) -> None:
+    """Las notificaciones nunca deben hacer fallar una sincronización."""
+    try:
+        fn(session, user_id, *args)
+    except Exception:  # noqa: BLE001
+        session.rollback()
+        logger.warning("No se pudo enviar una notificación tras la sincronización")
+
+
 def sync_user(user_id: int, days: int = 7, max_new: int | None = 50) -> str:
     lock = _lock(user_id)
     if not lock.acquire():
@@ -40,6 +51,7 @@ def sync_user(user_id: int, days: int = 7, max_new: int | None = 50) -> str:
             except GarminNotConnectedError as exc:
                 session.add(SyncRun(user_id=user_id, status=SyncStatus.ERROR, error=str(exc)[:500]))
                 session.commit()
+                _safe(sync_failed, session, user_id, True)
                 return "no conectado"
             user = session.get(User, user_id)
             since = history_since(session, user) if user else None  # cuentas Básicas: histórico limitado
@@ -54,6 +66,10 @@ def sync_user(user_id: int, days: int = 7, max_new: int | None = 50) -> str:
                 if profile_id:
                     import_garmin_gear(session, user_id, source._api, str(profile_id))  # opcional
                 assign_default_gear(session, user_id)  # carreras nuevas → zapatilla por defecto
+                if run.new_activities:
+                    _safe(lambda s, u: overload(s, u, injury_report(s, u)), session, user_id)
+            else:
+                _safe(sync_failed, session, user_id, False)
             return run.status
     finally:
         lock.release()

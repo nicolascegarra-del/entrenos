@@ -118,6 +118,9 @@ En producción los logs salen en JSON (formato Klyp) y no incluyen contraseñas,
    ```
    para traer todo el histórico y 120 días de métricas diarias. A partir de ahí sincroniza sola según Ajustes.
 7. Invita a otras personas desde **Ajustes → Usuarios**.
+8. **Notificaciones en el móvil**: cada persona las activa en **Ajustes → Notificaciones**. No hay nada que
+   configurar: las claves VAPID se generan solas la primera vez y se guardan cifradas en la BD. Necesitan
+   HTTPS (o `localhost`); en iPhone/iPad solo funcionan con la app añadida a la pantalla de inicio (iOS 16.4+).
 
 ### Copias de seguridad
 

@@ -37,6 +37,8 @@ import type {
   Gear,
   GearInput,
   InjuryReport,
+  NotificationConfig,
+  NotificationPrefs,
   GoalReport,
   InsightsResponse,
   PlanPreview,
@@ -372,6 +374,68 @@ export function useSetActivityGear(activityId: number) {
       queryClient.invalidateQueries({ queryKey: ["activity", activityId] });
       queryClient.invalidateQueries({ queryKey: ["gear"] });
     },
+  });
+}
+
+// ─── Notificaciones ──────────────────────────────────────────────────────────
+
+export function useNotifications() {
+  return useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => apiFetch<NotificationConfig>("/api/v1/notifications"),
+  });
+}
+
+function useNotificationsMutation<T>(
+  path: string,
+  method: "POST" | "PUT" | "DELETE",
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: T) =>
+      apiFetch<NotificationConfig>(`/api/v1/notifications${path}`, {
+        method,
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (data) => queryClient.setQueryData(["notifications"], data),
+  });
+}
+
+export const useSaveNotificationPrefs = () =>
+  useNotificationsMutation<NotificationPrefs>("/prefs", "PUT");
+
+export const useSubscribePush = () =>
+  useNotificationsMutation<{
+    endpoint: string;
+    keys: { p256dh: string; auth: string };
+    user_agent: string;
+    timezone: string;
+  }>("/subscriptions", "POST");
+
+export const useUnsubscribePush = () =>
+  useNotificationsMutation<{ endpoint: string }>(
+    "/subscriptions/remove",
+    "POST",
+  );
+
+export function useRemovePushDevice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiFetch<void>(`/api/v1/notifications/devices/${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+}
+
+export function useTestPush() {
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ sent: number; failed: number }>("/api/v1/notifications/test", {
+        method: "POST",
+      }),
   });
 }
 

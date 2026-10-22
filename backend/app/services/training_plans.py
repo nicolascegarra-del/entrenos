@@ -16,6 +16,7 @@ from app.models import (
     TrainingPlanWeek,
     User,
 )
+from app.services import notifications
 from app.services import plan_generator as gen
 from app.services import progress as prog
 from app.services.insights import acwr_series
@@ -223,8 +224,13 @@ def adapt_due(session: Session, today: date | None = None) -> int:
             session.commit()
             continue
         due = plan.last_adapted_at is None or plan.last_adapted_at < monday
-        if due and adapt(session, plan, today) is not None:
+        result = adapt(session, plan, today) if due else None
+        if result is not None:
             count += 1
+            try:
+                notifications.plan_changed(session, plan.user_id, plan.id, result["week"], result["reason"])
+            except Exception:  # noqa: BLE001 - el aviso es secundario
+                session.rollback()
     return count
 
 

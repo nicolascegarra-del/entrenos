@@ -8,6 +8,7 @@ from app.models.gear import Gear
 from app.models.goal import RaceGoal
 from app.models.health import AthleteZones, DailyMetric
 from app.models.metric import MetricDefinition, MetricScope
+from app.models.notification import NotificationLog, NotificationPrefs, PushSubscription
 from app.models.plan import BlockKind, MatchMode, PlannedBlock, PlannedSession
 from app.models.settings import SYNC_INTERVALS, SyncMode, UserSettings
 from app.models.strength import ActivityFeedback, StrengthSet
@@ -41,6 +42,9 @@ __all__ = [
     "PlannedBlock",
     "PlannedSession",
     "Gear",
+    "NotificationLog",
+    "NotificationPrefs",
+    "PushSubscription",
     "RaceGoal",
     "SYNC_INTERVALS",
     "StrengthSet",

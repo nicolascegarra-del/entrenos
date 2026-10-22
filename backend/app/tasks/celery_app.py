@@ -16,6 +16,7 @@ celery_app = Celery(
         "app.tasks.heartbeat",
         "app.tasks.housekeeping",
         "app.tasks.plans",
+        "app.tasks.notifications",
     ],
 )
 celery_app.conf.update(
@@ -31,6 +32,8 @@ celery_app.conf.update(
         "accounts-housekeeping": {"task": "accounts.housekeeping", "schedule": 24 * 3600},
         # Adaptación semanal de los planes de entrenamiento (actúa una vez por semana y plan).
         "plans-adapt": {"task": "plans.adapt_due", "schedule": 6 * 3600},
+        # Notificación «hoy toca…» a la hora que elige cada persona.
+        "notifications-daily": {"task": "notifications.daily", "schedule": 15 * 60},
     },
 )
 
