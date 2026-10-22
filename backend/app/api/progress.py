@@ -10,6 +10,7 @@ from app.api.deps import CurrentUser, SessionDep
 from app.models import Device, PlannedSession
 from app.schemas.activity import ActivitySummary
 from app.services import progress as svc
+from app.services.injury import injury_report
 from app.services.insights import acwr_series, build_insights
 from app.services.metric_catalog import CATALOG
 from app.services.pace_curve import build_pace_curve
@@ -278,3 +279,15 @@ def pace_curve(session: SessionDep, user: CurrentUser, days: Days = 180) -> dict
 )
 def zones(session: SessionDep, user: CurrentUser) -> dict:
     return zones_report(session, user.id)
+
+
+@router.get(
+    "/progress/injury-risk",
+    summary="Avisos de riesgo de lesión",
+    description=(
+        "Subida de volumen semanal (regla del 10 %), monotonía y strain de Foster, ACWR, tirada larga "
+        "desproporcionada y zapatillas al límite. Orientativo."
+    ),
+)
+def injury_risk(session: SessionDep, user: CurrentUser) -> dict:
+    return injury_report(session, user.id)

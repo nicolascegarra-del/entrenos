@@ -8,6 +8,7 @@ import { useParams } from "next/navigation";
 import { useMemo } from "react";
 
 import { FeedbackCard } from "@/components/activity/feedback-card";
+import { GearSelect } from "@/components/activity/gear-select";
 import { LapsTable } from "@/components/activity/laps-table";
 import {
   StreamCharts,
@@ -19,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useActivity, useCatalog, useStreams } from "@/hooks/use-api";
 import { ApiError } from "@/lib/api";
+import { usesShoes } from "@/lib/gear";
 import {
   formatDateTime,
   formatDistance,
@@ -212,6 +214,7 @@ export default function ActivityDetailPage() {
               <Watch className="size-3" aria-hidden /> {activity.device.name}
             </Badge>
           )}
+          {usesShoes(activity.sport) && <GearSelect activity={activity} />}
         </div>
       </header>
 

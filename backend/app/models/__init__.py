@@ -4,6 +4,7 @@ from app.models.account import GarminCredential, GarminStatus, Invitation, Sex, 
 from app.models.activity import Activity, ActivityRaw, ActivityStream, Device, Lap
 from app.models.admin import AppSetting, AuditLog, EmailVerification, PasswordReset
 from app.models.ai import AiProvider, AiProviderConfig, ChatConversation, ChatMessage
+from app.models.gear import Gear
 from app.models.goal import RaceGoal
 from app.models.health import AthleteZones, DailyMetric
 from app.models.metric import MetricDefinition, MetricScope
@@ -39,6 +40,7 @@ __all__ = [
     "MetricScope",
     "PlannedBlock",
     "PlannedSession",
+    "Gear",
     "RaceGoal",
     "SYNC_INTERVALS",
     "StrengthSet",

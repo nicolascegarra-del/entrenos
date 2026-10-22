@@ -34,6 +34,9 @@ import type {
   EfficiencyPoint,
   FitnessResponse,
   GarminStatus,
+  Gear,
+  GearInput,
+  InjuryReport,
   GoalReport,
   InsightsResponse,
   PlanPreview,
@@ -309,6 +312,66 @@ export function useZones() {
   return useQuery({
     queryKey: ["zones"],
     queryFn: () => apiFetch<ZonesReport>("/api/v1/progress/zones"),
+  });
+}
+
+export function useInjuryRisk() {
+  return useQuery({
+    queryKey: ["injury-risk"],
+    queryFn: () => apiFetch<InjuryReport>("/api/v1/progress/injury-risk"),
+  });
+}
+
+// ─── Material ────────────────────────────────────────────────────────────────
+
+export function useGear() {
+  return useQuery({
+    queryKey: ["gear"],
+    queryFn: () => apiFetch<Gear[]>("/api/v1/gear"),
+  });
+}
+
+/** Alta (sin id) o edición de unas zapatillas; la API devuelve la lista completa. */
+export function useSaveGear() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id?: number; body: GearInput }) =>
+      apiFetch<Gear[]>(id ? `/api/v1/gear/${id}` : "/api/v1/gear", {
+        method: id ? "PUT" : "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["gear"], data);
+      queryClient.invalidateQueries({ queryKey: ["injury-risk"] });
+      queryClient.invalidateQueries({ queryKey: ["activity"] });
+    },
+  });
+}
+
+export function useDeleteGear() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiFetch<void>(`/api/v1/gear/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gear"] });
+      queryClient.invalidateQueries({ queryKey: ["injury-risk"] });
+    },
+  });
+}
+
+export function useSetActivityGear(activityId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (gearId: number | null) =>
+      apiFetch<{ activity_id: number; gear_id: number | null }>(
+        `/api/v1/activities/${activityId}/gear`,
+        { method: "PUT", body: JSON.stringify({ gear_id: gearId }) },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["activity", activityId] });
+      queryClient.invalidateQueries({ queryKey: ["gear"] });
+    },
   });
 }
 

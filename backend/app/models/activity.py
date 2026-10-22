@@ -50,6 +50,7 @@ class Activity(SQLModel, table=True):
     elevation_gain_m: float | None = None
     calories: float | None = None
     metrics: dict = jsonb_field()
+    gear_id: int | None = Field(default=None, foreign_key="gear.id", index=True, ondelete="SET NULL")
     created_at: datetime = created_at_field()
     updated_at: datetime = Field(
         default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, onupdate=utcnow)

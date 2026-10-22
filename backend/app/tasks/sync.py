@@ -8,6 +8,8 @@ from app.core.config import get_settings
 from app.core.db import engine
 from app.models import SyncRun, SyncStatus, User, UserStatus
 from app.services.garmin_client import GarminConnectClient, GarminNotConnectedError, has_tokens
+from app.services.gear import assign_default as assign_default_gear
+from app.services.gear import import_garmin_gear
 from app.services.limits import history_since
 from app.services.profile import apply_garmin_profile
 from app.services.storage import get_storage
@@ -45,8 +47,13 @@ def sync_user(user_id: int, days: int = 7, max_new: int | None = 50) -> str:
             if run.status == SyncStatus.SUCCESS:
                 source.persist()  # Garmin renueva los tokens durante el uso
                 # Mantiene el perfil (y el historial de peso) al día sin pisar lo editado a mano.
-                apply_garmin_profile(session, user_id, source.get_user_profile())
+                garmin_profile = source.get_user_profile() or {}
+                apply_garmin_profile(session, user_id, garmin_profile)
                 refresh_zones(session, user_id)  # umbral nuevo → zonas nuevas (con historial)
+                profile_id = garmin_profile.get("id")
+                if profile_id:
+                    import_garmin_gear(session, user_id, source._api, str(profile_id))  # opcional
+                assign_default_gear(session, user_id)  # carreras nuevas → zapatilla por defecto
             return run.status
     finally:
         lock.release()

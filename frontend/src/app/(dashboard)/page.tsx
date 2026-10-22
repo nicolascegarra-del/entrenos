@@ -5,6 +5,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   CalendarDays,
+  ChevronRight,
   Clock,
   Footprints,
   Sparkles,
@@ -13,12 +14,13 @@ import Link from "next/link";
 
 import { InfoTerm } from "@/components/glossary/info-term";
 import { ScoreBadge } from "@/components/plan/status-badge";
+import { INSIGHT_STATUS } from "@/components/progress/insight";
 import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TodayCard } from "@/components/summary/today-card";
-import { useGoals, useSummary } from "@/hooks/use-api";
+import { useGoals, useInjuryRisk, useSummary } from "@/hooks/use-api";
 import {
   formatDateTime,
   formatDistance,
@@ -28,6 +30,7 @@ import {
 } from "@/lib/format";
 import type { GlossaryKey } from "@/lib/glossary";
 import { toIsoDay } from "@/lib/plan";
+import { cn } from "@/lib/utils";
 
 function Kpi({
   label,
@@ -71,6 +74,33 @@ function Kpi({
 
 const pct = (now: number, before: number) =>
   before > 0 ? ((now - before) / before) * 100 : null;
+
+/** Aviso de riesgo de lesión en el Resumen: solo aparece si hay algo que vigilar. */
+function InjuryBanner() {
+  const { data } = useInjuryRisk();
+  if (!data || data.status === "good") return null;
+  const st = INSIGHT_STATUS[data.status];
+  const worst = data.checks.filter((c) => c.status === data.status);
+  return (
+    <Link
+      href="/progresion#lesiones"
+      className={cn(
+        "flex min-h-11 items-start gap-2 rounded-lg border p-3 text-sm hover:opacity-90",
+        st.className,
+      )}
+    >
+      <st.icon className="mt-0.5 size-4 shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1">
+        <span className="font-medium">
+          <span className="sr-only">{st.label}: </span>
+          {worst.map((c) => c.title).join(" · ")}
+        </span>
+        <span className="block">{worst[0]?.message}</span>
+      </span>
+      <ChevronRight className="mt-0.5 size-4 shrink-0" aria-hidden />
+    </Link>
+  );
+}
 
 export default function ResumenPage() {
   const { data, isPending, isError, refetch } = useSummary();
@@ -143,6 +173,7 @@ export default function ResumenPage() {
       </div>
 
       <TodayCard summary={data} goals={goals} today={today} />
+      <InjuryBanner />
 
       <h2 className="font-heading text-lg font-semibold">Esta semana</h2>
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">

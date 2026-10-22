@@ -11,6 +11,7 @@ export interface ActivitySummary {
   avg_hr: number | null;
   elevation_gain_m: number | null;
   metrics: Record<string, number>;
+  gear_id: number | null;
 }
 
 export interface ActivityPage {
@@ -752,4 +753,53 @@ export interface TrainingPlanReport {
   weeks: TrainingPlanWeekOut[];
   current_week: number | null;
   total_weeks: number;
+}
+
+// ─── Material y avisos de lesión ─────────────────────────────────────────────
+
+export type GearStatus = "ok" | "soon" | "replace" | "retired";
+
+export interface Gear {
+  id: number;
+  name: string;
+  brand: string;
+  model: string;
+  sport: string;
+  start_km: number;
+  alert_km: number;
+  first_use: string | null;
+  is_default: boolean;
+  retired: boolean;
+  from_garmin: boolean;
+  total_km: number;
+  status: GearStatus;
+}
+
+export interface GearInput {
+  name: string;
+  brand: string;
+  model: string;
+  start_km: number;
+  alert_km: number;
+  first_use: string | null;
+  is_default: boolean;
+  retired: boolean;
+}
+
+export type RiskStatus = "good" | "watch" | "alert";
+
+export interface InjuryCheck {
+  key: "volume" | "acwr" | "monotony" | "long_run" | "shoes";
+  status: RiskStatus;
+  title: string;
+  message: string;
+  evidence: string[];
+}
+
+export interface InjuryReport {
+  status: RiskStatus;
+  summary: string;
+  checks: InjuryCheck[];
+  week_km: number;
+  disclaimer: string;
 }

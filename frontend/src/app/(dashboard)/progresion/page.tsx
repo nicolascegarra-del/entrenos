@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { InfoTerm } from "@/components/glossary/info-term";
+import { InjuryCard } from "@/components/progress/injury-card";
 import { INSIGHT_STATUS, InsightCallout } from "@/components/progress/insight";
 import { PaceCurveChart } from "@/components/progress/pace-curve";
 import { TimeChart, rollingMean } from "@/components/progress/time-chart";
@@ -23,6 +24,7 @@ import {
   useDevices,
   useEfficiency,
   useFitness,
+  useInjuryRisk,
   useInsights,
   useMetricSeries,
   usePaceCurve,
@@ -86,6 +88,7 @@ const weekLabel = (v: number) =>
   `sem. ${new Date(v).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}`;
 
 function Section({
+  id,
   title,
   term,
   description,
@@ -93,6 +96,8 @@ function Section({
   children,
   className,
 }: {
+  /** Ancla para enlazar a la sección (p. ej. desde el Resumen). */
+  id?: string;
   title: string;
   /** Entrada del glosario que explica la sección (icono ⓘ junto al título). */
   term?: GlossaryKey;
@@ -102,7 +107,7 @@ function Section({
   className?: string;
 }) {
   return (
-    <Card className={cn("shadow-sm", className)}>
+    <Card id={id} className={cn("scroll-mt-20 shadow-sm", className)}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 font-heading text-lg">
           {title}
@@ -640,6 +645,29 @@ function ZonesSection() {
   );
 }
 
+function InjurySection() {
+  const { data, isPending, isError, refetch } = useInjuryRisk();
+  return (
+    <Section
+      id="lesiones"
+      title="Prevención de lesiones"
+      description="Cómo repartes la carga esta semana y el estado de tus zapatillas."
+      className="lg:col-span-2"
+    >
+      {isPending ? (
+        <Loading />
+      ) : isError ? (
+        <ErrorState
+          message="No se pudieron calcular los avisos."
+          onRetry={() => refetch()}
+        />
+      ) : (
+        <InjuryCard data={data} />
+      )}
+    </Section>
+  );
+}
+
 function RecordsSection({
   insight,
   data,
@@ -812,9 +840,10 @@ export default function ProgresionPage() {
 
       <OverallPanel data={insights} />
 
-      <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-2">
         <FitnessSection days={days} insight={s.fitness} />
         <AcwrSection data={insights} insight={s.acwr} />
+        <InjurySection />
         <VolumeSection days={days} insight={s.volume} />
         <IntensitySection data={insights} insight={s.intensity} />
         <MetricSection
