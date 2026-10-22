@@ -7,6 +7,8 @@ import {
 
 import { apiFetch } from "@/lib/api";
 import type {
+  ImportResult,
+  SourcesStatus,
   GeoPlace,
   RaceDayPlan,
   CompareResult,
@@ -438,6 +440,76 @@ export function useCompare(a: number, b: number) {
     queryFn: () =>
       apiFetch<CompareResult>(`/api/v1/routes/compare?a=${a}&b=${b}`),
     enabled: Number.isFinite(a) && Number.isFinite(b) && a !== b,
+  });
+}
+
+// ─── Otros relojes ───────────────────────────────────────────────────────────
+
+export function useSources() {
+  return useQuery({
+    queryKey: ["sources"],
+    queryFn: () => apiFetch<SourcesStatus>("/api/v1/sources"),
+  });
+}
+
+export function useImportFile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { filename: string; content_b64: string }) =>
+      apiFetch<ImportResult>("/api/v1/imports/file", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      for (const key of ["activities", "summary", "insights", "achievements"])
+        queryClient.invalidateQueries({ queryKey: [key] });
+    },
+  });
+}
+
+export function useConnectCoros() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { account: string; password: string }) =>
+      apiFetch<SourcesStatus>("/api/v1/sources/coros", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (data) => queryClient.setQueryData(["sources"], data),
+  });
+}
+
+export function useSyncCoros() {
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ queued: boolean }>("/api/v1/sources/coros/sync", {
+        method: "POST",
+      }),
+  });
+}
+
+export function useDisconnectCoros() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<void>("/api/v1/sources/coros", { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sources"] }),
+  });
+}
+
+export function useIngestToken() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (revoke: boolean) =>
+      revoke
+        ? apiFetch<void>("/api/v1/sources/health-connect/token", {
+            method: "DELETE",
+          }).then(() => null)
+        : apiFetch<SourcesStatus & { token: string }>(
+            "/api/v1/sources/health-connect/token",
+            { method: "POST" },
+          ),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sources"] }),
   });
 }
 

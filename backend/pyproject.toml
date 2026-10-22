@@ -46,3 +46,5 @@ known-third-party = ["alembic"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=app --cov-report=term-missing"
+# fitparse usa utcfromtimestamp (aviso de la librería, no nuestro).
+filterwarnings = ["ignore:datetime.datetime.utcfromtimestamp:DeprecationWarning:fitparse"]

@@ -122,6 +122,20 @@ En producción los logs salen en JSON (formato Klyp) y no incluyen contraseñas,
    configurar: las claves VAPID se generan solas la primera vez y se guardan cifradas en la BD. Necesitan
    HTTPS (o `localhost`); en iPhone/iPad solo funcionan con la app añadida a la pantalla de inicio (iOS 16.4+).
 
+### Otros relojes (además de Garmin)
+
+En **Ajustes → Otros relojes**:
+
+- **Ficheros FIT, GPX o TCX** de cualquier marca (Suunto, Polar, COROS, Wahoo, Amazfit/Zepp, Strava…).
+  Si el entreno ya estaba (por ejemplo, desde Garmin) no se duplica: misma hora ±2 min y duración ±5 %.
+- **COROS**: con el email y la contraseña de COROS Training Hub (API web no oficial; solo se guarda el token
+  cifrado). Se sincroniza cada hora.
+- **Samsung, Xiaomi/Amazfit, Huawei y Wear OS** vía Health Connect: la app libre
+  [Health Connect Webhook](https://github.com/mcnaveen/health-connect-webhook) envía los datos a
+  `https://<tu-dominio>/api/v1/ingest/health-connect` con la cabecera `X-Api-Key` (token personal que se crea
+  en esa misma tarjeta). La URL pública es la de **Admin → Correo**.
+- **Suunto**: de momento con la exportación de FIT/GPX (su API oficial exige ser partner).
+
 ### Copias de seguridad
 
 - Las copias quedan en el volumen `backups` del servidor (`predeploy-*.sql.gz` y `daily-*.sql.gz`).

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Footprints, Loader2 } from "lucide-react";
+import { ChevronRight, FileUp, Footprints, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -174,9 +174,21 @@ export default function ActividadesPage() {
 
   return (
     <section className="space-y-4">
-      <h1 className="font-heading text-2xl font-bold md:text-3xl">
-        Actividades
-      </h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="font-heading text-2xl font-bold md:text-3xl">
+          Actividades
+        </h1>
+        <Button
+          asChild
+          variant="outline"
+          size="sm"
+          className="min-h-11 md:min-h-8"
+        >
+          <Link href="/ajustes#otros-relojes">
+            <FileUp aria-hidden /> Importar FIT, GPX o TCX
+          </Link>
+        </Button>
+      </div>
       <SportFilter value={sport} onChange={setSport} />
 
       {isPending ? (

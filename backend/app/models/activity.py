@@ -29,6 +29,7 @@ class Activity(SQLModel, table=True):
 
     __table_args__ = (
         UniqueConstraint("user_id", "garmin_activity_id"),
+        UniqueConstraint("user_id", "source", "external_id"),
         Index("ix_activity_user_start", "user_id", "start_time"),
         Index("ix_activity_user_sport_start", "user_id", "sport", "start_time"),
     )
@@ -37,6 +38,9 @@ class Activity(SQLModel, table=True):
     user_id: int = Field(foreign_key="user.id")
     device_id: int | None = Field(default=None, foreign_key="device.id")
     garmin_activity_id: int | None = Field(default=None, sa_type=BigInteger)
+    # Origen: garmin | coros | fit | gpx | tcx | health_connect. `external_id` = id en el origen.
+    source: str = Field(default="garmin", max_length=24, sa_column_kwargs={"server_default": "garmin"})
+    external_id: str | None = Field(default=None, max_length=120)
     sport: str = Field(max_length=32)
     sub_sport: str | None = Field(default=None, max_length=64)
     name: str = Field(default="", max_length=255)

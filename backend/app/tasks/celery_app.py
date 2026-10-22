@@ -17,6 +17,7 @@ celery_app = Celery(
         "app.tasks.housekeeping",
         "app.tasks.plans",
         "app.tasks.notifications",
+        "app.tasks.sources",
     ],
 )
 celery_app.conf.update(
@@ -34,6 +35,8 @@ celery_app.conf.update(
         "plans-adapt": {"task": "plans.adapt_due", "schedule": 6 * 3600},
         # Notificación «hoy toca…» a la hora que elige cada persona.
         "notifications-daily": {"task": "notifications.daily", "schedule": 15 * 60},
+        # Otros relojes: COROS cada hora (Health Connect llega solo por webhook).
+        "coros-sync": {"task": "coros.sync_all", "schedule": 3600},
     },
 )
 

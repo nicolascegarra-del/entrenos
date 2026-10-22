@@ -1025,3 +1025,26 @@ export type RaceDayPlan =
       };
       elevation_evidence: string[];
     };
+
+// ─── Otros relojes ───────────────────────────────────────────────────────────
+
+export interface SourcesStatus {
+  coros: {
+    account: string;
+    status: "ok" | "expired" | "error";
+    last_sync_at: string | null;
+    last_error: string;
+  } | null;
+  health_connect: {
+    hint: string;
+    created_at: string;
+    last_used_at: string | null;
+  } | null;
+  ingest_url: string;
+}
+
+export interface ImportResult {
+  activity_id: number;
+  created: boolean;
+  source: string;
+}

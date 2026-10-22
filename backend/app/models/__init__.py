@@ -12,12 +12,15 @@ from app.models.metric import MetricDefinition, MetricScope
 from app.models.notification import NotificationLog, NotificationPrefs, PushSubscription
 from app.models.plan import BlockKind, MatchMode, PlannedBlock, PlannedSession
 from app.models.settings import SYNC_INTERVALS, SyncMode, UserSettings
+from app.models.sources import CorosCredential, IngestToken
 from app.models.strength import ActivityFeedback, StrengthSet
 from app.models.sync import SyncRun, SyncStatus
 from app.models.training import TrainingPlan, TrainingPlanWeek
 from app.models.user import AccountTier, User, UserStatus
 
 __all__ = [
+    "CorosCredential",
+    "IngestToken",
     "Achievement",
     "AiProvider",
     "AiProviderConfig",
