@@ -20,7 +20,18 @@ class TokenResponse(BaseModel):
     expires_in: int
 
 
+class LimitsRead(BaseModel):
+    """None = sin límite."""
+
+    history_days: int | None = None
+    max_goals: int | None = None
+    max_sessions_week: int | None = None
+
+
 class UserRead(BaseModel):
     id: int
     email: str
     is_admin: bool = False
+    tier: str = "full"  # full | basic
+    onboarded: bool = True  # False = mostrar la configuración guiada
+    limits: LimitsRead = LimitsRead()

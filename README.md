@@ -100,6 +100,7 @@ En producción los logs salen en JSON (formato Klyp) y no incluyen contraseñas,
    | `CORS_ORIGINS` | `["https://entrenos.tudominio.com"]` |
    | `APP_PUBLIC_URL` | `https://entrenos.tudominio.com` (enlaces de los emails) |
    | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_SECURITY` | Opcionales: datos SMTP de Brevo, Resend o tu dominio. Sin ellos no se envían emails y los enlaces de invitación y de contraseña se copian desde Admin |
+   | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | Opcionales: captcha de Cloudflare Turnstile en el registro sin invitación. El autoregistro exige además SMTP (para confirmar el email) |
    | `BACKUP_KEEP_DAYS` | opcional, 14 por defecto |
    | `LOG_LEVEL` | opcional, `INFO` por defecto |
 

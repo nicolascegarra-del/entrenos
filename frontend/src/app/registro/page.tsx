@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 import { AuthShell, FormError, FormNotice } from "@/components/auth/auth-shell";
+import { CheckEmail } from "@/components/auth/check-email";
+import { Turnstile } from "@/components/auth/turnstile";
 import {
   NewPasswordFields,
   passwordReady,
@@ -109,52 +111,50 @@ function InvitationForm({ token }: { token: string }) {
   );
 }
 
-/** Alta sin invitación: registro abierto o con aprobación de un administrador. */
+/** Alta sin invitación: cuenta Básica que se activa al confirmar el email. */
 function SignupForm() {
-  const router = useRouter();
   const { data: options, isPending } = useAuthOptions();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [repeat, setRepeat] = useState("");
+  const [captcha, setCaptcha] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const approval = options?.registration === "approval";
+  const needsCaptcha = !!options?.captcha_site_key;
+  const ready =
+    !!email && passwordReady(password, repeat) && (!needsCaptcha || !!captcha);
 
   return (
     <AuthShell
       title="Crea tu cuenta"
       description={
         approval
-          ? "Un administrador revisará tu solicitud"
+          ? "Confirma tu email y un administrador revisará tu solicitud"
           : "Para ver y analizar tus entrenamientos de Garmin"
       }
     >
       {isPending ? (
         <Skeleton className="h-40" />
-      ) : options?.registration === "invite" ? (
+      ) : !options?.signup_available ? (
         <FormNotice>
           El registro es solo con invitación. Pide a un administrador que te
           invite.
         </FormNotice>
-      ) : pending ? (
-        <FormNotice>
-          Solicitud enviada. Podrás entrar cuando un administrador la apruebe
-          {options?.email_enabled ? "; te avisaremos por email." : "."}
-        </FormNotice>
+      ) : done ? (
+        <CheckEmail email={email} message={done} />
       ) : (
         <form
           className="space-y-4"
           noValidate
           onSubmit={async (e) => {
             e.preventDefault();
-            if (!email || !passwordReady(password, repeat)) return;
+            if (!ready) return;
             setSubmitting(true);
             setError(null);
             try {
-              const status = await signup(email, password);
-              if (status === "active") router.replace("/ajustes");
-              else setPending(true);
+              setDone(await signup(email, password, captcha));
             } catch (err) {
               setError(errorText(err));
             } finally {
@@ -180,11 +180,22 @@ function SignupForm() {
             onPassword={setPassword}
             onRepeat={setRepeat}
           />
+          {options.captcha_site_key && (
+            <Turnstile
+              siteKey={options.captcha_site_key}
+              onToken={setCaptcha}
+            />
+          )}
+          <p className="text-xs text-muted-foreground">
+            Las cuentas nuevas son Básicas: últimos{" "}
+            {options.basic_history_days ?? 180} días de Garmin y un número
+            limitado de objetivos y sesiones. Un administrador puede ampliarla.
+          </p>
           {error && <FormError>{error}</FormError>}
           <Button
             type="submit"
             className="h-11 w-full"
-            disabled={submitting || !email || !passwordReady(password, repeat)}
+            disabled={submitting || !ready}
           >
             {submitting && <Loader2 className="animate-spin" aria-hidden />}
             {approval ? "Solicitar cuenta" : "Crear cuenta"}

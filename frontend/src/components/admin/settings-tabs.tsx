@@ -9,93 +9,12 @@ import {
   RefreshCw,
   Users,
 } from "lucide-react";
-import { toast } from "sonner";
 
 import { ErrorState } from "@/components/states";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  useAdminAudit,
-  useAdminSettings,
-  useAdminSystem,
-  useSaveAdminSettings,
-} from "@/hooks/use-api";
-import { ApiError } from "@/lib/api";
+import { useAdminAudit, useAdminSystem } from "@/hooks/use-api";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { RegistrationMode } from "@/types/api";
-
-const MODES: { value: RegistrationMode; label: string; help: string }[] = [
-  {
-    value: "invite",
-    label: "Solo con invitación",
-    help: "Nadie puede crear una cuenta sin un enlace de invitación tuyo. La opción más segura.",
-  },
-  {
-    value: "approval",
-    label: "Con aprobación",
-    help: "Cualquiera puede pedir una cuenta desde el login; entra cuando la apruebas en Usuarios.",
-  },
-  {
-    value: "open",
-    label: "Abierto",
-    help: "Cualquiera con el enlace de la app puede crear su cuenta al momento.",
-  },
-];
-
-/** Modo de registro de la app. */
-export function RegistrationTab() {
-  const { data, isPending, isError, refetch } = useAdminSettings();
-  const save = useSaveAdminSettings();
-  if (isPending) return <Skeleton className="h-40" />;
-  if (isError)
-    return (
-      <ErrorState
-        message="No se pudieron cargar los ajustes."
-        onRetry={() => refetch()}
-      />
-    );
-  return (
-    <fieldset className="space-y-2" disabled={save.isPending}>
-      <legend className="mb-2 text-sm text-muted-foreground">
-        Cómo se crean las cuentas nuevas:
-      </legend>
-      {MODES.map((m) => (
-        <label
-          key={m.value}
-          className={cn(
-            "flex cursor-pointer gap-3 rounded-lg border p-3",
-            data.registration_mode === m.value &&
-              "border-klyp-accent bg-klyp-pale/50 dark:bg-klyp-navy-light/40",
-          )}
-        >
-          <input
-            type="radio"
-            name="registration"
-            className="mt-1 size-4 accent-klyp-accent"
-            checked={data.registration_mode === m.value}
-            onChange={() =>
-              save.mutate(m.value, {
-                onSuccess: () => toast.success(`Registro: ${m.label}.`),
-                onError: (err) =>
-                  toast.error(
-                    err instanceof ApiError
-                      ? err.message
-                      : "No se pudo guardar.",
-                  ),
-              })
-            }
-          />
-          <span>
-            <span className="block font-medium">{m.label}</span>
-            <span className="block text-sm text-muted-foreground">
-              {m.help}
-            </span>
-          </span>
-        </label>
-      ))}
-    </fieldset>
-  );
-}
 
 function StatusLine({
   ok,
@@ -141,7 +60,7 @@ const EMAIL_MODE = {
   smtp: "Envío por SMTP activo.",
   file: "Modo de prueba: los emails se guardan en una carpeta del servidor.",
   disabled:
-    "Sin correo: los enlaces de invitación y contraseña hay que copiarlos y enviarlos a mano.",
+    "Sin correo: los enlaces de invitación y contraseña hay que copiarlos y enviarlos a mano. Configúralo en la pestaña Correo.",
 } as const;
 
 /** Estado del sistema: sincronizador, Garmin, copias de seguridad y correo. */
@@ -231,6 +150,19 @@ export function SystemTab() {
           </StatusLine>
         </Panel>
 
+        <Panel icon={Users} title="Cuentas Básicas inactivas">
+          <StatusLine ok={data.inactive_deleting_7d === 0}>
+            {data.inactive_warned
+              ? `${data.inactive_warned} avisadas por inactividad; ${data.inactive_deleting_7d} se borrarán en los próximos 7 días si no entran.`
+              : "Ninguna avisada por inactividad."}
+          </StatusLine>
+          {data.email_mode === "disabled" && (
+            <p className="text-xs text-muted-foreground">
+              Sin correo no se avisa ni se borra ninguna cuenta por inactividad.
+            </p>
+          )}
+        </Panel>
+
         <Panel icon={Users} title="Usuarios">
           <p className="text-sm">
             {data.users_by_status.active ?? 0} activos ·{" "}
@@ -259,6 +191,13 @@ const ACTION_LABEL: Record<string, string> = {
   "invitation.renewed": "Renovó la invitación de",
   "invitation.deleted": "Anuló la invitación de",
   "settings.registration_mode": "Cambió el modo de registro",
+  "settings.blocked_domains": "Cambió los dominios bloqueados",
+  "settings.basic_limits": "Cambió los límites de las cuentas Básicas",
+  "settings.email": "Cambió la configuración del correo",
+  "settings.email_removed": "Quitó la configuración del correo del panel",
+  "user.tier_full": "Pasó a cuenta Completa a",
+  "user.tier_basic": "Pasó a cuenta Básica a",
+  "user.inactive_deleted": "Borró por inactividad la cuenta de",
 };
 
 const MODE_LABEL: Record<string, string> = {
@@ -299,7 +238,12 @@ export function AuditTab() {
               {formatDateTime(a.created_at)}
             </span>
             <span>
-              <strong>{a.actor_email ?? "Usuario borrado"}</strong>{" "}
+              <strong>
+                {a.actor_email ??
+                  (a.action === "user.inactive_deleted"
+                    ? "El sistema"
+                    : "Usuario borrado")}
+              </strong>{" "}
               {(ACTION_LABEL[a.action] ?? a.action).toLowerCase()} {target}
               {a.detail.emailed === true && " (por email)"}
             </span>

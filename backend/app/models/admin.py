@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime
+from sqlalchemy import Column, DateTime, Text
 from sqlmodel import Field, SQLModel
 
 from app.models.base import created_at_field, jsonb_field, utcnow
@@ -20,13 +20,26 @@ class PasswordReset(SQLModel, table=True):
     used_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True)))
 
 
+class EmailVerification(SQLModel, table=True):
+    """Enlace de un solo uso para confirmar el email de una cuenta autoregistrada."""
+
+    __tablename__ = "email_verification"
+
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True, ondelete="CASCADE")
+    token_hash: str = Field(max_length=64, unique=True)
+    created_at: datetime = created_at_field()
+    expires_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    used_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True)))
+
+
 class AppSetting(SQLModel, table=True):
     """Ajustes globales de la app que cambia un administrador (p. ej. el modo de registro)."""
 
     __tablename__ = "app_setting"
 
     key: str = Field(primary_key=True, max_length=64)
-    value: str = Field(max_length=255)
+    value: str = Field(sa_column=Column(Text, nullable=False))
     updated_at: datetime = Field(
         default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, onupdate=utcnow)
     )

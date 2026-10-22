@@ -53,7 +53,14 @@ def test_me_cuando_access_token_valido_entonces_devuelve_usuario(client, user):
     token = _login(client).json()["access_token"]
     res = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert res.status_code == 200
-    assert res.json() == {"id": user.id, "email": TEST_EMAIL, "is_admin": False}
+    assert res.json() == {
+        "id": user.id,
+        "email": TEST_EMAIL,
+        "is_admin": False,
+        "tier": "full",
+        "onboarded": False,
+        "limits": {"history_days": None, "max_goals": None, "max_sessions_week": None},
+    }
 
 
 def test_me_cuando_sin_token_entonces_401(client):

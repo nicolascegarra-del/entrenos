@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     smtp_from: str = ""
     smtp_security: str = "starttls"  # starttls | ssl | none
 
+    # Captcha del autoregistro (Cloudflare Turnstile). Sin claves, desactivado.
+    turnstile_site_key: str = ""
+    turnstile_secret_key: str = ""
+
     # Carpeta de las copias de seguridad (solo lectura) para mostrar la última en Admin → Sistema.
     backup_dir: str = "/backups"
 

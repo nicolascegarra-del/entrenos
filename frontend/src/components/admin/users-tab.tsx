@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowUpDown,
   Ban,
   CircleCheck,
   KeyRound,
@@ -37,6 +38,7 @@ const errorText = (e: unknown) =>
 
 const STATUS_LABEL = {
   active: "Activo",
+  unverified: "Sin confirmar email",
   pending: "Pendiente de aprobar",
   disabled: "Desactivado",
 } as const;
@@ -149,6 +151,12 @@ function UserCard({
         >
           {STATUS_LABEL[u.status]}
         </Badge>
+        <Badge variant="outline">
+          {u.tier === "basic" ? "Básica" : "Completa"}
+        </Badge>
+        {u.inactivity_warned_at && (
+          <Badge variant="destructive">Avisada por inactividad</Badge>
+        )}
         {u.locked && (
           <Badge variant="destructive">
             <Lock aria-hidden /> Bloqueado
@@ -263,6 +271,23 @@ function UserCard({
                 {u.status === "active" ? "Desactivar" : "Activar"}
               </ActionButton>
             )}
+            <ActionButton
+              icon={ArrowUpDown}
+              onClick={() =>
+                run(
+                  `${u.id}`,
+                  u.tier === "basic"
+                    ? "Ahora tiene cuenta Completa."
+                    : "Ahora tiene cuenta Básica.",
+                  {
+                    method: "PATCH",
+                    body: { tier: u.tier === "basic" ? "full" : "basic" },
+                  },
+                )
+              }
+            >
+              {u.tier === "basic" ? "Pasar a Completa" : "Pasar a Básica"}
+            </ActionButton>
             {u.status === "active" && (
               <ActionButton icon={KeyRound} onClick={resetLink}>
                 Enlace de contraseña

@@ -54,7 +54,8 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(HTTPException)
     async def http_exc(request: Request, exc: HTTPException):
-        code = _STATUS_CODES.get(exc.status_code, "ERROR")
+        # Un código propio (cabecera X-Error-Code) permite al cliente distinguir casos con el mismo estado HTTP.
+        code = (exc.headers or {}).get("X-Error-Code") or _STATUS_CODES.get(exc.status_code, "ERROR")
         return _error(exc.status_code, code, str(exc.detail), request.state.request_id)
 
     @app.exception_handler(RequestValidationError)

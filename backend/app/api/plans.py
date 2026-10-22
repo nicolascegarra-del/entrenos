@@ -4,9 +4,10 @@ from fastapi import APIRouter, HTTPException, Response, status
 from sqlmodel import Session, delete, select
 
 from app.api.deps import CurrentUser, SessionDep
-from app.models import Activity, MatchMode, PlannedBlock, PlannedSession
+from app.models import Activity, MatchMode, PlannedBlock, PlannedSession, User
 from app.schemas.activity import ActivitySummary
 from app.schemas.plan import BlockOut, MatchIn, SessionDetail, SessionIn, SessionOut
+from app.services.limits import QuotaError, check_session_quota
 from app.services.plan_service import blocks_of, candidate_activities, recompute, refresh_match
 from app.services.plan_steps import estimated_duration_s, expand_steps
 
@@ -75,6 +76,13 @@ def list_plans(date_from: date, date_to: date, session: SessionDep, user: Curren
     return [_to_out(session, p) for p in rows]
 
 
+def _check_quota(session: SessionDep, user: User, day: date, exclude_id: int | None = None) -> None:
+    try:
+        check_session_quota(session, user, day, exclude_id)
+    except QuotaError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+
+
 @router.post(
     "",
     summary="Crear sesión planificada",
@@ -82,6 +90,7 @@ def list_plans(date_from: date, date_to: date, session: SessionDep, user: Curren
     status_code=status.HTTP_201_CREATED,
 )
 def create_plan(body: SessionIn, session: SessionDep, user: CurrentUser) -> SessionDetail:
+    _check_quota(session, user, body.day)
     planned = PlannedSession(user_id=user.id, **body.model_dump(exclude={"blocks"}))
     session.add(planned)
     session.flush()
@@ -99,6 +108,8 @@ def get_plan(plan_id: int, session: SessionDep, user: CurrentUser) -> SessionDet
 @router.put("/{plan_id}", summary="Editar sesión planificada", responses=_NOT_FOUND)
 def update_plan(plan_id: int, body: SessionIn, session: SessionDep, user: CurrentUser) -> SessionDetail:
     planned = _owned(session, user.id, plan_id)
+    if body.day != planned.day:
+        _check_quota(session, user, body.day, exclude_id=planned.id)
     if body.day != planned.day or body.sport != planned.sport:
         planned.match_mode = MatchMode.AUTO  # cambia el día/deporte: la actividad elegida ya no aplica
     for field, value in body.model_dump(exclude={"blocks"}).items():

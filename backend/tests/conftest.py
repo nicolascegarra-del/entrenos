@@ -82,16 +82,21 @@ def client() -> TestClient:
 
 @pytest.fixture(autouse=True)
 def outbox(monkeypatch) -> list[dict]:
-    """Emails encolados durante el test (no se envía nada). Por defecto el correo está desactivado."""
+    """Emails encolados durante el test (no se envía nada). Por defecto, correo y captcha desactivados."""
     from app.tasks import email as email_task
 
     sent: list[dict] = []
-    monkeypatch.setattr(
-        email_task.send_email_task, "delay", lambda to, subject, text, html=None: sent.append(
-            {"to": to, "subject": subject, "text": text, "html": html}
-        ),
-    )  # fmt: skip
+
+    def fake_apply_async(args, argsrepr=None, kwargsrepr=None):
+        to, subject, text, html = args
+        assert "token=" not in (argsrepr or "") and to not in (argsrepr or "")  # nada sensible en los logs
+        sent.append({"to": to, "subject": subject, "text": text, "html": html})
+
+    monkeypatch.setattr(email_task.send_email_task, "apply_async", fake_apply_async)
     monkeypatch.setattr(get_settings(), "email_backend", "disabled")
+    # Sin captcha salvo que el test lo active (no depender de las claves del .env local).
+    monkeypatch.setattr(get_settings(), "turnstile_site_key", "")
+    monkeypatch.setattr(get_settings(), "turnstile_secret_key", "")
     return sent
 
 

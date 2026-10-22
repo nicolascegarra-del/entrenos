@@ -113,19 +113,26 @@ def import_activity(
     return activity
 
 
+def _summary_day(summary: dict) -> date:
+    """Día (UTC) de inicio de una actividad del listado de Garmin («2026-10-14 17:58:00»)."""
+    return date.fromisoformat(str(summary["startTimeGMT"])[:10])
+
+
 def sync_activities(
     session: Session,
     user_id: int,
     source: GarminSource,
     storage: ObjectStorage,
     max_new: int | None = 50,
+    since: date | None = None,
 ) -> int:
     """
     Importa las actividades nuevas (de la más reciente hacia atrás).
 
     En modo incremental se detiene al encontrar una ya importada o al llegar a `max_new`.
     Con `max_new=None` recorre todo el histórico saltando las ya importadas (carga
-    inicial o para completar huecos).
+    inicial o para completar huecos). Con `since` (cuentas Básicas) no importa nada
+    anterior a esa fecha: como llegan de la más nueva a la más antigua, se detiene ahí.
 
     Returns:
         Número de actividades nuevas importadas.
@@ -142,6 +149,8 @@ def sync_activities(
         if not page:
             break
         for summary in page:
+            if since is not None and _summary_day(summary) < since:
+                return imported
             if int(summary["activityId"]) in known:
                 if max_new is None:
                     continue  # histórico completo: salta las ya importadas y sigue hacia atrás
@@ -177,13 +186,14 @@ def run_sync(
     storage: ObjectStorage,
     days: int = 7,
     max_new: int | None = 50,
+    since: date | None = None,
 ) -> SyncRun:
     """Sincronización completa registrada en `SyncRun` (estado visible en la web)."""
     run = SyncRun(user_id=user_id)
     session.add(run)
     session.commit()
     try:
-        run.new_activities = sync_activities(session, user_id, source, storage, max_new)
+        run.new_activities = sync_activities(session, user_id, source, storage, max_new, since)
         run.daily_days = sync_daily(session, user_id, source, days)
         if run.new_activities:
             from app.services.plan_service import match_pending  # import local: evita ciclo

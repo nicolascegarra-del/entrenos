@@ -8,10 +8,12 @@ import {
 import { apiFetch } from "@/lib/api";
 import type {
   AdminSettings,
+  AdminSettingsInput,
+  EmailSettings,
+  EmailSettingsInput,
   AuditRow,
   AuthOptions,
   InvitationCreated,
-  RegistrationMode,
   SystemStatus,
   UsersPage,
   AiProviderId,
@@ -424,6 +426,22 @@ export function useMe() {
   });
 }
 
+/** Marca la configuración guiada como hecha (u omitida) y actualiza `me` sin recargar. */
+export function useFinishOnboarding() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<void>("/api/v1/auth/me/onboarding", {
+        method: "PUT",
+        body: JSON.stringify({ done: true }),
+      }),
+    onSuccess: () =>
+      queryClient.setQueryData<Me>(["me"], (old) =>
+        old ? { ...old, onboarded: true } : old,
+      ),
+  });
+}
+
 export function useProfile() {
   return useQuery({
     queryKey: ["profile"],
@@ -580,10 +598,10 @@ export function useAdminSettings() {
 export function useSaveAdminSettings() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (registration_mode: RegistrationMode) =>
+    mutationFn: (body: AdminSettingsInput) =>
       apiFetch<AdminSettings>("/api/v1/admin/settings", {
         method: "PUT",
-        body: JSON.stringify({ registration_mode }),
+        body: JSON.stringify(body),
       }),
     onSuccess: async (data) => {
       queryClient.setQueryData(["admin-settings"], data);
@@ -604,6 +622,46 @@ export function useAdminSystem() {
     queryKey: ["admin-system"],
     refetchInterval: 60_000,
     queryFn: () => apiFetch<SystemStatus>("/api/v1/admin/system"),
+  });
+}
+
+export function useEmailSettings() {
+  return useQuery({
+    queryKey: ["admin-email"],
+    queryFn: () => apiFetch<EmailSettings>("/api/v1/admin/email"),
+  });
+}
+
+export function useSaveEmailSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: EmailSettingsInput) =>
+      apiFetch<EmailSettings>("/api/v1/admin/email", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: async (data) => {
+      queryClient.setQueryData(["admin-email"], data);
+      // El correo cambia qué se puede hacer: registro sin invitación, recuperar contraseña…
+      for (const key of [
+        "admin-settings",
+        "admin-system",
+        "auth-options",
+        "admin-audit",
+      ]) {
+        await queryClient.invalidateQueries({ queryKey: [key] });
+      }
+    },
+  });
+}
+
+export function useTestEmail() {
+  return useMutation({
+    mutationFn: (to: string | null) =>
+      apiFetch<{ ok: boolean; message: string }>("/api/v1/admin/email/test", {
+        method: "POST",
+        body: JSON.stringify({ to }),
+      }),
   });
 }
 

@@ -9,6 +9,7 @@ from app.api.deps import CurrentUser, SessionDep
 from app.models import Activity, RaceGoal
 from app.services import progress as prog
 from app.services.forecast_explain import explain_paces
+from app.services.limits import QuotaError, check_goal_quota
 from app.services.plan_steps import local_day, sport_family
 from app.services.race_forecast import forecast, full_report, goal_forecast, training_data, user_calibration
 from app.services.race_models import daniels_paces, riegel
@@ -63,8 +64,17 @@ def list_goals(session: SessionDep, user: CurrentUser) -> list[GoalOut]:
     return [_out(session, g) for g in upcoming + past]
 
 
-@router.post("", summary="Crear objetivo", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    summary="Crear objetivo",
+    status_code=status.HTTP_201_CREATED,
+    responses={409: {"description": "Cuenta Básica: máximo de objetivos activos"}},
+)
 def create_goal(body: GoalIn, session: SessionDep, user: CurrentUser) -> GoalOut:
+    try:
+        check_goal_quota(session, user)
+    except QuotaError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     goal = RaceGoal(user_id=user.id, **body.model_dump())
     session.add(goal)
     session.commit()

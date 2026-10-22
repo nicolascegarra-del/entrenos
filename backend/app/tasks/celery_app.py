@@ -9,7 +9,13 @@ celery_app = Celery(
     "entrenos",
     broker=get_settings().redis_url,
     backend=get_settings().redis_url,
-    include=["app.tasks.sync", "app.tasks.garmin_connect", "app.tasks.email", "app.tasks.heartbeat"],
+    include=[
+        "app.tasks.sync",
+        "app.tasks.garmin_connect",
+        "app.tasks.email",
+        "app.tasks.heartbeat",
+        "app.tasks.housekeeping",
+    ],
 )
 celery_app.conf.update(
     timezone="UTC",
@@ -20,6 +26,8 @@ celery_app.conf.update(
         "garmin-sync-tick": {"task": "garmin.sync_all", "schedule": TICK_MIN * 60},
         # Latido para Admin → Sistema: demuestra que beat programa y el worker ejecuta.
         "heartbeat": {"task": "system.heartbeat", "schedule": 60},
+        # Cuentas sin confirmar (48 h) y cuentas Básicas inactivas (aviso y borrado).
+        "accounts-housekeeping": {"task": "accounts.housekeeping", "schedule": 24 * 3600},
     },
 )
 

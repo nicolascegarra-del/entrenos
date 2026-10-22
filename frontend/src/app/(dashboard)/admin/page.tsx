@@ -3,12 +3,10 @@
 import { ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
+import { EmailTab } from "@/components/admin/email-tab";
 import { InvitationsTab } from "@/components/admin/invitations-tab";
-import {
-  AuditTab,
-  RegistrationTab,
-  SystemTab,
-} from "@/components/admin/settings-tabs";
+import { RegistrationTab } from "@/components/admin/registration-tab";
+import { AuditTab, SystemTab } from "@/components/admin/settings-tabs";
 import { UsersTab } from "@/components/admin/users-tab";
 import { EmptyState } from "@/components/states";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,6 +17,7 @@ const TABS = [
   { key: "users", label: "Usuarios", Panel: UsersTab },
   { key: "invitations", label: "Invitaciones", Panel: InvitationsTab },
   { key: "registration", label: "Registro", Panel: RegistrationTab },
+  { key: "email", label: "Correo", Panel: EmailTab },
   { key: "system", label: "Sistema", Panel: SystemTab },
   { key: "audit", label: "Actividad", Panel: AuditTab },
 ] as const;

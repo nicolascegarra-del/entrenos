@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CheckEmail } from "@/components/auth/check-email";
 import { useAuthOptions } from "@/hooks/use-api";
 import { ApiError, login } from "@/lib/api";
 
@@ -30,6 +31,7 @@ type FormValues = z.infer<typeof schema>;
 export default function LoginPage() {
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [unverified, setUnverified] = useState<string | null>(null);
   const { data: options } = useAuthOptions();
   const {
     register,
@@ -39,10 +41,13 @@ export default function LoginPage() {
 
   async function onSubmit({ email, password }: FormValues) {
     setServerError(null);
+    setUnverified(null);
     try {
       await login(email, password);
       router.replace("/");
     } catch (err) {
+      if (err instanceof ApiError && err.code === "EMAIL_NOT_VERIFIED")
+        setUnverified(email);
       setServerError(
         err instanceof ApiError ? err.message : "No se pudo iniciar sesión.",
       );
@@ -99,13 +104,17 @@ export default function LoginPage() {
                 </p>
               )}
             </div>
-            {serverError && (
-              <p
-                role="alert"
-                className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
-              >
-                {serverError}
-              </p>
+            {unverified ? (
+              <CheckEmail email={unverified} message={serverError ?? ""} />
+            ) : (
+              serverError && (
+                <p
+                  role="alert"
+                  className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+                >
+                  {serverError}
+                </p>
+              )
             )}
             <Button
               type="submit"
@@ -125,7 +134,7 @@ export default function LoginPage() {
                 ¿Has olvidado tu contraseña?
               </Link>
             </p>
-            {options && options.registration !== "invite" && (
+            {options?.signup_available && (
               <p>
                 ¿No tienes cuenta?{" "}
                 <Link

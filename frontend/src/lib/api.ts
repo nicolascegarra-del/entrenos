@@ -126,24 +126,53 @@ export async function registerWithInvitation(
 }
 
 /**
- * Crea una cuenta sin invitación (registro abierto o con aprobación).
- * @returns "active" si ya hay sesión iniciada, "pending" si espera aprobación.
+ * Crea una cuenta sin invitación. La cuenta queda sin confirmar hasta abrir el enlace del email.
+ * @returns El mensaje para mostrar («te hemos enviado un email…»).
  */
 export async function signup(
   email: string,
   password: string,
+  captchaToken: string | null,
+): Promise<string> {
+  const data = await apiFetch<{ status: "unverified"; message: string }>(
+    "/api/v1/auth/signup",
+    {
+      method: "POST",
+      body: JSON.stringify({ email, password, captcha_token: captchaToken }),
+    },
+    false,
+  );
+  return data.message;
+}
+
+/**
+ * Confirma el email con el token del enlace.
+ * @returns "active" (ya hay sesión iniciada) o "pending" (espera aprobación de un administrador).
+ */
+export async function verifyEmail(
+  token: string,
 ): Promise<"active" | "pending"> {
   const data = await apiFetch<{
     status: "active" | "pending";
     access_token: string | null;
   }>(
-    "/api/v1/auth/signup",
-    { method: "POST", body: JSON.stringify({ email, password }) },
+    "/api/v1/auth/verify",
+    { method: "POST", body: JSON.stringify({ token }) },
     false,
   );
   if (data.access_token)
     useAuthStore.getState().setAccessToken(data.access_token);
   return data.status;
+}
+
+/** Reenvía el email de confirmación (respuesta genérica, no revela si existe la cuenta). */
+export async function resendVerification(email: string): Promise<string> {
+  const data = await apiFetch<{ message: string }>(
+    "/api/v1/auth/verify/resend",
+    { method: "POST", body: JSON.stringify({ email }) },
+    false,
+  );
+  return data.message;
 }
 
 /** Cambia la contraseña; la API cierra las demás sesiones y devuelve tokens nuevos. */

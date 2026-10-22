@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Compass,
   Download,
   KeyRound,
   Loader2,
@@ -28,6 +29,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useMe } from "@/hooks/use-api";
+import { describeLimits } from "@/lib/limits";
 import {
   ApiError,
   apiFetch,
@@ -218,6 +220,21 @@ export function AccountCard() {
           Cuenta
         </CardTitle>
         <CardDescription>{me?.email}</CardDescription>
+        {me && (
+          <p className="text-sm">
+            {me.tier === "basic" ? (
+              <>
+                <strong>Cuenta Básica</strong>:{" "}
+                {describeLimits(me.limits).join(" · ")}. Un administrador puede
+                ampliarla.
+              </>
+            ) : (
+              <>
+                <strong>Cuenta Completa</strong>, sin límites.
+              </>
+            )}
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap gap-2">
@@ -249,6 +266,11 @@ export function AccountCard() {
               <Download aria-hidden />
             )}
             Descargar mis datos
+          </Button>
+          <Button asChild variant="outline" className="min-h-11 md:min-h-9">
+            <Link href="/bienvenida">
+              <Compass aria-hidden /> Repetir la configuración guiada
+            </Link>
           </Button>
           <Button
             variant="ghost"

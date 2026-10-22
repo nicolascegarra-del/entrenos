@@ -6,15 +6,14 @@ con versión en texto y en HTML sencillo con la identidad Klyp. Se envían en se
 from datetime import datetime
 from html import escape
 
-from app.core.config import get_settings
-from app.core.email import Email, email_enabled
+from app.core.email import Email, current_config, email_enabled
 
 NAVY, ACCENT, GRAY = "#051937", "#2E6DB4", "#6B7280"
 
 
 def link(path: str) -> str:
-    """Enlace absoluto a la web (APP_PUBLIC_URL + ruta)."""
-    return get_settings().app_public_url.rstrip("/") + path
+    """Enlace absoluto a la web (URL pública de Admin → Correo, o APP_PUBLIC_URL + ruta)."""
+    return current_config().public_url.rstrip("/") + path
 
 
 def _html(title: str, paragraphs: list[str], button: tuple[str, str] | None = None, footer: str = "") -> str:
@@ -42,7 +41,12 @@ def _html(title: str, paragraphs: list[str], button: tuple[str, str] | None = No
 def _queue(email: Email) -> None:
     from app.tasks.email import send_email_task  # importación diferida: evita el ciclo con Celery
 
-    send_email_task.delay(email.to, email.subject, email.text, email.html)
+    # argsrepr/kwargsrepr: Celery no escribe en sus logs el destinatario ni el cuerpo (lleva enlaces de un solo uso).
+    send_email_task.apply_async(
+        args=(email.to, email.subject, email.text, email.html),
+        argsrepr=f"('<destinatario>', {email.subject!r}, '<cuerpo>')",
+        kwargsrepr="{}",
+    )
 
 
 def _fmt(when: datetime) -> str:
@@ -105,3 +109,40 @@ def send_account_approved(to: str) -> None:
     title = "Tu cuenta está lista"
     text = f"Un administrador ha aprobado tu cuenta de APP ENTRENOS. Ya puedes entrar:\n{url}"
     _queue(Email(to, title, text, _html(title, ["Un administrador ha aprobado tu cuenta."], ("Entrar", url))))
+
+
+def send_email_verification(to: str, token: str, hours: int) -> bool:
+    if not email_enabled():
+        return False
+    url = link(f"/verificar?token={token}")
+    title = "Confirma tu email"
+    text = (
+        f"Gracias por registrarte en APP ENTRENOS.\n\nConfirma tu email con este enlace (válido {hours} h):\n{url}"
+        "\n\nSi no has creado tú la cuenta, ignora este email y se borrará sola."
+    )
+    paragraphs = ["Gracias por registrarte en APP ENTRENOS.", f"Confirma tu email con el botón (válido {hours} h)."]
+    footer = "Si no has creado tú la cuenta, ignora este email y se borrará sola."
+    _queue(Email(to, title, text, _html(title, paragraphs, ("Confirmar mi email", url), footer)))
+    return True
+
+
+def send_inactivity_warning(to: str, days: int) -> None:
+    if not email_enabled():
+        return
+    url = link("/login")
+    title = "Tu cuenta se borrará por inactividad"
+    text = (
+        f"Hace tiempo que no entras en APP ENTRENOS. Si no inicias sesión en los próximos {days} días, tu cuenta "
+        f"y sus datos se borrarán.\n\nPara conservarla, solo tienes que entrar:\n{url}"
+    )
+    paragraphs = [
+        "Hace tiempo que no entras en APP ENTRENOS.",
+        f"Si no inicias sesión en los próximos {days} días, tu cuenta y sus datos se borrarán. "
+        "Para conservarla, solo tienes que entrar.",
+    ]
+    _queue(Email(to, title, text, _html(title, paragraphs, ("Entrar y conservar mi cuenta", url))))
+
+
+def test_html() -> str:
+    """HTML del email de prueba de Admin → Correo."""
+    return _html("Prueba de correo", ["Si lees esto, el envío de emails de APP ENTRENOS funciona."])

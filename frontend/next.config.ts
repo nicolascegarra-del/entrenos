@@ -7,17 +7,20 @@ const API_INTERNAL_URL =
 const isProduction = process.env.NODE_ENV === "production";
 
 /**
- * Política de contenido: solo recursos propios, más las teselas del mapa (OpenStreetMap).
+ * Política de contenido: solo recursos propios, más las teselas del mapa (OpenStreetMap) y el
+ * captcha del registro (Cloudflare Turnstile: script + iframe de challenges.cloudflare.com).
  * Next inserta scripts y estilos en línea para la hidratación, de ahí 'unsafe-inline';
  * en desarrollo además necesita 'unsafe-eval' (recarga en caliente).
  */
+const TURNSTILE = "https://challenges.cloudflare.com";
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isProduction ? "" : " 'unsafe-eval'"}`,
+  `script-src 'self' 'unsafe-inline'${isProduction ? "" : " 'unsafe-eval'"} ${TURNSTILE}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.tile.openstreetmap.org",
   "font-src 'self' data:",
-  "connect-src 'self'",
+  `connect-src 'self' ${TURNSTILE}`,
+  `frame-src ${TURNSTILE}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

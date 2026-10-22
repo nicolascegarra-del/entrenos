@@ -4,22 +4,29 @@ aprobación y borrado), invitaciones, modo de registro, auditoría y estado del 
 Todo exige ser administrador; cada cambio queda en el registro de auditoría.
 """
 
+import json
+import logging
 import secrets
+import smtplib
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Literal
 
 import redis
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlmodel import Session, col, func, select
 
 from app.api.deps import SessionDep
 from app.api.users import AdminUser
 from app.core.config import get_settings
-from app.core.email import email_enabled
+from app.core.crypto import encrypt_secret
+from app.core.email import PANEL_KEY, Email, current_config, email_enabled, panel_config, send_email, smtp_error_text
+from app.core.rate_limit import limiter
 from app.models import (
+    AccountTier,
     Activity,
+    AppSetting,
     AuditLog,
     ChatConversation,
     ChatMessage,
@@ -31,8 +38,11 @@ from app.models import (
 )
 from app.schemas.auth import EMAIL_PATTERN
 from app.services import accounts, mailer
+from app.services.limits import basic_limits, save_basic_limits
+from app.services.signup_guard import captcha_enabled, extra_domains, parse_domains
 from app.tasks.heartbeat import HEARTBEAT_KEY
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["administración"])
 
 _NOT_FOUND = {404: {"description": "No encontrado"}}
@@ -53,6 +63,8 @@ class AdminUserRow(BaseModel):
     email: str
     is_admin: bool
     status: UserStatus
+    tier: AccountTier
+    inactivity_warned_at: datetime | None
     locked: bool
     created_at: datetime
     last_login_at: datetime | None
@@ -71,6 +83,7 @@ class UsersPage(BaseModel):
 class UserPatch(BaseModel):
     is_admin: bool | None = None
     status: Literal["active", "disabled"] | None = None
+    tier: AccountTier | None = None
 
 
 class ResetLinkIn(BaseModel):
@@ -109,13 +122,26 @@ class InvitationCreated(InvitationRow):
     emailed: bool
 
 
+class BasicLimitsIO(BaseModel):
+    basic_history_days: int = Field(ge=30, le=3650)
+    basic_max_goals: int = Field(ge=1, le=50)
+    basic_max_sessions_week: int = Field(ge=1, le=50)
+
+
 class SettingsOut(BaseModel):
     registration_mode: accounts.RegistrationMode
     email_enabled: bool
+    captcha_enabled: bool
+    blocked_domains: list[str]  # además de la lista empaquetada de emails desechables
+    limits: BasicLimitsIO
 
 
 class SettingsIn(BaseModel):
-    registration_mode: accounts.RegistrationMode
+    """Todos opcionales: solo se cambia lo que llega."""
+
+    registration_mode: accounts.RegistrationMode | None = None
+    blocked_domains: list[str] | None = Field(default=None, max_length=500)
+    limits: BasicLimitsIO | None = None
 
 
 class AuditRow(BaseModel):
@@ -128,6 +154,8 @@ class AuditRow(BaseModel):
 
 
 class SystemOut(BaseModel):
+    inactive_warned: int  # cuentas Básicas avisadas por inactividad
+    inactive_deleting_7d: int  # de ellas, las que se borrarán en los próximos 7 días
     worker_ok: bool | None  # None = sin datos (Redis no responde o aún no hay latido)
     last_heartbeat: datetime | None
     last_sync_at: datetime | None
@@ -198,6 +226,8 @@ def _rows(session: Session, users: list[User]) -> list[AdminUserRow]:
             id=u.id,
             email=u.email,
             is_admin=u.is_admin,
+            tier=u.tier,
+            inactivity_warned_at=u.inactivity_warned_at,
             status=u.status,
             locked=accounts.is_locked(u),
             created_at=u.created_at,
@@ -275,6 +305,9 @@ def patch_user(user_id: int, body: UserPatch, session: SessionDep, admin: AdminU
     if body.is_admin is not None and body.is_admin != user.is_admin:
         user.is_admin = body.is_admin
         accounts.audit(session, admin, "user.admin_granted" if body.is_admin else "user.admin_revoked", user)
+    if body.tier is not None and body.tier != user.tier:
+        user.tier = body.tier
+        accounts.audit(session, admin, f"user.tier_{body.tier}", user)
     if body.status is not None and body.status != user.status:
         user.status = UserStatus(body.status)
         if user.status == UserStatus.DISABLED:
@@ -441,19 +474,44 @@ def delete_invitation(invitation_id: int, session: SessionDep, admin: AdminUser)
 # ─── Registro, auditoría y sistema ───────────────────────────────────────────
 
 
-@router.get("/settings", summary="Ajustes globales (modo de registro)")
+def _settings_out(session: Session) -> SettingsOut:
+    lim = basic_limits(session)
+    return SettingsOut(
+        registration_mode=accounts.registration_mode(session),
+        email_enabled=email_enabled(),
+        captcha_enabled=captcha_enabled(),
+        blocked_domains=extra_domains(session),
+        limits=BasicLimitsIO(
+            basic_history_days=lim.history_days,
+            basic_max_goals=lim.max_goals,
+            basic_max_sessions_week=lim.max_sessions_week,
+        ),  # fmt: skip
+    )
+
+
+@router.get("/settings", summary="Ajustes del registro: modo, dominios bloqueados y límites de cuentas Básicas")
 def get_app_settings(session: SessionDep, _: AdminUser) -> SettingsOut:
-    return SettingsOut(registration_mode=accounts.registration_mode(session), email_enabled=email_enabled())
+    return _settings_out(session)
 
 
-@router.put("/settings", summary="Cambiar el modo de registro")
+@router.put("/settings", summary="Cambiar ajustes del registro (solo los campos enviados)")
 def put_app_settings(body: SettingsIn, session: SessionDep, admin: AdminUser) -> SettingsOut:
     before = accounts.registration_mode(session)
-    if body.registration_mode != before:
+    if body.registration_mode is not None and body.registration_mode != before:
         accounts.set_setting(session, "registration_mode", body.registration_mode)
         accounts.audit(session, admin, "settings.registration_mode", None, before=before, after=body.registration_mode)
-        session.commit()
-    return get_app_settings(session, admin)
+    if body.blocked_domains is not None:
+        domains = parse_domains("\n".join(body.blocked_domains))
+        if domains != extra_domains(session):
+            accounts.set_setting(session, "blocked_domains", ",".join(domains))
+            accounts.audit(session, admin, "settings.blocked_domains", None, count=len(domains))
+    if body.limits is not None:
+        changed = save_basic_limits(session, **body.limits.model_dump())
+        if changed:
+            accounts.audit(session, admin, "settings.basic_limits", None,
+                           **{k: f"{a} → {b}" for k, (a, b) in changed.items()})  # fmt: skip
+    session.commit()
+    return _settings_out(session)
 
 
 @router.get("/audit", summary="Registro de acciones de administración (más recientes primero)")
@@ -514,7 +572,11 @@ def system(session: SessionDep, _: AdminUser) -> SystemOut:
         .where(SyncRun.status == "error")
     ).all()  # fmt: skip
     counts = dict(session.exec(select(User.status, func.count(col(User.id))).group_by(User.status)).all())
+    warned = session.exec(select(User.inactivity_warned_at).where(col(User.inactivity_warned_at).is_not(None))).all()
+    delete_from = datetime.now(UTC) - timedelta(days=accounts.INACTIVE_DELETE_DAYS - 7)
     return SystemOut(
+        inactive_warned=len(warned),
+        inactive_deleting_7d=sum(1 for w in warned if w <= delete_from),
         # None = sin datos (Redis caído o recién arrancado, aún sin latido); False = el latido se ha parado.
         worker_ok=None if not beat else beat >= stale,
         last_heartbeat=beat or None,
@@ -522,7 +584,124 @@ def system(session: SessionDep, _: AdminUser) -> SystemOut:
         garmin_expired=list(expired),
         sync_failing=[{"email": e, "at": at.isoformat(), "error": err} for e, at, err in failing],
         last_backup=_last_backup(),
-        email_mode=get_settings().email_mode,
+        email_mode=current_config(session).mode,
         users_by_status={str(k): v for k, v in counts.items()},
         pending_requests=counts.get(UserStatus.PENDING, 0),
     )
+
+
+# ─── Correo (SMTP) ───────────────────────────────────────────────────────────
+
+
+class EmailSettingsOut(BaseModel):
+    source: Literal["panel", "env"]  # de dónde sale la configuración que se usa ahora
+    mode: str  # smtp | file | disabled
+    enabled: bool  # configuración del panel activada
+    host: str
+    port: int
+    security: Literal["starttls", "ssl", "none"]
+    user: str
+    has_password: bool  # la contraseña nunca se devuelve
+    sender: str
+    public_url: str
+    env_configured: bool  # hay SMTP en las variables de entorno (se usa si el panel está desactivado)
+
+
+class EmailSettingsIn(BaseModel):
+    enabled: bool = True
+    host: str = Field(min_length=3, max_length=255, pattern=r"^[A-Za-z0-9.\-]+$")
+    port: int = Field(ge=1, le=65535)
+    security: Literal["starttls", "ssl", "none"] = "starttls"
+    user: str = Field(default="", max_length=255)
+    password: str | None = Field(default=None, max_length=500, description="None = conservar; '' = borrar")
+    sender: str = Field(default="", max_length=255, description='p. ej. "APP ENTRENOS <no-reply@dominio.com>"')
+    public_url: str = Field(max_length=255, pattern=r"^https?://[^\s/]+(/.*)?$")
+
+
+class EmailTestIn(BaseModel):
+    to: str | None = Field(default=None, max_length=255, pattern=EMAIL_PATTERN)
+
+
+def _email_out(session: Session) -> EmailSettingsOut:
+    data = panel_config(session) or {}
+    effective = current_config(session)
+    s = get_settings()
+    return EmailSettingsOut(
+        source=effective.source,
+        mode=effective.mode,
+        enabled=bool(data.get("enabled")),
+        host=data.get("host", s.smtp_host),
+        port=int(data.get("port", s.smtp_port)),
+        security=data.get(
+            "security", s.smtp_security if s.smtp_security in ("starttls", "ssl", "none") else "starttls"
+        ),
+        user=data.get("user", s.smtp_user),
+        has_password=bool(data.get("password_enc")),
+        sender=data.get("sender", s.smtp_from),
+        public_url=data.get("public_url") or s.app_public_url,
+        env_configured=bool(s.smtp_host) or s.email_mode == "file",
+    )
+
+
+@router.get("/email", summary="Configuración del correo (SMTP)")
+def get_email_settings(session: SessionDep, _: AdminUser) -> EmailSettingsOut:
+    return _email_out(session)
+
+
+@router.put(
+    "/email",
+    summary="Guardar la configuración del correo",
+    description=(
+        "Tiene prioridad sobre las variables de entorno mientras esté activada. La contraseña se guarda "
+        "cifrada y no se devuelve; sin `password` se conserva la actual."
+    ),
+)
+def put_email_settings(body: EmailSettingsIn, session: SessionDep, admin: AdminUser) -> EmailSettingsOut:
+    current = panel_config(session) or {}
+    data = body.model_dump(exclude={"password"})
+    data["public_url"] = body.public_url.rstrip("/")
+    if body.password is None:
+        data["password_enc"] = current.get("password_enc")
+    else:
+        data["password_enc"] = encrypt_secret(body.password) if body.password else None
+    accounts.set_setting(session, PANEL_KEY, json.dumps(data))
+    accounts.audit(session, admin, "settings.email", None, host=body.host, enabled=body.enabled)
+    session.commit()
+    return _email_out(session)
+
+
+@router.delete("/email", summary="Borrar la configuración del panel (vuelve a la del entorno)", status_code=204)
+def delete_email_settings(session: SessionDep, admin: AdminUser) -> Response:
+    row = session.get(AppSetting, PANEL_KEY)
+    if row is not None:
+        session.delete(row)
+        accounts.audit(session, admin, "settings.email_removed", None)
+        session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/email/test",
+    summary="Enviar un email de prueba con la configuración actual",
+    description="Se envía en el momento (no en segundo plano) para poder mostrar el error del servidor si falla.",
+    responses={400: {"description": "El envío falló (motivo en el mensaje)"}},
+)
+@limiter.limit("5/minute")
+def test_email(request: Request, body: EmailTestIn, session: SessionDep, admin: AdminUser) -> dict:
+    config = current_config(session)
+    if config.mode == "disabled":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "No hay correo configurado: guarda antes los datos SMTP.")
+    to = body.to or admin.email
+    test = Email(
+        to=to,
+        subject="Prueba de correo de APP ENTRENOS",
+        text="Si lees esto, el envío de emails de APP ENTRENOS funciona.",
+        html=mailer.test_html(),
+    )
+    try:
+        send_email(test, config)
+    except (smtplib.SMTPException, OSError) as exc:
+        logger.warning("Fallo en el email de prueba", extra={"user_id": admin.id})
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, smtp_error_text(exc)) from exc
+    where = "guardado en la bandeja local (modo de prueba)" if config.mode == "file" else f"enviado a {to}"
+    return {"ok": True, "message": f"Email de prueba {where}."}

@@ -31,6 +31,8 @@ x-backend: &backend
     SMTP_FROM: ${SMTP_FROM:-}
     SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
     BACKUP_DIR: /backups
+    TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+    TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
     CORS_ORIGINS: ${CORS_ORIGINS:?}
     STORAGE_DIR: /data/storage
   volumes:

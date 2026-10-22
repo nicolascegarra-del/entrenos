@@ -429,15 +429,28 @@ export interface ConnectState {
   error: string | null;
 }
 
+export type AccountTier = "full" | "basic";
+
+/** Límites de la cuenta; null = sin límite. */
+export interface AccountLimits {
+  history_days: number | null;
+  max_goals: number | null;
+  max_sessions_week: number | null;
+}
+
 export interface Me {
   id: number;
   email: string;
   is_admin: boolean;
+  tier: AccountTier;
+  /** false = aún no ha hecho (ni omitido) la configuración guiada. */
+  onboarded: boolean;
+  limits: AccountLimits;
 }
 
 // ─── Administración ──────────────────────────────────────────────────────────
 
-export type UserStatus = "active" | "pending" | "disabled";
+export type UserStatus = "active" | "unverified" | "pending" | "disabled";
 export type RegistrationMode = "invite" | "open" | "approval";
 
 export interface AdminUserRow {
@@ -445,6 +458,8 @@ export interface AdminUserRow {
   email: string;
   is_admin: boolean;
   status: UserStatus;
+  tier: AccountTier;
+  inactivity_warned_at: string | null;
   locked: boolean;
   created_at: string;
   last_login_at: string | null;
@@ -481,9 +496,24 @@ export interface InvitationCreated extends InvitationRow {
   emailed: boolean;
 }
 
+export interface BasicLimits {
+  basic_history_days: number;
+  basic_max_goals: number;
+  basic_max_sessions_week: number;
+}
+
 export interface AdminSettings {
   registration_mode: RegistrationMode;
   email_enabled: boolean;
+  captcha_enabled: boolean;
+  blocked_domains: string[];
+  limits: BasicLimits;
+}
+
+export interface AdminSettingsInput {
+  registration_mode?: RegistrationMode;
+  blocked_domains?: string[];
+  limits?: BasicLimits;
 }
 
 export interface AuditRow {
@@ -496,6 +526,8 @@ export interface AuditRow {
 }
 
 export interface SystemStatus {
+  inactive_warned: number;
+  inactive_deleting_7d: number;
   worker_ok: boolean | null;
   last_heartbeat: string | null;
   last_sync_at: string | null;
@@ -515,6 +547,12 @@ export interface SystemStatus {
 export interface AuthOptions {
   registration: RegistrationMode;
   email_enabled: boolean;
+  /** Registro sin invitación posible (modo abierto o con aprobación, y correo configurado). */
+  signup_available: boolean;
+  /** Clave pública de Cloudflare Turnstile; null = sin captcha. */
+  captcha_site_key: string | null;
+  /** Días de histórico de Garmin de las cuentas Básicas (autoregistro). */
+  basic_history_days: number;
 }
 
 // ─── Asistente IA ────────────────────────────────────────────────────────────
@@ -567,4 +605,35 @@ export interface ConversationBrief {
 
 export interface Conversation extends ConversationBrief {
   messages: ChatMessage[];
+}
+
+// ─── Correo (Admin → Correo) ─────────────────────────────────────────────────
+
+export type SmtpSecurity = "starttls" | "ssl" | "none";
+
+export interface EmailSettings {
+  /** De dónde sale la configuración en uso: el panel o las variables de entorno. */
+  source: "panel" | "env";
+  mode: "smtp" | "file" | "disabled";
+  enabled: boolean;
+  host: string;
+  port: number;
+  security: SmtpSecurity;
+  user: string;
+  has_password: boolean;
+  sender: string;
+  public_url: string;
+  env_configured: boolean;
+}
+
+export interface EmailSettingsInput {
+  enabled: boolean;
+  host: string;
+  port: number;
+  security: SmtpSecurity;
+  user: string;
+  /** null = conservar la guardada; "" = borrarla. */
+  password: string | null;
+  sender: string;
+  public_url: string;
 }

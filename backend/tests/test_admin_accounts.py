@@ -185,7 +185,13 @@ def test_enlace_de_admin_cuando_hay_correo_entonces_tambien_lo_envia(client, adr
 
 
 def test_opciones_publicas(client, session):
-    assert client.get("/api/v1/auth/options").json() == {"registration": "invite", "email_enabled": False}
+    assert client.get("/api/v1/auth/options").json() == {
+        "registration": "invite",
+        "email_enabled": False,
+        "signup_available": False,
+        "captcha_site_key": None,
+        "basic_history_days": 180,
+    }
 
 
 def test_signup_cuando_solo_invitacion_entonces_403(client):
@@ -193,23 +199,19 @@ def test_signup_cuando_solo_invitacion_entonces_403(client):
     assert res.status_code == 403
 
 
-def test_signup_cuando_abierto_entonces_cuenta_activa_y_sesion(client, admin):
-    client.put("/api/v1/admin/settings", json={"registration_mode": "open"}, headers=auth(admin))
-    res = client.post("/api/v1/auth/signup", json={"email": "Nuevo@Example.com", "password": "una-clave-larga"})
-    assert res.json()["status"] == "active" and res.json()["access_token"]
-    dup = client.post("/api/v1/auth/signup", json={"email": "nuevo@example.com", "password": "una-clave-larga"})
-    assert dup.status_code == 409
-
-
-def test_signup_con_aprobacion_entonces_pendiente_aviso_y_aprobar(client, admin, mail_on, session):
+def test_signup_con_aprobacion_entonces_confirma_email_avisa_y_aprobar(client, admin, mail_on, session):
     client.put("/api/v1/admin/settings", json={"registration_mode": "approval"}, headers=auth(admin))
     res = client.post("/api/v1/auth/signup", json={"email": "adri@example.com", "password": "una-clave-larga"})
-    assert res.json() == {"status": "pending", "access_token": None, "expires_in": None}
-    assert [m["to"] for m in mail_on] == [admin.email] and "adri@example.com" in mail_on[0]["text"]
+    assert res.status_code == 202 and res.json()["status"] == "unverified"
+    assert mail_on[0]["to"] == "adri@example.com" and "/verificar?token=" in mail_on[0]["text"]
+    verified = client.post("/api/v1/auth/verify", json={"token": _token_from(mail_on[0]["text"])})
+    assert verified.json()["status"] == "pending" and verified.json()["access_token"] is None
+    assert mail_on[-1]["to"] == admin.email and "adri@example.com" in mail_on[-1]["text"]
     login = _login(client, "adri@example.com", "una-clave-larga")
     assert login.status_code == 403 and "pendiente" in login.json()["error"]["message"]
     rows = client.get("/api/v1/admin/users", headers=auth(admin)).json()["items"]
     assert rows[0]["email"] == "adri@example.com" and rows[0]["status"] == "pending"  # pendientes primero
+    assert rows[0]["tier"] == "basic"
     pending_id = rows[0]["id"]
     assert client.post(f"/api/v1/admin/users/{pending_id}/approve", headers=auth(admin)).json()["status"] == "active"
     assert mail_on[-1]["to"] == "adri@example.com" and "lista" in mail_on[-1]["subject"]
@@ -355,7 +357,7 @@ def test_invitacion_caducada_aparece_como_caducada(client, admin, session):
 
 def test_ajustes_y_auditoria(client, admin):
     res = client.put("/api/v1/admin/settings", json={"registration_mode": "approval"}, headers=auth(admin))
-    assert res.json() == {"registration_mode": "approval", "email_enabled": False}
+    assert res.json()["registration_mode"] == "approval" and res.json()["email_enabled"] is False
     audit = client.get("/api/v1/admin/audit", headers=auth(admin)).json()
     assert audit[0]["action"] == "settings.registration_mode"
     assert audit[0]["detail"] == {"before": "invite", "after": "approval"}

@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop, v1, ia_admin]
+    branches: [main, develop, v1, ia_admin, mejora-v2]
   pull_request:
 
 jobs:

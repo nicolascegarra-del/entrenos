@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from typing import Annotated, Literal
 
 import jwt
@@ -11,9 +12,11 @@ from app.core.config import get_settings
 from app.core.email import email_enabled
 from app.core.rate_limit import limiter
 from app.core.security import create_token, decode_token_claims, hash_password, verify_password
-from app.models import User, UserStatus
-from app.schemas.auth import EMAIL_PATTERN, LoginRequest, TokenResponse, UserRead
+from app.models import AccountTier, User, UserStatus
+from app.schemas.auth import EMAIL_PATTERN, LimitsRead, LoginRequest, TokenResponse, UserRead
 from app.services import accounts, mailer
+from app.services.limits import basic_limits, limits_for
+from app.services.signup_guard import captcha_enabled, is_blocked_email, verify_captcha
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -50,17 +53,35 @@ def _normalize(email: str) -> str:
 class OptionsOut(BaseModel):
     registration: accounts.RegistrationMode
     email_enabled: bool
+    # El autoregistro exige confirmar el email: sin correo configurado solo hay invitaciones.
+    signup_available: bool
+    captcha_site_key: str | None
+    basic_history_days: int  # para explicar los límites de las cuentas Básicas antes de registrarse
 
 
 class SignupIn(BaseModel):
     email: str = Field(max_length=255, pattern=EMAIL_PATTERN)
     password: Password
+    captcha_token: str | None = Field(default=None, max_length=4096)
 
 
 class SignupOut(BaseModel):
+    status: Literal["unverified"]
+    message: str
+
+
+class VerifyIn(BaseModel):
+    token: str = Field(min_length=20, max_length=100)
+
+
+class VerifyOut(BaseModel):
     status: Literal["active", "pending"]
     access_token: str | None = None
     expires_in: int | None = None
+
+
+class ResendIn(BaseModel):
+    email: str = Field(max_length=255, pattern=EMAIL_PATTERN)
 
 
 class ForgotIn(BaseModel):
@@ -108,6 +129,12 @@ def login(request: Request, response: Response, body: LoginRequest, session: Ses
         if user is not None:
             accounts.register_failed_login(session, user)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Email o contraseña incorrectos.")
+    if user.status == UserStatus.UNVERIFIED:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Confirma tu email: te enviamos un enlace al registrarte.",
+            headers={"X-Error-Code": "EMAIL_NOT_VERIFIED"},
+        )
     if user.status == UserStatus.PENDING:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, "Tu solicitud está pendiente de que un administrador la apruebe."
@@ -162,47 +189,127 @@ def logout_all(response: Response, session: SessionDep, user: CurrentUser) -> No
 
 
 @router.get("/me", summary="Usuario actual", responses=_ERRORS)
-def me(user: CurrentUser) -> UserRead:
-    return UserRead(id=user.id, email=user.email, is_admin=user.is_admin)
+def me(session: SessionDep, user: CurrentUser) -> UserRead:
+    limits = limits_for(session, user)
+    return UserRead(id=user.id, email=user.email, is_admin=user.is_admin, tier=user.tier,
+                    onboarded=user.onboarded_at is not None,
+                    limits=LimitsRead(**asdict(limits)))  # fmt: skip
+
+
+class OnboardingIn(BaseModel):
+    done: bool
+
+
+@router.put(
+    "/me/onboarding",
+    summary="Marcar la configuración guiada como hecha (o volver a mostrarla)",
+    description="`done: true` al terminarla u omitirla; `done: false` para repetirla desde Ajustes.",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def set_onboarding(body: OnboardingIn, session: SessionDep, user: CurrentUser) -> None:
+    user.onboarded_at = accounts.now() if body.done else None
+    session.add(user)
+    session.commit()
 
 
 # ─── Registro y recuperación (públicos) ──────────────────────────────────────
 
 
-@router.get("/options", summary="Opciones públicas del login (modo de registro y si hay email)")
+@router.get("/options", summary="Opciones públicas del login y del registro")
 def options(session: SessionDep) -> OptionsOut:
-    return OptionsOut(registration=accounts.registration_mode(session), email_enabled=email_enabled())
+    mode = accounts.registration_mode(session)
+    return OptionsOut(
+        registration=mode,
+        email_enabled=email_enabled(),
+        signup_available=mode != accounts.RegistrationMode.INVITE and email_enabled(),
+        captcha_site_key=get_settings().turnstile_site_key if captcha_enabled() else None,
+        basic_history_days=basic_limits(session).history_days,
+    )
 
 
 @router.post(
     "/signup",
-    summary="Crear cuenta sin invitación (si el registro está abierto o con aprobación)",
+    summary="Crear cuenta sin invitación (registro abierto o con aprobación)",
     description=(
-        "Con registro abierto crea la cuenta e inicia sesión (`status: active`). Con aprobación la deja "
-        "pendiente y avisa a los administradores (`status: pending`)."
+        "Crea una cuenta Básica sin confirmar y envía un enlace para confirmar el email. Exige correo "
+        "configurado, captcha (si está activado) y un email no desechable."
     ),
-    responses={403: {"description": "El registro es solo con invitación"}, 409: {"description": "Email en uso"}},
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={
+        400: {"description": "Captcha no superado"},
+        403: {"description": "El registro es solo con invitación o no hay correo configurado"},
+        409: {"description": "Email en uso"},
+        422: {"description": "Email desechable o datos no válidos"},
+    },
 )
 @limiter.limit("5/minute")
-def signup(request: Request, response: Response, body: SignupIn, session: SessionDep) -> SignupOut:
+def signup(request: Request, body: SignupIn, session: SessionDep) -> SignupOut:
     mode = accounts.registration_mode(session)
-    if mode == accounts.RegistrationMode.INVITE:
+    if mode == accounts.RegistrationMode.INVITE or not email_enabled():
         raise HTTPException(status.HTTP_403_FORBIDDEN, "El registro es solo con invitación de un administrador.")
+    if not verify_captcha(body.captcha_token, request.client.host if request.client else None):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "No hemos podido comprobar que no eres un robot. Reinténtalo.")
     email = _normalize(body.email)
+    if is_blocked_email(session, email):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "Usa un email permanente: no se admiten emails temporales."
+        )
     if session.exec(select(User).where(User.email == email)).first():
         raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe una cuenta con ese email.")
-    pending = mode == accounts.RegistrationMode.APPROVAL
-    user = User(email=email, password_hash=hash_password(body.password),
-                status=UserStatus.PENDING if pending else UserStatus.ACTIVE)  # fmt: skip
+    user = User(email=email, password_hash=hash_password(body.password), status=UserStatus.UNVERIFIED,
+                tier=AccountTier.BASIC)  # fmt: skip
     session.add(user)
     session.commit()
     session.refresh(user)
-    if pending:
-        mailer.send_approval_request([a.email for a in accounts.admins(session)], email)
-        return SignupOut(status="pending")
+    mailer.send_email_verification(email, accounts.create_verification(session, user), accounts.VERIFY_HOURS)
+    return SignupOut(
+        status="unverified", message=f"Te hemos enviado un email a {email}. Abre el enlace para confirmar tu cuenta."
+    )
+
+
+@router.post(
+    "/verify",
+    summary="Confirmar el email con el enlace",
+    description=(
+        "Registro abierto: activa la cuenta e inicia sesión (`active`). Con aprobación: la deja pendiente y avisa "
+        "a los administradores (`pending`)."
+    ),
+    responses={400: {"description": "Enlace no válido o caducado"}},
+)
+@limiter.limit("10/minute")
+def verify_email(request: Request, response: Response, body: VerifyIn, session: SessionDep) -> VerifyOut:
+    row = accounts.valid_verification(session, body.token)
+    user = session.get(User, row.user_id) if row else None
+    if row is None or user is None or user.status != UserStatus.UNVERIFIED:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El enlace no es válido o ha caducado. Pide uno nuevo.")
+    row.used_at = accounts.now()
+    session.add(row)
+    if accounts.registration_mode(session) == accounts.RegistrationMode.APPROVAL:
+        user.status = UserStatus.PENDING
+        session.add(user)
+        session.commit()
+        mailer.send_approval_request([a.email for a in accounts.admins(session)], user.email)
+        return VerifyOut(status="pending")
+    user.status = UserStatus.ACTIVE
+    session.add(user)
+    session.commit()
     accounts.register_login(session, user)
     tokens = _token_response(response, user)
-    return SignupOut(status="active", access_token=tokens.access_token, expires_in=tokens.expires_in)
+    return VerifyOut(status="active", access_token=tokens.access_token, expires_in=tokens.expires_in)
+
+
+@router.post(
+    "/verify/resend",
+    summary="Reenviar el email de confirmación",
+    description="Responde siempre 202 (no revela si el email existe).",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+@limiter.limit("3/minute")
+def resend_verification(request: Request, body: ResendIn, session: SessionDep) -> dict:
+    user = session.exec(select(User).where(User.email == _normalize(body.email))).first()
+    if user is not None and user.status == UserStatus.UNVERIFIED:
+        mailer.send_email_verification(user.email, accounts.create_verification(session, user), accounts.VERIFY_HOURS)
+    return {"message": "Si la cuenta está pendiente de confirmar, te hemos enviado un enlace nuevo."}
 
 
 @router.post(
