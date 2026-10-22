@@ -36,6 +36,9 @@ class PlannedSession(SQLModel, table=True):
     match_mode: MatchMode = Field(default=MatchMode.AUTO, sa_column=Column(String(16), nullable=False))
     compliance_score: float | None = None
     compliance_detail: dict = jsonb_field()
+    # Sesiones generadas por un plan de entrenamiento (None = creadas a mano).
+    plan_id: int | None = Field(default=None, foreign_key="training_plan.id", index=True, ondelete="SET NULL")
+    session_kind: str | None = Field(default=None, max_length=16)  # easy | long | threshold | intervals | …
     created_at: datetime = created_at_field()
 
 

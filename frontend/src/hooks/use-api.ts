@@ -36,6 +36,9 @@ import type {
   GarminStatus,
   GoalReport,
   InsightsResponse,
+  PlanPreview,
+  TrainingPlanInput,
+  TrainingPlanReport,
   PaceCurve,
   ZonesReport,
   MetricDefinition,
@@ -764,5 +767,67 @@ export function useDeleteConversation() {
       apiFetch<void>(`/api/v1/chat/conversations/${id}`, { method: "DELETE" }),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["conversations"] }),
+  });
+}
+
+// ─── Planes de entrenamiento automáticos ────────────────────────────────────
+
+export function useActivePlan() {
+  return useQuery({
+    queryKey: ["training-plan"],
+    queryFn: () =>
+      apiFetch<TrainingPlanReport | null>("/api/v1/training-plans/active"),
+  });
+}
+
+export function usePlanPreview() {
+  return useMutation({
+    mutationFn: (body: TrainingPlanInput) =>
+      apiFetch<PlanPreview>("/api/v1/training-plans/preview", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+  });
+}
+
+/** Tras crear, adaptar o cancelar un plan cambian el calendario y el Resumen. */
+async function refreshPlanViews(
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  for (const key of ["training-plan", "plans", "summary"]) {
+    await queryClient.invalidateQueries({ queryKey: [key] });
+  }
+}
+
+export function useCreatePlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: TrainingPlanInput) =>
+      apiFetch<TrainingPlanReport>("/api/v1/training-plans", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => refreshPlanViews(queryClient),
+  });
+}
+
+export function useAdaptPlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiFetch<{
+        adjustment: { action: string; reason: string } | null;
+        plan: TrainingPlanReport;
+      }>(`/api/v1/training-plans/${id}/adapt`, { method: "POST" }),
+    onSuccess: () => refreshPlanViews(queryClient),
+  });
+}
+
+export function useCancelPlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiFetch<void>(`/api/v1/training-plans/${id}`, { method: "DELETE" }),
+    onSuccess: () => refreshPlanViews(queryClient),
   });
 }

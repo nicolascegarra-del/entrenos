@@ -228,7 +228,7 @@ def save_provider(provider: AiProvider, body: ProviderIn, session: SessionDep, u
     api_key = body.api_key.strip() if body.api_key else None
     if config is None:
         if not api_key:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Introduce la clave de API.")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Introduce la clave de API.")
         config = AiProviderConfig(user_id=user.id, provider=provider, model=body.model, key_enc="", key_last4="")
     # Si cambia la clave o el modelo, se comprueba que el modelo responde antes de guardar: los proveedores
     # siguen listando modelos retirados y así nunca queda guardado uno que falle.
@@ -283,7 +283,7 @@ def provider_models(
     api_key = body.api_key.strip() if body.api_key else None
     if api_key is None:
         if config is None:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Introduce la clave de API.")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Introduce la clave de API.")
         api_key = decrypt_secret(config.key_enc)
     try:
         models = list_models(provider, api_key)

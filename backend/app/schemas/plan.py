@@ -52,6 +52,8 @@ class SessionOut(BaseModel):
     activity_id: int | None
     match_mode: MatchMode
     compliance_score: float | None
+    plan_id: int | None = None  # generada por un plan de entrenamiento
+    session_kind: str | None = None  # easy | long | threshold | intervals | race_pace | race
     planned_duration_s: float
     planned_distance_m: float | None
     blocks: list[BlockOut]

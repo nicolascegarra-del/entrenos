@@ -35,6 +35,8 @@ from app.models import (
     RaceGoal,
     StrengthSet,
     SyncRun,
+    TrainingPlan,
+    TrainingPlanWeek,
     User,
     UserProfile,
     UserStatus,
@@ -206,6 +208,8 @@ def export_user_data(session: Session, user: User) -> dict:
     conversations = session.exec(select(ChatConversation).where(ChatConversation.user_id == uid)).all()
     conversation_ids = [c.id for c in conversations]
     profile = session.get(UserProfile, uid)
+    training_plans = session.exec(select(TrainingPlan).where(TrainingPlan.user_id == uid)).all()
+    plan_ids_tp = [p.id for p in training_plans]
     return {
         "exported_at": now().isoformat(),
         "account": {"email": user.email, "created_at": user.created_at.isoformat(), "is_admin": user.is_admin},
@@ -227,6 +231,10 @@ def export_user_data(session: Session, user: User) -> dict:
             session.exec(select(PlannedBlock).where(col(PlannedBlock.session_id).in_(plan_ids))).all()
         ),
         "race_goals": _dump(session.exec(select(RaceGoal).where(RaceGoal.user_id == uid)).all()),
+        "training_plans": _dump(training_plans),
+        "training_plan_weeks": _dump(
+            session.exec(select(TrainingPlanWeek).where(col(TrainingPlanWeek.plan_id).in_(plan_ids_tp))).all()
+        ),
         "ai_providers": _dump(
             session.exec(select(AiProviderConfig).where(AiProviderConfig.user_id == uid)).all(), exclude={"key_enc"}
         ),

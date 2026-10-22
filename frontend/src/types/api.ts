@@ -103,6 +103,9 @@ export interface PlannedSession extends PlannedSessionInput {
   activity_id: number | null;
   match_mode: "auto" | "manual";
   compliance_score: number | null;
+  /** Sesión generada por un plan de entrenamiento automático. */
+  plan_id?: number | null;
+  session_kind?: SessionKind | null;
   planned_duration_s: number;
   planned_distance_m: number | null;
 }
@@ -681,4 +684,72 @@ export interface ZonesReport {
   previous: ZoneSet | null;
   history: ZoneSet[];
   changed_recently: boolean;
+}
+
+// ─── Planes de entrenamiento automáticos ────────────────────────────────────
+
+export type PlanPhase = "base" | "build" | "peak" | "taper";
+export type SessionKind =
+  "easy" | "long" | "threshold" | "intervals" | "race_pace" | "race";
+
+export interface TrainingPlanInput {
+  goal_id: number;
+  weekdays: number[];
+  long_run_weekday: number;
+}
+
+export interface PlanPreviewWeek {
+  index: number;
+  start: string;
+  phase: PlanPhase;
+  phase_label: string;
+  target_km: number;
+  is_recovery: boolean;
+  sessions: { day: string; title: string; kind: SessionKind; km: number }[];
+}
+
+export interface PlanPreview {
+  weeks: PlanPreviewWeek[];
+  start_km_week: number;
+}
+
+export interface PlanAdjustment {
+  action: "progress" | "hold" | "reduce";
+  reason: string;
+  at: string;
+}
+
+export interface TrainingPlanWeekOut {
+  index: number;
+  start: string;
+  phase: PlanPhase;
+  phase_label: string;
+  target_km: number;
+  done_km: number;
+  is_recovery: boolean;
+  is_current: boolean;
+  adjustment: PlanAdjustment | null;
+  sessions: {
+    id: number;
+    day: string;
+    title: string;
+    kind: SessionKind | null;
+    done: boolean;
+    compliance: number | null;
+  }[];
+}
+
+export interface TrainingPlanReport {
+  id: number;
+  status: "active" | "cancelled" | "done";
+  goal_id: number | null;
+  goal_name: string | null;
+  race_date: string;
+  distance_m: number;
+  weekdays: number[];
+  long_run_weekday: number;
+  vdot: number | null;
+  weeks: TrainingPlanWeekOut[];
+  current_week: number | null;
+  total_weeks: number;
 }

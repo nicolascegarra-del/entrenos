@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Clock, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Plus, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -8,7 +8,7 @@ import { ScoreBadge } from "@/components/plan/status-badge";
 import { ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useActivitiesInRange, usePlans } from "@/hooks/use-api";
+import { useActivePlan, useActivitiesInRange, usePlans } from "@/hooks/use-api";
 import { formatDistance, formatDuration, sportInfo } from "@/lib/format";
 import { addDays, startOfWeek, toIsoDay } from "@/lib/plan";
 import { cn } from "@/lib/utils";
@@ -41,6 +41,11 @@ function PlannedCard({ plan }: { plan: PlannedSession }) {
         <Icon className="mt-0.5 size-4 shrink-0 text-klyp-accent" aria-hidden />
         <span className="line-clamp-2">{plan.title}</span>
       </p>
+      {plan.plan_id != null && (
+        <p className="mt-0.5 text-[11px] font-medium text-klyp-accent">
+          Plan automático
+        </p>
+      )}
       <p className="mt-1 text-xs text-muted-foreground tabular-nums">
         {plan.planned_distance_m
           ? `${formatDistance(plan.planned_distance_m)} · `
@@ -81,6 +86,7 @@ function UnplannedCard({ activity }: { activity: ActivitySummary }) {
 }
 
 export default function PlanPage() {
+  const { data: activePlan } = useActivePlan();
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const from = toIsoDay(days[0]);
@@ -97,8 +103,29 @@ export default function PlanPage() {
 
   return (
     <section className="space-y-4">
+      {activePlan?.current_week && (
+        <Link
+          href="/plan/entrenamiento"
+          className="block rounded-lg border border-klyp-accent/40 bg-klyp-pale/50 p-3 text-sm hover:bg-klyp-pale dark:bg-klyp-navy-light/30"
+        >
+          <strong>{activePlan.goal_name ?? "Plan de entrenamiento"}</strong> ·
+          semana {activePlan.current_week} de {activePlan.total_weeks} ·{" "}
+          {activePlan.weeks.find((w) => w.is_current)?.phase_label}
+          {activePlan.weeks.find((w) => w.is_current)?.adjustment?.reason && (
+            <span className="block text-muted-foreground">
+              {activePlan.weeks.find((w) => w.is_current)?.adjustment?.reason}
+            </span>
+          )}
+        </Link>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="font-heading text-2xl font-bold md:text-3xl">Plan</h1>
+        <Button asChild variant="outline" className="ml-auto min-h-11">
+          <Link href={activePlan ? "/plan/entrenamiento" : "/plan/generar"}>
+            <Sparkles aria-hidden />{" "}
+            {activePlan ? "Mi plan de entrenamiento" : "Crear plan automático"}
+          </Link>
+        </Button>
         <Button asChild className="min-h-11">
           <Link
             href={`/plan/nueva?dia=${today >= from && today <= to ? today : from}`}

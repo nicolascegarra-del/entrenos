@@ -5,7 +5,20 @@ from sqlalchemy import text
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from app.api import activities, admin, ai, auth, garmin, goals, plans, profile, progress, strength, users
+from app.api import (
+    activities,
+    admin,
+    ai,
+    auth,
+    garmin,
+    goals,
+    plans,
+    profile,
+    progress,
+    strength,
+    training_plans,
+    users,
+)
 from app.api import settings as settings_api
 from app.core.config import get_settings
 from app.core.db import engine
@@ -72,6 +85,7 @@ app.include_router(profile.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(ai.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+app.include_router(training_plans.router, prefix="/api/v1")
 
 
 @app.get("/health", summary="Estado del servicio", tags=["infra"])

@@ -37,6 +37,8 @@ def _to_out(session: Session, planned: PlannedSession) -> SessionOut:
         activity_id=planned.activity_id,
         match_mode=planned.match_mode,
         compliance_score=planned.compliance_score,
+        plan_id=planned.plan_id,
+        session_kind=planned.session_kind,
         planned_duration_s=estimated_duration_s(steps),
         planned_distance_m=sum(distances) if distances else None,
         blocks=[BlockOut.model_validate(b, from_attributes=True) for b in blocks],

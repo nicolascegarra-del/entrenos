@@ -11,6 +11,7 @@ from app.models.plan import BlockKind, MatchMode, PlannedBlock, PlannedSession
 from app.models.settings import SYNC_INTERVALS, SyncMode, UserSettings
 from app.models.strength import ActivityFeedback, StrengthSet
 from app.models.sync import SyncRun, SyncStatus
+from app.models.training import TrainingPlan, TrainingPlanWeek
 from app.models.user import AccountTier, User, UserStatus
 
 __all__ = [
@@ -44,6 +45,8 @@ __all__ = [
     "SyncMode",
     "SyncRun",
     "SyncStatus",
+    "TrainingPlan",
+    "TrainingPlanWeek",
     "User",
     "UserStatus",
     "AccountTier",

@@ -15,6 +15,7 @@ celery_app = Celery(
         "app.tasks.email",
         "app.tasks.heartbeat",
         "app.tasks.housekeeping",
+        "app.tasks.plans",
     ],
 )
 celery_app.conf.update(
@@ -28,6 +29,8 @@ celery_app.conf.update(
         "heartbeat": {"task": "system.heartbeat", "schedule": 60},
         # Cuentas sin confirmar (48 h) y cuentas Básicas inactivas (aviso y borrado).
         "accounts-housekeeping": {"task": "accounts.housekeeping", "schedule": 24 * 3600},
+        # Adaptación semanal de los planes de entrenamiento (actúa una vez por semana y plan).
+        "plans-adapt": {"task": "plans.adapt_due", "schedule": 6 * 3600},
     },
 )
 

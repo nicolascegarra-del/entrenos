@@ -252,7 +252,7 @@ def signup(request: Request, body: SignupIn, session: SessionDep) -> SignupOut:
     email = _normalize(body.email)
     if is_blocked_email(session, email):
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, "Usa un email permanente: no se admiten emails temporales."
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "Usa un email permanente: no se admiten emails temporales."
         )
     if session.exec(select(User).where(User.email == email)).first():
         raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe una cuenta con ese email.")

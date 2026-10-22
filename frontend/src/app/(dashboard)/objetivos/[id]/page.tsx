@@ -8,6 +8,7 @@ import {
   Trash2,
   TriangleAlert,
   Trophy,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -494,7 +495,14 @@ export default function ObjetivoPage() {
                   : ""}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {goal.days_left > 0 && goal.result_time_s == null && (
+              <Button asChild className="min-h-11">
+                <Link href={`/plan/generar?objetivo=${goal.id}`}>
+                  <Sparkles aria-hidden /> Crear plan de entrenamiento
+                </Link>
+              </Button>
+            )}
             <Button asChild variant="outline" className="min-h-11">
               <Link href={`/objetivos/${goal.id}/editar`}>
                 <Pencil aria-hidden /> Editar
