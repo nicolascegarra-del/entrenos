@@ -46,7 +46,7 @@ def _model_ok(monkeypatch):
 def fake_llm(monkeypatch):
     calls = []
 
-    def fake(provider, api_key, model, system, messages, client=None):
+    def fake(provider, api_key, model, system, messages, client=None, **kwargs):
         calls.append({"provider": provider, "api_key": api_key, "model": model, "system": system, "messages": messages})
         yield Chunk(text="Tu frescura ")
         yield Chunk(text="está bien.")

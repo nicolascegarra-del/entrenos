@@ -3,7 +3,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
   History,
-  Loader2,
   MessageSquarePlus,
   SendHorizontal,
   Sparkles,
@@ -15,6 +14,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { Consulted } from "@/components/assistant/consulted";
 import { Markdown } from "@/components/assistant/markdown";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -38,17 +38,19 @@ import { cn } from "@/lib/utils";
 import type { AiProviderId, Conversation } from "@/types/api";
 
 const SUGGESTIONS = [
+  "Analiza mi último entreno: ritmo, pulso, zonas y vueltas",
+  "¿Estoy mejorando el ritmo a igual pulso este último mes?",
   "¿Cómo llego hoy y qué me recomiendas entrenar?",
-  "¿Por qué mi frescura está en negativo?",
   "¿Voy bien para mi objetivo? ¿Qué debería mejorar?",
-  "Explícame mi carga reciente frente a la habitual",
-  "¿Estoy haciendo suficiente rodaje suave?",
+  "¿Cuánto tiempo paso en cada zona de pulso? ¿Hago suficiente rodaje suave?",
 ];
 
 interface Bubble {
   key: string;
   role: "user" | "assistant";
   content: string;
+  /** Datos que consultó el asistente. */
+  tools?: string[];
 }
 
 const selectClass =
@@ -147,6 +149,7 @@ function AssistantChat() {
       key: `m${m.id}`,
       role: m.role,
       content: m.content,
+      tools: m.tools ?? [],
     })) ?? [];
   const bubbles = [...saved, ...pending];
 
@@ -169,7 +172,7 @@ function AssistantChat() {
     setStreaming(true);
     setPending([
       { key: "u-pending", role: "user", content: message },
-      { key: "a-pending", role: "assistant", content: "" },
+      { key: "a-pending", role: "assistant", content: "", tools: [] },
     ]);
     const controller = new AbortController();
     abortRef.current = controller;
@@ -186,6 +189,14 @@ function AssistantChat() {
               prev.map((b) =>
                 b.key === "a-pending"
                   ? { ...b, content: b.content + delta }
+                  : b,
+              ),
+            ),
+          onTool: (label) =>
+            setPending((prev) =>
+              prev.map((b) =>
+                b.key === "a-pending"
+                  ? { ...b, tools: [...(b.tools ?? []), label] }
                   : b,
               ),
             ),
@@ -300,8 +311,9 @@ function AssistantChat() {
                   Pregúntame por tus entrenamientos
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Respondo con tus datos: estado de hoy, carga, análisis,
-                  entrenos, plan y objetivos.
+                  Consulto todos tus datos sincronizados (cada entreno con sus
+                  vueltas, pulso y zonas, tu progresión, salud, plan y
+                  objetivos) y te explico en qué me baso.
                 </p>
               </div>
               <ul className="flex max-w-xl flex-wrap justify-center gap-2">
@@ -330,14 +342,13 @@ function AssistantChat() {
                 )}
               >
                 {b.role === "assistant" ? (
-                  b.content ? (
-                    <Markdown text={b.content} />
-                  ) : (
-                    <span className="flex items-center gap-2 text-muted-foreground">
-                      <Loader2 className="size-4 animate-spin" aria-hidden />
-                      Pensando…
-                    </span>
-                  )
+                  <>
+                    <Consulted
+                      labels={b.tools ?? []}
+                      working={b.key === "a-pending" && streaming}
+                    />
+                    {b.content && <Markdown text={b.content} />}
+                  </>
                 ) : (
                   <p className="whitespace-pre-wrap">{b.content}</p>
                 )}

@@ -4,7 +4,7 @@ from enum import StrEnum
 from sqlalchemy import Column, DateTime, String, Text, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
-from app.models.base import created_at_field, utcnow
+from app.models.base import created_at_field, jsonb_field, utcnow
 
 
 class AiProvider(StrEnum):
@@ -63,4 +63,5 @@ class ChatMessage(SQLModel, table=True):
     model: str | None = Field(default=None, max_length=100)
     input_tokens: int | None = None
     output_tokens: int | None = None
+    tools: list | None = jsonb_field(nullable=True)  # datos que consultó el asistente (etiquetas)
     created_at: datetime = created_at_field()

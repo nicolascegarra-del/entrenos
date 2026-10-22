@@ -14,10 +14,22 @@ SYSTEM_PROMPT = """\
 Eres el asistente de APP ENTRENOS, una app que analiza los entrenamientos de un corredor con datos de su reloj Garmin.
 Respondes en español de España, de tú, claro y breve (normalmente 2–6 frases o una lista corta).
 
-Reglas:
-- Básate en los DATOS DEL USUARIO de abajo. Si te preguntan algo que no está en los datos, dilo y explica qué
-  haría falta.
-- No inventes cifras ni sesiones. Cita los valores reales cuando expliques algo.
+Tienes HERRAMIENTAS para consultar todos sus datos sincronizados: actividades de cualquier fecha con vueltas,
+parciales por km, tiempo en zonas, series de FC y ritmo, sensaciones y cumplimiento del plan; zonas y umbrales;
+progresión (forma, volumen, VO2max, FC en reposo, HRV, sueño, eficiencia, curva de ritmos); marcas y previsiones;
+plan y objetivos; día de carrera; salud diaria; lesiones y zapatillas.
+
+Cómo trabajar:
+- Antes de responder, consulta con las herramientas los datos que hagan falta. No supongas lo que puedes mirar.
+  Para un entreno concreto usa detalle_actividad (los ids de los recientes están abajo; para otros, busca con
+  buscar_actividades). Para tendencias usa progresion. Puedes encadenar varias consultas.
+- Razona con los datos y responde en tres partes cortas, con estos títulos en negrita:
+  **Qué he mirado** (qué actividades o métricas y de qué fechas),
+  **Qué dicen tus datos** (cifras concretas: ritmos, FC, zonas, cargas, comparaciones),
+  **Conclusión** (tu interpretación y una recomendación práctica). Separa lo que es dato de lo que es opinión.
+  Para un saludo o una pregunta sobre la app que no necesita datos, responde directamente sin esas partes.
+- Si un dato no existe (el reloj no lo registra o no hay sincronización), dilo y explica qué haría falta.
+- No inventes cifras ni sesiones. Cita los valores reales.
 - Usa los nombres de la app: «forma física» (CTL), «fatiga» (ATL), «frescura» (TSB = forma física − fatiga),
   «carga reciente frente a la habitual» (ACWR), «nivel de carrera» (VDOT). Puedes poner la sigla entre paréntesis.
 - Las recomendaciones siguen la literatura deportiva que usa la app (modelo forma-fatiga de Banister, ACWR de Gabbett,
@@ -135,15 +147,36 @@ def format_context(data: dict, today: date) -> str:
                 f"umbral {_clock(paces['threshold'])}/km, intervalos {_clock(paces['interval'])}/km"
             )
 
+    zones = data.get("zones") or {}
+    if zones:
+        lines.append("\n## Zonas y umbrales vigentes")
+        if zones.get("lthr"):
+            lines.append(f"- FC umbral {zones['lthr']} ppm ({zones.get('lthr_source') or '—'})")
+        if zones.get("threshold_pace"):
+            lines.append(f"- Ritmo umbral {zones['threshold_pace']}/km ({zones.get('pace_source') or '—'})")
+        if zones.get("hr"):
+            lines.append("- Zonas de FC: " + "; ".join(zones["hr"]))
+
+    weeks = data.get("weeks") or []
+    if weeks:
+        lines.append("\n## Últimas semanas (lunes, km, tiempo, sesiones, carga)")
+        for w in weeks:
+            lines.append(
+                f"- {w['week']}: {num(w['distance_m'] / 1000, 1)} km, {_clock(w['duration_s'])}, "
+                f"{w['count']} sesiones, carga {num(w['load'], 0)}"
+            )
+
     activities = data.get("activities") or []
     if activities:
-        lines.append("\n## Últimas actividades")
+        lines.append("\n## Últimas actividades (id para detalle_actividad)")
         for a in activities:
             hr = f", FC media {num(a['avg_hr'], 0)}" if a.get("avg_hr") else ""
             dist = f"{num(a['distance_m'] / 1000, 2)} km, " if a.get("distance_m") else ""
+            race = " [carrera a tope]" if a.get("is_race") else ""
+            ref = f"id {a['id']} · " if a.get("id") else ""
             lines.append(
-                f"- {a['day']} {a['sport']} «{a['name']}»: {dist}{_clock(a['duration_s'])}"
-                f"{_pace(a.get('distance_m'), a['duration_s'])}{hr}"
+                f"- {ref}{a['day']} {a['sport']} «{a['name']}»: {dist}{_clock(a['duration_s'])}"
+                f"{_pace(a.get('distance_m'), a['duration_s'])}{hr}{race}"
             )
 
     goals = data.get("goals") or []

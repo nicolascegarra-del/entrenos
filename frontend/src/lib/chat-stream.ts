@@ -40,6 +40,8 @@ export interface ChatHandlers {
     model: string;
   }) => void;
   onDelta: (text: string) => void;
+  /** El asistente ha consultado un dato (etiqueta legible). */
+  onTool?: (label: string) => void;
 }
 
 export interface ChatRequest {
@@ -77,6 +79,7 @@ export async function streamChat(
     for (const { event, data } of parsed.events) {
       if (event === "meta") handlers.onMeta?.(data as never);
       else if (event === "delta") handlers.onDelta(String(data.text ?? ""));
+      else if (event === "tool") handlers.onTool?.(String(data.label ?? ""));
       else if (event === "error") throw new Error(String(data.message));
       else if (event === "done") finished = true;
     }

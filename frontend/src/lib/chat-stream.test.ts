@@ -44,3 +44,14 @@ describe("toBlocks (Markdown del asistente)", () => {
     ]);
   });
 });
+
+describe("eventos de consulta del asistente", () => {
+  it("el evento tool trae la etiqueta de lo consultado", () => {
+    const { events } = parseSse(
+      'event: tool\ndata: {"label": "Tus zonas y umbrales"}\n\n',
+    );
+    expect(events).toEqual([
+      { event: "tool", data: { label: "Tus zonas y umbrales" } },
+    ]);
+  });
+});

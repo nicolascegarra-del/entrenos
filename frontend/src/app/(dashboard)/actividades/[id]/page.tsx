@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
 
+import { AskAi } from "@/components/activity/ask-ai";
 import { FeedbackCard } from "@/components/activity/feedback-card";
 import { GearSelect } from "@/components/activity/gear-select";
 import { LapsTable } from "@/components/activity/laps-table";
@@ -218,6 +219,7 @@ export default function ActivityDetailPage() {
           )}
           {usesShoes(activity.sport) && <GearSelect activity={activity} />}
           {usesShoes(activity.sport) && <RaceToggle activity={activity} />}
+          <AskAi activity={activity} />
         </div>
       </header>
 

@@ -622,6 +622,8 @@ export interface ChatMessage {
   content: string;
   provider: string | null;
   model: string | null;
+  /** Datos que consultó el asistente para responder. */
+  tools?: string[] | null;
   created_at: string;
 }
 

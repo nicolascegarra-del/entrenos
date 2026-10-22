@@ -9,7 +9,7 @@ no se registran en los logs.
 import json
 import logging
 from collections.abc import Iterator
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
@@ -25,11 +25,15 @@ from app.core.crypto import decrypt_secret, encrypt_secret
 from app.core.db import engine
 from app.core.rate_limit import limiter
 from app.models import Activity, AiProvider, AiProviderConfig, ChatConversation, ChatMessage, User
+from app.services import ai_tools
+from app.services import progress as prog
 from app.services.ai_context import conversation_title, format_context, system_prompt
+from app.services.ai_tools import clock
 from app.services.insights import build_insights
 from app.services.llm import PROVIDERS, LLMError, check_model, list_models, stream_chat
 from app.services.plan_steps import local_day
 from app.services.profile import age_on, get_profile
+from app.services.zones import latest_zones
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["asistente IA"])
@@ -97,6 +101,7 @@ class MessageOut(BaseModel):
     content: str
     provider: str | None
     model: str | None
+    tools: list[str] | None = None
     created_at: datetime
 
 
@@ -153,8 +158,29 @@ def _gather(session: Session, user: User) -> dict:
     profile = get_profile(session, user.id)
     today = date.today()
     activities = session.exec(
-        select(Activity).where(Activity.user_id == user.id).order_by(col(Activity.start_time).desc()).limit(10)
+        select(Activity).where(Activity.user_id == user.id).order_by(col(Activity.start_time).desc()).limit(20)
     ).all()
+    all_activities = prog.user_activities(session, user.id)
+    _, loads = prog.loads_by_day(
+        all_activities, prog.user_thresholds(session, user.id), prog.user_rpes(session, user.id)
+    )
+    weeks = prog.weekly_volume(
+        all_activities, loads, prog.week_start(today) - timedelta(weeks=7), prog.week_start(today)
+    )
+    current = latest_zones(session, user.id)
+    zones = {}
+    if current:
+        thr = current.thresholds
+        zones = {
+            "lthr": thr.get("lthr"),
+            "lthr_source": thr.get("lthr_source"),
+            "pace_source": thr.get("pace_source"),
+            "threshold_pace": clock(thr.get("threshold_pace_s_km")),
+            "hr": [
+                f"{z['name']} {z['min']}–{z['max'] if z['max'] is not None else '…'}"
+                for z in current.zones.get("hr", [])
+            ],
+        }
     return {
         "profile": {
             "age": age_on(profile.birth_date, today) if profile.birth_date else None,
@@ -164,8 +190,12 @@ def _gather(session: Session, user: User) -> dict:
         },
         "summary": summary(session, user).model_dump(mode="json"),
         "insights": build_insights(session, user.id, 90),
+        "zones": zones,
+        "weeks": [w | {"week": str(w["week"])} for w in weeks],
         "activities": [
             {
+                "id": a.id,
+                "is_race": a.is_race,
                 "day": local_day(a.start_time, a.timezone).isoformat(),
                 "sport": a.sport,
                 "name": a.name,
@@ -403,24 +433,38 @@ def chat(request: Request, body: ChatIn, session: SessionDep, user: CurrentUser)
 
     # Todo lo que necesita la BD se lee aquí: el generador corre después y usa su propia sesión.
     system = system_prompt(format_context(_gather(session, user), date.today()))
+    # Calcular el contexto guarda cachés (curva de ritmos, huellas de recorrido) en las actividades: se
+    # confirman ya para no dejar filas bloqueadas mientras dura la respuesta (las herramientas escriben las mismas).
+    session.commit()
     provider, model, conversation_id, user_id = AiProvider(config.provider), config.model, conversation.id, user.id
     api_key = decrypt_secret(config.key_enc)
 
     def events() -> Iterator[str]:
         yield _sse("meta", {"conversation_id": conversation_id, "provider": provider, "model": model})
         parts: list[str] = []
+        consulted: list[str] = []
         tokens_in = tokens_out = None
-        try:
-            for chunk in stream_chat(provider, api_key, model, system, history):
-                if chunk.text:
-                    parts.append(chunk.text)
-                    yield _sse("delta", {"text": chunk.text})
-                tokens_in = chunk.input_tokens if chunk.input_tokens is not None else tokens_in
-                tokens_out = chunk.output_tokens if chunk.output_tokens is not None else tokens_out
-        except LLMError as exc:
-            logger.warning("Error del proveedor de IA", extra={"user_id": user_id, "status": exc.status})
-            yield _sse("error", {"message": exc.message})
-            return
+        # Las herramientas leen la BD con su propia sesión (el generador corre después de la petición).
+        with Session(engine) as tools_db:
+
+            def run_tool(call) -> tuple[str, str]:
+                return ai_tools.execute(tools_db, user_id, call.name, call.args)
+
+            try:
+                for chunk in stream_chat(provider, api_key, model, system, history, tools=ai_tools.TOOLS,
+                                         executor=run_tool):  # fmt: skip
+                    if chunk.tool:
+                        consulted.append(chunk.tool)
+                        yield _sse("tool", {"label": chunk.tool})
+                    if chunk.text:
+                        parts.append(chunk.text)
+                        yield _sse("delta", {"text": chunk.text})
+                    tokens_in = chunk.input_tokens if chunk.input_tokens is not None else tokens_in
+                    tokens_out = chunk.output_tokens if chunk.output_tokens is not None else tokens_out
+            except LLMError as exc:
+                logger.warning("Error del proveedor de IA", extra={"user_id": user_id, "status": exc.status})
+                yield _sse("error", {"message": exc.message})
+                return
         answer = "".join(parts).strip()
         if not answer:
             yield _sse("error", {"message": "El asistente no devolvió ninguna respuesta. Inténtalo de nuevo."})
@@ -434,6 +478,7 @@ def chat(request: Request, body: ChatIn, session: SessionDep, user: CurrentUser)
                 model=model,
                 input_tokens=tokens_in,
                 output_tokens=tokens_out,
+                tools=consulted or None,
             )
             db.add(message)
             db.commit()
