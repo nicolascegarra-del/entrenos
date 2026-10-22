@@ -871,3 +871,62 @@ export interface AchievementsReport {
   }[];
   milestones: { unlocked: number; total: number };
 }
+
+// ─── Recorridos y comparador ─────────────────────────────────────────────────
+
+export interface RouteEffort {
+  activity_id: number;
+  day: string;
+  name: string;
+  duration_s: number;
+  distance_m: number | null;
+  pace_s_km: number | null;
+  avg_hr: number | null;
+  elevation_gain_m: number | null;
+}
+
+export interface RouteSummary {
+  id: number;
+  name: string;
+  sport: string;
+  distance_m: number | null;
+  count: number;
+  best: RouteEffort | null;
+  last: RouteEffort;
+  first_day: string;
+}
+
+export interface RouteDetail extends RouteSummary {
+  efforts: RouteEffort[];
+  track: [number, number][];
+  /** Solo al pedirlo desde una actividad: su puesto por ritmo (1 = mejor). */
+  rank?: number | null;
+}
+
+export interface ComparePoint {
+  distance_m: number;
+  time_a: number | null;
+  time_b: number | null;
+  pace_a: number | null;
+  pace_b: number | null;
+  hr_a: number | null;
+  hr_b: number | null;
+  alt_a: number | null;
+  alt_b: number | null;
+  gap_s: number | null;
+}
+
+export interface CompareResult {
+  a: RouteEffort;
+  b: RouteEffort;
+  distance_m: number;
+  points: ComparePoint[];
+  splits: {
+    km: number;
+    a: number | null;
+    b: number | null;
+    diff: number | null;
+  }[];
+  track_a: [number, number][];
+  track_b: [number, number][];
+}

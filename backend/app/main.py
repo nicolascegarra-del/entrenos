@@ -18,6 +18,7 @@ from app.api import (
     plans,
     profile,
     progress,
+    routes,
     strength,
     training_plans,
     users,
@@ -92,6 +93,7 @@ app.include_router(training_plans.router, prefix="/api/v1")
 app.include_router(gear.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
 app.include_router(achievements.router, prefix="/api/v1")
+app.include_router(routes.router, prefix="/api/v1")
 
 
 @app.get("/health", summary="Estado del servicio", tags=["infra"])

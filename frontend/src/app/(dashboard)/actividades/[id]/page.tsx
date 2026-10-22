@@ -10,6 +10,7 @@ import { useMemo } from "react";
 import { FeedbackCard } from "@/components/activity/feedback-card";
 import { GearSelect } from "@/components/activity/gear-select";
 import { LapsTable } from "@/components/activity/laps-table";
+import { RouteCard } from "@/components/activity/route-card";
 import {
   StreamCharts,
   chartChannels,
@@ -252,6 +253,8 @@ export default function ActivityDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {route.length > 1 && <RouteCard activityId={activity.id} />}
 
       <FeedbackCard activityId={activity.id} />
 

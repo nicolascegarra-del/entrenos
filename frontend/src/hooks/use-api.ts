@@ -7,6 +7,9 @@ import {
 
 import { apiFetch } from "@/lib/api";
 import type {
+  CompareResult,
+  RouteDetail,
+  RouteSummary,
   AchievementsReport,
   AdminSettings,
   AdminSettingsInput,
@@ -375,6 +378,41 @@ export function useSetActivityGear(activityId: number) {
       queryClient.invalidateQueries({ queryKey: ["activity", activityId] });
       queryClient.invalidateQueries({ queryKey: ["gear"] });
     },
+  });
+}
+
+// ─── Recorridos ──────────────────────────────────────────────────────────────
+
+export function useRoutes() {
+  return useQuery({
+    queryKey: ["routes"],
+    queryFn: () => apiFetch<RouteSummary[]>("/api/v1/routes"),
+  });
+}
+
+export function useRoute(id: number) {
+  return useQuery({
+    queryKey: ["routes", id],
+    queryFn: () => apiFetch<RouteDetail>(`/api/v1/routes/${id}`),
+    enabled: Number.isFinite(id),
+  });
+}
+
+export function useActivityRoute(activityId: number, enabled = true) {
+  return useQuery({
+    queryKey: ["routes", "by-activity", activityId],
+    queryFn: () =>
+      apiFetch<RouteDetail | null>(`/api/v1/routes/by-activity/${activityId}`),
+    enabled,
+  });
+}
+
+export function useCompare(a: number, b: number) {
+  return useQuery({
+    queryKey: ["compare", a, b],
+    queryFn: () =>
+      apiFetch<CompareResult>(`/api/v1/routes/compare?a=${a}&b=${b}`),
+    enabled: Number.isFinite(a) && Number.isFinite(b) && a !== b,
   });
 }
 
