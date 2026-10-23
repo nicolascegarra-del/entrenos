@@ -61,10 +61,15 @@ def list_activities(
     date_to: datetime | None = None,
     cursor: str | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    q: Annotated[str | None, Query(max_length=80, description="Texto a buscar en el nombre")] = None,
 ) -> ActivityPage:
     query = select(Activity).where(Activity.user_id == user.id)
     if sport:
         query = query.where(Activity.sport == sport)
+    if q and q.strip():
+        # Búsqueda sin distinguir mayúsculas; los comodines del usuario se escapan.
+        term = q.strip().replace("\\", r"\\").replace("%", r"\%").replace("_", r"\_")
+        query = query.where(col(Activity.name).ilike(f"%{term}%", escape="\\"))
     if date_from:
         query = query.where(Activity.start_time >= date_from)
     if date_to:

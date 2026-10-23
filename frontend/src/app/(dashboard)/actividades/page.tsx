@@ -1,12 +1,20 @@
 "use client";
 
-import { ChevronRight, FileUp, Footprints, Loader2 } from "lucide-react";
+import {
+  ChevronRight,
+  FileUp,
+  Footprints,
+  Loader2,
+  Search,
+} from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -26,6 +34,7 @@ import {
   formatSpeedKmh,
   sportInfo,
 } from "@/lib/format";
+import { groupByWeek, weekLabel } from "@/lib/weeks";
 import type { ActivitySummary } from "@/types/api";
 
 function speedLabel(a: ActivitySummary): string {
@@ -159,8 +168,44 @@ function ActivityTable({ activities }: { activities: ActivitySummary[] }) {
   );
 }
 
+/** Lista del móvil agrupada por semanas, con los km y entrenos de cada una. */
+function WeekList({ activities }: { activities: ActivitySummary[] }) {
+  return (
+    <div className="space-y-4">
+      {groupByWeek(activities, (a) => a.start_time).map((g) => {
+        const km = g.items.reduce((sum, a) => sum + (a.distance_m ?? 0), 0);
+        return (
+          <section
+            key={g.week}
+            aria-label={weekLabel(g.week)}
+            className="space-y-2"
+          >
+            <h2 className="flex items-baseline justify-between text-sm font-semibold">
+              {weekLabel(g.week)}
+              <span className="text-xs font-normal text-muted-foreground tabular-nums">
+                {formatDistance(km)} · {g.items.length}{" "}
+                {g.items.length === 1 ? "entreno" : "entrenos"}
+              </span>
+            </h2>
+            {g.items.map((a) => (
+              <ActivityCard key={a.id} activity={a} />
+            ))}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Entrenos → Actividades: búsqueda, filtro por deporte y lista por semanas. */
 export default function ActividadesPage() {
   const [sport, setSport] = useState<string | null>(null);
+  const [text, setText] = useState("");
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setQuery(text), 300);
+    return () => clearTimeout(t);
+  }, [text]);
   const {
     data,
     isPending,
@@ -169,25 +214,43 @@ export default function ActividadesPage() {
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
-  } = useActivities(sport);
+  } = useActivities(sport, query);
   const activities = data?.pages.flatMap((p) => p.items) ?? [];
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="font-heading text-2xl font-bold md:text-3xl">
-          Actividades
-        </h1>
-        <Button
-          asChild
-          variant="outline"
-          size="sm"
-          className="min-h-11 md:min-h-8"
-        >
-          <Link href="/ajustes#otros-relojes">
-            <FileUp aria-hidden /> Importar FIT, GPX o TCX
-          </Link>
-        </Button>
+      <PageHeader
+        title="Actividades"
+        hideTitleOnMobile
+        actions={
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="min-h-11 md:min-h-8"
+          >
+            <Link
+              href="/ajustes#otros-relojes"
+              title="Importar FIT, GPX o TCX de otros relojes"
+            >
+              <FileUp aria-hidden /> Importar
+            </Link>
+          </Button>
+        }
+      />
+      <div className="relative">
+        <Search
+          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+          aria-hidden
+        />
+        <Input
+          type="search"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Buscar por nombre"
+          aria-label="Buscar actividades por nombre"
+          className="h-11 pl-9 md:h-9"
+        />
       </div>
       <SportFilter value={sport} onChange={setSport} />
 
@@ -206,6 +269,12 @@ export default function ActividadesPage() {
           message="No se pudieron cargar las actividades."
           onRetry={() => refetch()}
         />
+      ) : activities.length === 0 && (query || sport) ? (
+        <EmptyState icon={Search} title="Sin resultados">
+          <p className="max-w-sm text-sm text-muted-foreground">
+            No hay actividades que coincidan. Prueba con otro nombre o deporte.
+          </p>
+        </EmptyState>
       ) : activities.length === 0 ? (
         <EmptyState icon={Footprints} title="Aún no hay actividades">
           <p className="max-w-sm text-sm text-muted-foreground">
@@ -221,10 +290,8 @@ export default function ActividadesPage() {
         </EmptyState>
       ) : (
         <>
-          <div className="space-y-2 lg:hidden">
-            {activities.map((a) => (
-              <ActivityCard key={a.id} activity={a} />
-            ))}
+          <div className="lg:hidden">
+            <WeekList activities={activities} />
           </div>
           <div className="hidden lg:block">
             <ActivityTable activities={activities} />

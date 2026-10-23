@@ -70,13 +70,14 @@ import type {
   WeekPoint,
 } from "@/types/api";
 
-export function useActivities(sport: string | null) {
+export function useActivities(sport: string | null, q = "") {
   return useInfiniteQuery({
-    queryKey: ["activities", sport],
+    queryKey: ["activities", sport, q],
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({ limit: "20" });
       if (sport) params.set("sport", sport);
+      if (q.trim()) params.set("q", q.trim());
       if (pageParam) params.set("cursor", pageParam);
       return apiFetch<ActivityPage>(`/api/v1/activities?${params}`);
     },

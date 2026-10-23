@@ -132,3 +132,18 @@ def test_metric_catalog_cuando_sembrado_entonces_lista_metricas(client, session,
     seed_catalog(session)
     keys = {m["key"] for m in client.get("/api/v1/metrics/catalog", headers=auth(user)).json()}
     assert {"hr", "avg_power", "hrv_last_night", "distance"} <= keys
+
+
+def test_list_activities_cuando_busca_por_nombre_entonces_filtra_y_escapa_comodines(client, session, user):
+    from datetime import UTC, datetime, timedelta
+
+    from app.models import Activity
+
+    for i, name in enumerate(["Series en Pista", "Rodaje 50% suave", "Tirada larga"]):
+        session.add(Activity(user_id=user.id, sport="running", name=name, duration_s=1800,
+                             start_time=datetime.now(UTC) - timedelta(days=i)))  # fmt: skip
+    session.commit()
+    names = lambda q: [a["name"] for a in client.get(f"/api/v1/activities?q={q}", headers=auth(user)).json()["items"]]  # noqa: E731
+    assert names("pista") == ["Series en Pista"]
+    assert names("50%25") == ["Rodaje 50% suave"]  # «%» literal, no comodín
+    assert names("_") == []

@@ -1,9 +1,8 @@
 "use client";
 
 import type { LatLngTuple } from "leaflet";
-import { ArrowLeft, Watch } from "lucide-react";
+import { Ellipsis, Watch } from "lucide-react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
 
@@ -17,9 +16,16 @@ import {
   StreamCharts,
   chartChannels,
 } from "@/components/activity/stream-charts";
+import { PageHeader } from "@/components/layout/page-header";
 import { ErrorState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useActivity, useCatalog, useStreams } from "@/hooks/use-api";
 import { ApiError } from "@/lib/api";
@@ -94,49 +100,63 @@ function StatsGrid({
       activity.metrics[m.key] != null,
   );
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-      {activity.distance_m ? (
-        <Stat label="Distancia" value={formatDistance(activity.distance_m)} />
-      ) : null}
-      <Stat
-        label="Tiempo en movimiento"
-        value={formatDuration(
-          activity.moving_duration_s ?? activity.duration_s,
-        )}
-        sub={`total ${formatDuration(activity.duration_s)}`}
-      />
-      {speed ? (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {activity.distance_m ? (
+          <Stat label="Distancia" value={formatDistance(activity.distance_m)} />
+        ) : null}
         <Stat
-          label={pace ? "Ritmo medio" : "Velocidad media"}
-          value={pace ? formatPace(speed) : formatSpeedKmh(speed)}
+          label="Tiempo en movimiento"
+          value={formatDuration(
+            activity.moving_duration_s ?? activity.duration_s,
+          )}
+          sub={`total ${formatDuration(activity.duration_s)}`}
         />
-      ) : null}
-      {activity.avg_hr ? (
-        <Stat
-          label="FC media"
-          value={`${formatNumber(activity.avg_hr)} ppm`}
-          sub={`máx. ${formatNumber(activity.max_hr)}`}
-        />
-      ) : null}
-      {activity.elevation_gain_m != null ? (
-        <Stat
-          label="Desnivel +"
-          value={`${formatNumber(activity.elevation_gain_m)} m`}
-        />
-      ) : null}
-      {activity.calories ? (
-        <Stat
-          label="Calorías"
-          value={`${formatNumber(activity.calories)} kcal`}
-        />
-      ) : null}
-      {extra.map((m) => (
-        <Stat
-          key={m.key}
-          label={m.label}
-          value={metricValue(m, activity.metrics[m.key])}
-        />
-      ))}
+        {speed ? (
+          <Stat
+            label={pace ? "Ritmo medio" : "Velocidad media"}
+            value={pace ? formatPace(speed) : formatSpeedKmh(speed)}
+          />
+        ) : null}
+        {activity.avg_hr ? (
+          <Stat
+            label="FC media"
+            value={`${formatNumber(activity.avg_hr)} ppm`}
+            sub={`máx. ${formatNumber(activity.max_hr)}`}
+          />
+        ) : null}
+        {activity.elevation_gain_m != null ? (
+          <Stat
+            label="Desnivel +"
+            value={`${formatNumber(activity.elevation_gain_m)} m`}
+          />
+        ) : null}
+      </div>
+      {(activity.calories || extra.length > 0) && (
+        <details className="group">
+          <summary className="min-h-11 cursor-pointer content-center text-sm text-klyp-accent">
+            <span className="group-open:hidden">
+              Todas las métricas ({extra.length + (activity.calories ? 1 : 0)})
+            </span>
+            <span className="hidden group-open:inline">Ocultar métricas</span>
+          </summary>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {activity.calories ? (
+              <Stat
+                label="Calorías"
+                value={`${formatNumber(activity.calories)} kcal`}
+              />
+            ) : null}
+            {extra.map((m) => (
+              <Stat
+                key={m.key}
+                label={m.label}
+                value={metricValue(m, activity.metrics[m.key])}
+              />
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   );
 }
@@ -196,32 +216,62 @@ export default function ActivityDetailPage() {
   const { label, icon: Icon, pace } = sportInfo(activity.sport);
   return (
     <article className="space-y-4 md:space-y-6">
-      <header className="space-y-2">
-        <Link
-          href="/actividades"
-          className="inline-flex min-h-11 items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" aria-hidden /> Actividades
-        </Link>
-        <div className="flex flex-wrap items-center gap-2">
-          <Icon className="size-6 text-klyp-accent" aria-hidden />
-          <h1 className="font-heading text-2xl font-bold md:text-3xl">
+      <PageHeader
+        back={{ href: "/actividades", label: "Actividades" }}
+        title={
+          <span className="inline-flex items-center gap-2">
+            <Icon className="size-6 shrink-0 text-klyp-accent" aria-hidden />
             {activity.name || label}
-          </h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <span>{formatDateTime(activity.start_time)}</span>
-          <Badge variant="secondary">{label}</Badge>
-          {activity.device && (
-            <Badge variant="outline" className="gap-1">
-              <Watch className="size-3" aria-hidden /> {activity.device.name}
-            </Badge>
-          )}
-          {usesShoes(activity.sport) && <GearSelect activity={activity} />}
-          {usesShoes(activity.sport) && <RaceToggle activity={activity} />}
-          <AskAi activity={activity} />
-        </div>
-      </header>
+          </span>
+        }
+        subtitle={
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            {formatDateTime(activity.start_time)} · {label}
+            {activity.device && (
+              <span className="inline-flex items-center gap-1">
+                · <Watch className="size-3" aria-hidden />{" "}
+                {activity.device.name}
+              </span>
+            )}
+            {activity.is_race && (
+              <Badge variant="secondary">Carrera a tope</Badge>
+            )}
+          </span>
+        }
+        actions={
+          <>
+            <AskAi activity={activity} />
+            {usesShoes(activity.sport) && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-11 md:size-8"
+                    aria-label="Más opciones de la actividad"
+                  >
+                    <Ellipsis aria-hidden />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-72 space-y-3">
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Zapatillas
+                    </p>
+                    <GearSelect activity={activity} />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      ¿Fue una carrera a tope? Solo esas cuentan para tu nivel.
+                    </p>
+                    <RaceToggle activity={activity} />
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+          </>
+        }
+      />
 
       <StatsGrid activity={activity} catalog={catalog} />
 
@@ -258,11 +308,11 @@ export default function ActivityDetailPage() {
         </Card>
       </div>
 
-      {route.length > 1 && <RouteCard activityId={activity.id} />}
+      <LapsTable laps={activity.laps} pace={pace} />
 
       <FeedbackCard activityId={activity.id} />
 
-      <LapsTable laps={activity.laps} pace={pace} />
+      {route.length > 1 && <RouteCard activityId={activity.id} />}
     </article>
   );
 }
