@@ -1344,3 +1344,61 @@ export function useSaveTestPrefs() {
     onSuccess: (data) => queryClient.setQueryData(["test-prefs"], data),
   });
 }
+
+// ─── Enviar entrenos al reloj ────────────────────────────────────────────────
+
+export interface WorkoutSettings {
+  auto: boolean;
+  garmin_connected: boolean;
+  days: number;
+}
+
+export function useWorkoutSettings() {
+  return useQuery({
+    queryKey: ["workout-settings"],
+    queryFn: () => apiFetch<WorkoutSettings>("/api/v1/workouts/settings"),
+  });
+}
+
+export function useSaveWorkoutSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (auto: boolean) =>
+      apiFetch<WorkoutSettings>("/api/v1/workouts/settings", {
+        method: "PUT",
+        body: JSON.stringify({ auto }),
+      }),
+    onSuccess: (data) => queryClient.setQueryData(["workout-settings"], data),
+  });
+}
+
+/** Enviar (o quitar) una sesión de Garmin Connect. */
+export function useGarminWorkout(planId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (remove: boolean) =>
+      apiFetch<{ garmin_status: string; garmin_error: string }>(
+        `/api/v1/plans/${planId}/garmin`,
+        { method: remove ? "DELETE" : "POST" },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["plan", planId] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
+  });
+}
+
+export function useSendUpcoming() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ sent: number; unchanged: number; error: number }>(
+        "/api/v1/workouts/send-upcoming",
+        { method: "POST" },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+      queryClient.invalidateQueries({ queryKey: ["plan"] });
+    },
+  });
+}

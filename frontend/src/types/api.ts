@@ -112,6 +112,12 @@ export interface PlannedSession extends PlannedSessionInput {
   /** Sesión generada por un plan de entrenamiento automático. */
   plan_id?: number | null;
   session_kind?: SessionKind | null;
+  /** Envío a Garmin Connect: "" (no enviada), sent o error. */
+  garmin_status?: "" | "sent" | "error";
+  garmin_error?: string;
+  garmin_sent_at?: string | null;
+  /** Enviada, pero cambiada después: hay que volver a enviarla. */
+  garmin_outdated?: boolean;
   planned_duration_s: number;
   planned_distance_m: number | null;
 }

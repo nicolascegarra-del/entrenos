@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { RepsChart } from "@/components/plan/reps-chart";
 import { ScoreBadge, StatusBadge } from "@/components/plan/status-badge";
 import { ErrorState } from "@/components/states";
+import { SendToWatchCard } from "@/components/plan/send-to-watch";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -347,6 +348,8 @@ export default function PlanDetailPage() {
           </div>
         </div>
       </header>
+
+      <SendToWatchCard plan={plan} />
 
       <div className="grid gap-4 md:gap-6 lg:grid-cols-[1fr_22rem]">
         <Card className="shadow-sm">

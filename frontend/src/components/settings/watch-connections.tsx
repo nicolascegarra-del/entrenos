@@ -3,6 +3,7 @@
 import { Check, Watch } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { GarminWorkoutsCard } from "@/components/plan/send-to-watch";
 import { AppleWatch } from "@/components/settings/apple-watch";
 import { GarminCard } from "@/components/settings/garmin-card";
 import {
@@ -74,7 +75,13 @@ function BrandPanel({
   brand: WatchBrand;
   sources: ReturnType<typeof useSources>;
 }) {
-  if (brand === "garmin") return <GarminCard />;
+  if (brand === "garmin")
+    return (
+      <>
+        <GarminCard />
+        <GarminWorkoutsCard />
+      </>
+    );
   const info = WATCH_BRANDS.find((b) => b.key === brand)!;
   const body =
     brand === "files" ? (

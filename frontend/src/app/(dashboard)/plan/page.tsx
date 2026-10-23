@@ -1,10 +1,18 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Clock, Plus, Sparkles } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Plus,
+  Sparkles,
+  Watch,
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
 import { PageHeader } from "@/components/layout/page-header";
+import { SendUpcomingButton } from "@/components/plan/send-to-watch";
 import { ScoreBadge } from "@/components/plan/status-badge";
 import { ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -45,6 +53,12 @@ function PlannedCard({ plan }: { plan: PlannedSession }) {
       {plan.plan_id != null && (
         <p className="mt-0.5 text-[11px] font-medium text-klyp-accent">
           Plan automático
+        </p>
+      )}
+      {plan.garmin_status === "sent" && (
+        <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+          <Watch className="size-3" aria-hidden />
+          {plan.garmin_outdated ? "En el reloj (con cambios)" : "En el reloj"}
         </p>
       )}
       <p className="mt-1 text-xs text-muted-foreground tabular-nums">
@@ -117,6 +131,7 @@ export default function PlanPage() {
                 </Link>
               </Button>
             )}
+            <SendUpcomingButton />
             <Button asChild className="hidden min-h-9 lg:inline-flex">
               <Link href={newSessionHref}>
                 <Plus aria-hidden /> Nueva sesión
