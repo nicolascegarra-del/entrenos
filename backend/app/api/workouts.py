@@ -138,7 +138,7 @@ def send_upcoming(request: Request, session: SessionDep, user: CurrentUser) -> d
 
 @router.get(
     "/plans/{plan_id}/workout.fit",
-    summary="Descargar la sesión como entreno .FIT (Wahoo, Hammerhead, Suunto, COROS, Garmin por USB…)",
+    summary="Descargar la sesión como entreno .FIT (Garmin por USB, Wahoo, Hammerhead…)",
     responses={**_NOT_FOUND, 422: {"description": "Deporte sin soporte o sesión sin bloques"}},
     response_class=Response,
 )

@@ -7,7 +7,8 @@ vuelta a la calma; cada uno por tiempo, distancia o «hasta pulsar vuelta» y co
 - **Garmin Connect** (`garmin_workout`): el JSON del servicio de entrenos de Garmin. Se sube y se
   programa en el calendario; el reloj lo recibe al sincronizar.
 - **Fichero .FIT de entreno** (`fit_workout`): el formato estándar que importan Garmin (por USB),
-  Wahoo, Hammerhead, Suunto, COROS y otros. Se escribe a mano (mensajes file_id, workout y
+  Wahoo, Hammerhead y apps de entrenamiento (COROS y Suunto no importan
+  entrenos FIT). Se escribe a mano (mensajes file_id, workout y
   workout_step del perfil FIT), sin dependencias.
 
 Objetivos: ritmo (s/km) → rango de velocidad en m/s (Garmin «pace.zone», FIT velocidad en mm/s);

@@ -189,9 +189,10 @@ export function SendToWatchCard({ plan }: { plan: PlannedSession }) {
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          El .FIT sirve para Wahoo, Hammerhead, Suunto, COROS o un Garmin por
-          USB (cópialo en la carpeta «NewFiles»). Apple Watch no permite recibir
-          entrenos desde una web.
+          El .FIT sirve para un Garmin por USB (cópialo en la carpeta
+          «NewFiles»), Wahoo, Hammerhead y apps que importen entrenos FIT. COROS
+          y Suunto no lo importan, y Apple Watch no permite recibir entrenos
+          desde una web.
         </p>
         {settings?.auto && (
           <p className="text-xs text-muted-foreground">
