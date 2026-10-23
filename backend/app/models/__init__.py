@@ -2,7 +2,7 @@
 
 from app.models.account import GarminCredential, GarminStatus, Invitation, Sex, UserProfile, WeightLog
 from app.models.achievement import Achievement
-from app.models.activity import Activity, ActivityRaw, ActivityStream, Device, Lap
+from app.models.activity import Activity, ActivityRaw, ActivityStream, DeletedActivity, Device, Lap
 from app.models.admin import AppSetting, AuditLog, EmailVerification, PasswordReset
 from app.models.ai import (
     ActivityReview,
@@ -30,6 +30,7 @@ __all__ = [
     "ActivityReview",
     "AiReviewSettings",
     "AppleImport",
+    "DeletedActivity",
     "PerformanceTest",
     "CorosCredential",
     "CorosOAuth",

@@ -88,7 +88,7 @@ def ingest(session: Session, user_id: int, payload: dict) -> dict:
             max_hr=max(hrs) if hrs else None,
         )
         activity, new = save_imported(session, user_id, act, "health_connect", f"{e.get('type')}:{start.isoformat()}")
-        if new:
+        if new and activity is not None:
             metrics = {k: v for k in ("steps", "avg_cadence_spm") if isinstance(v := e.get(k), int | float)}
             if metrics:
                 activity.metrics = {**activity.metrics, **metrics}

@@ -1437,3 +1437,27 @@ export function useActivityAnalysis(activityId: number) {
       apiFetch<ActivityAnalysis>(`/api/v1/activities/${activityId}/analysis`),
   });
 }
+
+/** Borrar una o varias actividades (no vuelven con la sincronización). */
+export function useDeleteActivities() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: number[]) =>
+      apiFetch<{ deleted: number }>("/api/v1/activities/delete", {
+        method: "POST",
+        body: JSON.stringify({ ids }),
+      }),
+    onSuccess: () => {
+      for (const key of [
+        "activities",
+        "summary",
+        "insights",
+        "achievements",
+        "plans",
+        "zones",
+        "fitness",
+      ])
+        queryClient.invalidateQueries({ queryKey: [key] });
+    },
+  });
+}

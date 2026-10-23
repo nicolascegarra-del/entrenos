@@ -83,15 +83,15 @@ def test_create_manual_activity_cuando_hay_plan_ese_dia_entonces_lo_empareja(cli
     assert plans[0]["activity_id"] == activity["id"]
 
 
-def test_delete_activity_cuando_manual_entonces_204_y_de_garmin_409(client, session, user):
+def test_delete_activity_cuando_manual_o_de_garmin_entonces_204(client, session, user):
     manual = client.post("/api/v1/activities", json=manual_body(), headers=auth(user)).json()
     garmin = Activity(user_id=user.id, garmin_activity_id=123, sport="running", start_time=datetime.now(UTC),
                       duration_s=600)  # fmt: skip
     session.add(garmin)
     session.commit()
     assert client.delete(f"/api/v1/activities/{manual['id']}", headers=auth(user)).status_code == 204
-    res = client.delete(f"/api/v1/activities/{garmin.id}", headers=auth(user))
-    assert res.status_code == 409 and res.json()["error"]["code"] == "CONFLICT"
+    # Ahora también se pueden borrar las de Garmin (y no vuelven con la sincronización).
+    assert client.delete(f"/api/v1/activities/{garmin.id}", headers=auth(user)).status_code == 204
 
 
 def test_put_sets_cuando_series_entonces_reemplaza_y_resume(client, user):

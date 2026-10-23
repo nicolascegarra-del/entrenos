@@ -106,7 +106,7 @@ def import_file(request: Request, body: FileIn, session: SessionDep, user: Curre
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     if not act.name:
         act.name = body.filename.rsplit(".", 1)[0][:255]
-    activity, created = save_imported(session, user.id, act, kind)
+    activity, created = save_imported(session, user.id, act, kind, respect_deleted=False)
     if created:
         after_import(session, user.id)
     return ImportOut(activity_id=activity.id, created=created, source=activity.source)

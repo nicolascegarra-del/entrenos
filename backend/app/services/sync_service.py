@@ -138,7 +138,10 @@ def sync_activities(
     Returns:
         Número de actividades nuevas importadas.
     """
-    known = _known_garmin_ids(session, user_id)
+    from app.services.activity_delete import deleted_garmin_ids
+
+    # Las borradas a mano cuentan como «ya vistas»: no vuelven con la sincronización.
+    known = _known_garmin_ids(session, user_id) | deleted_garmin_ids(session, user_id)
     device_names = {
         d["deviceId"]: d.get("productDisplayName") or d.get("displayName") or str(d["deviceId"])
         for d in source.get_devices()

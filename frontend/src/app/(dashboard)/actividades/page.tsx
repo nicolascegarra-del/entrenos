@@ -4,11 +4,15 @@ import {
   ChevronRight,
   FileUp,
   Footprints,
+  ListChecks,
   Loader2,
   Search,
+  Trash2,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState, ErrorState } from "@/components/states";
@@ -16,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -24,7 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useActivities, useSports } from "@/hooks/use-api";
+import { useActivities, useDeleteActivities, useSports } from "@/hooks/use-api";
 import {
   formatDateTime,
   formatDistance,
@@ -75,44 +80,98 @@ function SportFilter({
   );
 }
 
-function ActivityCard({ activity }: { activity: ActivitySummary }) {
+interface Selection {
+  on: boolean;
+  ids: Set<number>;
+  toggle: (id: number) => void;
+}
+
+function ActivityCard({
+  activity,
+  selection,
+}: {
+  activity: ActivitySummary;
+  selection: Selection;
+}) {
   const { icon: Icon, label } = sportInfo(activity.sport);
-  return (
-    <Link
-      href={`/actividades/${activity.id}`}
-      className="block rounded-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+  const checked = selection.ids.has(activity.id);
+  const content = (
+    <Card
+      className={cn(
+        "py-0 shadow-sm transition-colors hover:bg-muted/50",
+        checked && "border-klyp-accent bg-klyp-accent/5",
+      )}
     >
-      <Card className="py-0 shadow-sm transition-colors hover:bg-muted/50">
-        <CardContent className="flex items-center gap-3 p-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-primary dark:text-foreground">
-            <Icon className="size-5" aria-label={label} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-medium">{activity.name || label}</p>
-            <p className="text-xs text-muted-foreground">
-              {formatDateTime(activity.start_time)}
-            </p>
-            <p className="mt-1 text-sm tabular-nums">
-              {formatDistance(activity.distance_m)} ·{" "}
-              {formatDuration(activity.duration_s)} · {speedLabel(activity)}
-            </p>
-          </div>
+      <CardContent className="flex items-center gap-3 p-3">
+        {selection.on && (
+          <input
+            type="checkbox"
+            className="size-5 shrink-0"
+            checked={checked}
+            onChange={() => selection.toggle(activity.id)}
+            aria-label={`Seleccionar ${activity.name || label}`}
+          />
+        )}
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-primary dark:text-foreground">
+          <Icon className="size-5" aria-label={label} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium">{activity.name || label}</p>
+          <p className="text-xs text-muted-foreground">
+            {formatDateTime(activity.start_time)}
+          </p>
+          <p className="mt-1 text-sm tabular-nums">
+            {formatDistance(activity.distance_m)} ·{" "}
+            {formatDuration(activity.duration_s)} · {speedLabel(activity)}
+          </p>
+        </div>
+        {!selection.on && (
           <ChevronRight
             className="size-5 shrink-0 text-muted-foreground"
             aria-hidden
           />
-        </CardContent>
-      </Card>
+        )}
+      </CardContent>
+    </Card>
+  );
+  return selection.on ? (
+    <div
+      role="presentation"
+      className="block cursor-pointer rounded-lg"
+      onClick={(e) => {
+        if ((e.target as HTMLElement).tagName !== "INPUT")
+          selection.toggle(activity.id);
+      }}
+    >
+      {content}
+    </div>
+  ) : (
+    <Link
+      href={`/actividades/${activity.id}`}
+      className="block rounded-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+    >
+      {content}
     </Link>
   );
 }
 
-function ActivityTable({ activities }: { activities: ActivitySummary[] }) {
+function ActivityTable({
+  activities,
+  selection,
+}: {
+  activities: ActivitySummary[];
+  selection: Selection;
+}) {
   return (
     <Card className="py-0 shadow-sm">
       <Table>
         <TableHeader>
           <TableRow>
+            {selection.on && (
+              <TableHead className="w-10">
+                <span className="sr-only">Seleccionar</span>
+              </TableHead>
+            )}
             <TableHead>Actividad</TableHead>
             <TableHead>Fecha</TableHead>
             <TableHead className="text-right">Distancia</TableHead>
@@ -126,7 +185,21 @@ function ActivityTable({ activities }: { activities: ActivitySummary[] }) {
           {activities.map((a) => {
             const { icon: Icon, label } = sportInfo(a.sport);
             return (
-              <TableRow key={a.id}>
+              <TableRow
+                key={a.id}
+                data-state={selection.ids.has(a.id) ? "selected" : undefined}
+              >
+                {selection.on && (
+                  <TableCell>
+                    <input
+                      type="checkbox"
+                      className="size-4"
+                      checked={selection.ids.has(a.id)}
+                      onChange={() => selection.toggle(a.id)}
+                      aria-label={`Seleccionar ${a.name || label}`}
+                    />
+                  </TableCell>
+                )}
                 <TableCell>
                   <Link
                     href={`/actividades/${a.id}`}
@@ -169,7 +242,13 @@ function ActivityTable({ activities }: { activities: ActivitySummary[] }) {
 }
 
 /** Lista del móvil agrupada por semanas, con los km y entrenos de cada una. */
-function WeekList({ activities }: { activities: ActivitySummary[] }) {
+function WeekList({
+  activities,
+  selection,
+}: {
+  activities: ActivitySummary[];
+  selection: Selection;
+}) {
   return (
     <div className="space-y-4">
       {groupByWeek(activities, (a) => a.start_time).map((g) => {
@@ -188,7 +267,7 @@ function WeekList({ activities }: { activities: ActivitySummary[] }) {
               </span>
             </h2>
             {g.items.map((a) => (
-              <ActivityCard key={a.id} activity={a} />
+              <ActivityCard key={a.id} activity={a} selection={selection} />
             ))}
           </section>
         );
@@ -216,6 +295,43 @@ export default function ActividadesPage() {
     isFetchingNextPage,
   } = useActivities(sport, query);
   const activities = data?.pages.flatMap((p) => p.items) ?? [];
+  const remove = useDeleteActivities();
+  const [selecting, setSelecting] = useState(false);
+  const [ids, setIds] = useState<Set<number>>(new Set());
+  const selection: Selection = {
+    on: selecting,
+    ids,
+    toggle: (id) =>
+      setIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      }),
+  };
+  const stopSelecting = () => {
+    setSelecting(false);
+    setIds(new Set());
+  };
+  const deleteSelected = () => {
+    const n = ids.size;
+    if (
+      !n ||
+      !window.confirm(
+        `¿Borrar ${n} ${n === 1 ? "actividad" : "actividades"}? Se quitan sus datos y no volverán a traerse al sincronizar. No se puede deshacer.`,
+      )
+    )
+      return;
+    remove.mutate([...ids], {
+      onSuccess: (r) => {
+        toast.success(
+          `${r.deleted} ${r.deleted === 1 ? "actividad borrada" : "actividades borradas"}.`,
+        );
+        stopSelecting();
+      },
+      onError: () => toast.error("No se pudieron borrar."),
+    });
+  };
 
   return (
     <section className="space-y-4">
@@ -223,19 +339,34 @@ export default function ActividadesPage() {
         title="Actividades"
         hideTitleOnMobile
         actions={
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className="min-h-11 md:min-h-8"
-          >
-            <Link
-              href="/ajustes/conexiones"
-              title="Importar entrenos de tu reloj (Apple Watch, ficheros FIT/GPX/TCX…)"
+          <>
+            {activities.length > 0 && (
+              <Button
+                variant={selecting ? "secondary" : "ghost"}
+                size="sm"
+                className="min-h-11 md:min-h-8"
+                onClick={() =>
+                  selecting ? stopSelecting() : setSelecting(true)
+                }
+              >
+                {selecting ? <X aria-hidden /> : <ListChecks aria-hidden />}
+                {selecting ? "Cancelar" : "Seleccionar"}
+              </Button>
+            )}
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="min-h-11 md:min-h-8"
             >
-              <FileUp aria-hidden /> Importar
-            </Link>
-          </Button>
+              <Link
+                href="/ajustes/conexiones"
+                title="Importar entrenos de tu reloj (Apple Watch, ficheros FIT/GPX/TCX…)"
+              >
+                <FileUp aria-hidden /> Importar
+              </Link>
+            </Button>
+          </>
         }
       />
       <div className="relative">
@@ -291,11 +422,46 @@ export default function ActividadesPage() {
       ) : (
         <>
           <div className="lg:hidden">
-            <WeekList activities={activities} />
+            <WeekList activities={activities} selection={selection} />
           </div>
           <div className="hidden lg:block">
-            <ActivityTable activities={activities} />
+            <ActivityTable activities={activities} selection={selection} />
           </div>
+          {selecting && (
+            <div className="sticky bottom-20 z-20 flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3 shadow-md lg:bottom-4">
+              <span className="text-sm font-medium tabular-nums">
+                {ids.size} {ids.size === 1 ? "seleccionada" : "seleccionadas"}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="min-h-11 md:min-h-8"
+                onClick={() =>
+                  setIds(
+                    ids.size === activities.length
+                      ? new Set()
+                      : new Set(activities.map((a) => a.id)),
+                  )
+                }
+              >
+                {ids.size === activities.length ? "Ninguna" : "Todas"}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="ml-auto min-h-11 md:min-h-8"
+                disabled={!ids.size || remove.isPending}
+                onClick={deleteSelected}
+              >
+                {remove.isPending ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <Trash2 aria-hidden />
+                )}
+                Borrar
+              </Button>
+            </div>
+          )}
           {hasNextPage && (
             <div className="flex justify-center">
               <Button

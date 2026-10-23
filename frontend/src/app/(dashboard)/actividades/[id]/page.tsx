@@ -12,6 +12,7 @@ import { GearSelect } from "@/components/activity/gear-select";
 import { LapsTable } from "@/components/activity/laps-table";
 import { RaceToggle } from "@/components/activity/race-toggle";
 import { ActivityAnalysisCards } from "@/components/activity/analysis-cards";
+import { DeleteActivity } from "@/components/activity/delete-activity";
 import { ExportActivity } from "@/components/activity/export-activity";
 import { ReviewCard } from "@/components/activity/review-card";
 import { ActivityTestCard, MarkTest } from "@/components/tests/activity-test";
@@ -278,6 +279,9 @@ export default function ActivityDetailPage() {
                     </>
                   )}
                   <ExportActivity activityId={activity.id} />
+                  <div className="border-t pt-2">
+                    <DeleteActivity activityId={activity.id} />
+                  </div>
                   <MarkTest
                     activity={activity}
                     onLactate={

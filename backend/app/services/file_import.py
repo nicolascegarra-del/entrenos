@@ -379,15 +379,35 @@ def find_duplicate(session: Session, user_id: int, act: ImportedActivity) -> Act
     return None
 
 
-def save_imported(session: Session, user_id: int, act: ImportedActivity, source: str,
-                  external_id: str | None = None) -> tuple[Activity, bool]:  # fmt: skip
+def save_imported(
+    session: Session,
+    user_id: int,
+    act: ImportedActivity,
+    source: str,
+    external_id: str | None = None,
+    respect_deleted: bool = True,
+) -> tuple[Activity | None, bool]:
     """
     Crea la actividad con sus series. Si ya existe (mismo origen e id, o el mismo entreno de otra fuente)
-    devuelve la existente.
+    devuelve la existente. Si la persona la había borrado, no la vuelve a crear (devuelve `None`), salvo
+    `respect_deleted=False` (subir el fichero a mano es querer recuperarla).
 
     Returns:
         (actividad, creada)
     """
+    from app.models import DeletedActivity
+    from app.services.activity_delete import is_deleted
+
+    if is_deleted(session, user_id, act.start_time, source, external_id):
+        if respect_deleted:
+            return None, False
+        window = timedelta(seconds=DEDUP_START_S)
+        for mark in session.exec(select(DeletedActivity).where(
+            DeletedActivity.user_id == user_id,
+            col(DeletedActivity.start_time) >= act.start_time - window,
+            col(DeletedActivity.start_time) <= act.start_time + window,
+        )).all():  # fmt: skip
+            session.delete(mark)
     if external_id:
         same = session.exec(select(Activity).where(
             Activity.user_id == user_id, Activity.source == source, Activity.external_id == external_id

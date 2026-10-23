@@ -109,3 +109,20 @@ class Lap(SQLModel, table=True):
     max_hr: float | None = None
     avg_speed: float | None = None
     metrics: dict = jsonb_field()
+
+
+class DeletedActivity(SQLModel, table=True):
+    """
+    Actividad borrada a mano: se recuerda para que la siguiente sincronización (Garmin, COROS, Health
+    Connect…) no la vuelva a traer. Se reconoce por su id en la fuente o por su hora de inicio.
+    """
+
+    __tablename__ = "deleted_activity"
+
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True, ondelete="CASCADE")
+    source: str = Field(max_length=24)
+    external_key: str = Field(default="", max_length=120)  # id de Garmin o external_id de la fuente
+    start_time: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False, index=True))
+    duration_s: float = 0
+    deleted_at: datetime = created_at_field()

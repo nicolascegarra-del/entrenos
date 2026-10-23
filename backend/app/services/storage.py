@@ -12,6 +12,7 @@ from app.core.config import get_settings
 class ObjectStorage(Protocol):
     def put(self, key: str, data: bytes) -> None: ...
     def get(self, key: str) -> bytes | None: ...
+    def delete(self, key: str) -> None: ...
 
 
 class LocalStorage:
@@ -32,6 +33,9 @@ class LocalStorage:
     def get(self, key: str) -> bytes | None:
         path = self._path(key)
         return path.read_bytes() if path.exists() else None
+
+    def delete(self, key: str) -> None:
+        self._path(key).unlink(missing_ok=True)
 
 
 def get_storage() -> ObjectStorage:

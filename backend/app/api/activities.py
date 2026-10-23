@@ -150,6 +150,29 @@ def set_race(activity_id: int, body: RaceIn, session: SessionDep, user: CurrentU
     return {"activity_id": activity.id, "is_race": activity.is_race}
 
 
+class DeleteIn(BaseModel):
+    ids: list[int]
+
+
+@router.delete("/{activity_id}", summary="Borrar una actividad (no vuelve con la sincronización)",
+               status_code=status.HTTP_204_NO_CONTENT, responses=_NOT_FOUND)  # fmt: skip
+def delete_activity(activity_id: int, session: SessionDep, user: CurrentUser) -> Response:
+    from app.services.activity_delete import delete_activities
+
+    _get_owned(session, user, activity_id)
+    delete_activities(session, user.id, [activity_id])
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/delete", summary="Borrar varias actividades a la vez (hasta 200)")
+def delete_many(body: DeleteIn, session: SessionDep, user: CurrentUser) -> dict:
+    from app.services.activity_delete import MAX_BATCH, delete_activities
+
+    if not body.ids or len(body.ids) > MAX_BATCH:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Elige entre 1 y {MAX_BATCH} actividades.")
+    return {"deleted": delete_activities(session, user.id, body.ids)}
+
+
 @router.get(
     "/{activity_id}/analysis",
     summary="Análisis: tiempo en zonas de FC, VO2max, parciales por km y deriva cardiaca",

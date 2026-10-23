@@ -56,3 +56,6 @@ class MemoryStorage:
 
     def get(self, key: str) -> bytes | None:
         return self.files.get(key)
+
+    def delete(self, key: str) -> None:
+        self.files.pop(key, None)

@@ -1,6 +1,6 @@
 from datetime import UTC, date, datetime
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 from sqlmodel import Session, delete, select
 
@@ -79,21 +79,6 @@ def create_manual_activity(body: ManualActivityIn, session: SessionDep, user: Cu
     match_pending(session, user.id)
     session.refresh(activity)
     return ActivitySummary.model_validate(activity, from_attributes=True)
-
-
-@router.delete(
-    "/activities/{activity_id}",
-    summary="Borrar un entreno registrado a mano",
-    status_code=status.HTTP_204_NO_CONTENT,
-    responses={**_NOT_FOUND, 409: {"description": "Las actividades de Garmin no se borran desde la app."}},
-)
-def delete_manual_activity(activity_id: int, session: SessionDep, user: CurrentUser) -> Response:
-    activity = _owned(session, user.id, activity_id)
-    if activity.garmin_activity_id is not None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Las actividades de Garmin no se pueden borrar desde aquí.")
-    session.delete(activity)
-    session.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ─── Series de fuerza ────────────────────────────────────────────────────────
