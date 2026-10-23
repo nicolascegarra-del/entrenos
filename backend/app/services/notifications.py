@@ -53,6 +53,7 @@ KINDS = {
     "achievement": "achievements",
     "plan_change": "plan_changes",
     "activity_review": "activity_reviews",
+    "test": "tests",
 }
 
 

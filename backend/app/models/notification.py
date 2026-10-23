@@ -35,6 +35,7 @@ class NotificationPrefs(SQLModel, table=True):
     achievements: bool = True  # récords y logros
     plan_changes: bool = True  # ajuste semanal del plan automático
     activity_reviews: bool = True  # el análisis de la IA de un entreno está listo
+    tests: bool = True  # se ha detectado el resultado de un test planificado
 
 
 class NotificationLog(SQLModel, table=True):

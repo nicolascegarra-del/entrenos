@@ -34,6 +34,7 @@ from app.models import (
     Lap,
     NotificationPrefs,
     PasswordReset,
+    PerformanceTest,
     PlannedBlock,
     PlannedSession,
     RaceGoal,
@@ -230,6 +231,7 @@ def export_user_data(session: Session, user: User) -> dict:
         ),
         "daily_metrics": _dump(session.exec(select(DailyMetric).where(DailyMetric.user_id == uid)).all()),
         "athlete_zones": _dump(session.exec(select(AthleteZones).where(AthleteZones.user_id == uid)).all()),
+        "performance_tests": _dump(session.exec(select(PerformanceTest).where(PerformanceTest.user_id == uid)).all()),
         "planned_sessions": _dump(plans),
         "planned_blocks": _dump(
             session.exec(select(PlannedBlock).where(col(PlannedBlock.session_id).in_(plan_ids))).all()
@@ -262,6 +264,7 @@ def delete_user(session: Session, user: User) -> None:
     """
     uid = user.id
     activity_ids = select(Activity.id).where(Activity.user_id == uid)
+    session.exec(delete(PerformanceTest).where(PerformanceTest.user_id == uid))
     session.exec(delete(RaceGoal).where(RaceGoal.user_id == uid))
     session.exec(delete(PlannedSession).where(PlannedSession.user_id == uid))
     # Laps, series, raw, sensaciones y fuerza caen en cascada con la actividad.

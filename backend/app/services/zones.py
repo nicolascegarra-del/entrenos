@@ -1,6 +1,7 @@
 """
 Umbrales y zonas de entrenamiento de carrera, con historial y recálculo automático.
 
+- Un test confirmado de las últimas 8 semanas (`performance_tests`) manda sobre todo lo demás.
 - FC umbral (LTHR): la última que dio Garmin o el 89 % de la FC máx. (`progress.user_thresholds`).
 - Ritmo umbral: el que calcula Garmin (umbral de lactato del reloj, del último año) si lo hay; si no,
   el más rápido entre el ritmo T de Daniels del VDOT actual, el 96 % de la velocidad crítica (la CS
@@ -23,6 +24,7 @@ from app.services import progress as prog
 from app.services.pace_curve import best_curve, critical_speed
 from app.services.race_forecast import forecast, training_data
 from app.services.race_models import daniels_paces
+from app.services.test_results import active_test
 
 GARMIN_LT_MAX_AGE_D = 365
 LT_SPEED_RANGE = (2.0, 7.0)  # m/s razonables (8:20 a 2:23 /km)
@@ -101,7 +103,14 @@ def estimate_thresholds(session: Session, user_id: int, today: date | None = Non
     today = today or date.today()
     activities = prog.user_activities(session, user_id)
     thr = prog.user_thresholds(session, user_id)
-    lthr_source = "garmin" if any(a.metrics.get("lthr") for a in activities) else ("fc_max" if thr.lthr else None)
+    lthr_test = active_test(session, user_id, SPORT, "lthr", today)
+    lthr_source = (
+        "test"
+        if lthr_test
+        else "garmin"
+        if any(a.metrics.get("lthr") for a in activities)
+        else ("fc_max" if thr.lthr else None)
+    )
     # Candidatos a ritmo umbral (s/km); se elige el más rápido: el umbral no puede ser más lento que un
     # ritmo que ya has sostenido 60 min, y el VDOT puede quedarse corto si sale de marcas antiguas.
     candidates: dict[str, float] = {}
@@ -118,9 +127,13 @@ def estimate_thresholds(session: Session, user_id: int, today: date | None = Non
     garmin = garmin_threshold(session, user_id, today)
     if garmin:
         candidates["garmin"] = garmin[0]
-    # Garmin manda (lo mide el reloj con tu FC y ritmo reales); si no, el más rápido de los estimados.
+    test = active_test(session, user_id, SPORT, "threshold_pace_s_km", today)
+    if test:
+        candidates["test"] = test.results["threshold_pace_s_km"]
+    # Un test confirmado (8 semanas) manda; luego Garmin (lo mide el reloj con tu FC y ritmo reales);
+    # si no, el más rápido de los estimados.
     fastest = min(candidates, key=candidates.get) if candidates else None
-    pace_source = "garmin" if garmin else fastest
+    pace_source = "test" if test else "garmin" if garmin else fastest
     pace = round(candidates[pace_source]) if pace_source else None
     return {
         "lthr": round(thr.lthr) if thr.lthr else None,
@@ -132,6 +145,7 @@ def estimate_thresholds(session: Session, user_id: int, today: date | None = Non
         "vdot_from_races": getattr(f, "source_is_race", False),
         "candidates": {k: round(v) for k, v in candidates.items()},
         "garmin_date": garmin[1].isoformat() if garmin else None,
+        "test_date": (test or lthr_test).test_date.isoformat() if (test or lthr_test) else None,
     }
 
 

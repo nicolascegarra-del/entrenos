@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Literal, Self
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models import BlockKind, MatchMode
 from app.schemas.activity import ActivitySummary
@@ -41,6 +41,16 @@ class SessionIn(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     notes: str = Field(default="", max_length=2000)
     blocks: list[BlockIn] = Field(default_factory=list, max_length=30)
+    test_protocol: str | None = Field(default=None, description="Sesión de test: protocolo de /tests/protocols")
+
+    @field_validator("test_protocol")
+    @classmethod
+    def _known_protocol(cls, value: str | None) -> str | None:
+        from app.services.performance_tests import PROTOCOLS
+
+        if value is not None and (value not in PROTOCOLS or not PROTOCOLS[value].detectable):
+            raise ValueError("Tipo de test desconocido.")
+        return value
 
 
 class SessionOut(BaseModel):
@@ -53,7 +63,8 @@ class SessionOut(BaseModel):
     match_mode: MatchMode
     compliance_score: float | None
     plan_id: int | None = None  # generada por un plan de entrenamiento
-    session_kind: str | None = None  # easy | long | threshold | intervals | race_pace | race
+    session_kind: str | None = None  # easy | long | threshold | intervals | race_pace | race | test
+    test_protocol: str | None = None
     planned_duration_s: float
     planned_distance_m: float | None
     blocks: list[BlockOut]

@@ -1,5 +1,6 @@
 """Emparejado plan ↔ actividad y persistencia del cumplimiento."""
 
+import logging
 from datetime import UTC, date, datetime, time, timedelta
 
 from sqlmodel import Session, col, select
@@ -7,6 +8,8 @@ from sqlmodel import Session, col, select
 from app.models import Activity, ActivityStream, Lap, MatchMode, PlannedBlock, PlannedSession
 from app.services.compliance import compute_compliance
 from app.services.plan_steps import estimated_duration_s, expand_steps, local_day, sport_family
+
+logger = logging.getLogger(__name__)
 
 _COMPLIANCE_CHANNELS = ["time", "distance", "hr", "power", "cadence"]
 
@@ -94,4 +97,12 @@ def match_pending(session: Session, user_id: int) -> int:
         refresh_match(session, planned)
         matched += planned.activity_id is not None
     session.commit()
+    if matched:
+        from app.services.performance_tests import detect_planned  # import local: evita ciclo
+
+        try:
+            detect_planned(session, user_id)  # sesiones de test: se analizan solas
+        except Exception:  # noqa: BLE001 - nunca rompe la sincronización
+            logger.exception("No se pudieron analizar los tests planificados")
+            session.rollback()
     return matched

@@ -16,6 +16,7 @@ from app.api import (
     gear,
     goals,
     notifications,
+    performance,
     plans,
     profile,
     progress,
@@ -99,6 +100,7 @@ app.include_router(achievements.router, prefix="/api/v1")
 app.include_router(routes.router, prefix="/api/v1")
 app.include_router(sources.router, prefix="/api/v1")
 app.include_router(apple.router, prefix="/api/v1")
+app.include_router(performance.router, prefix="/api/v1")
 app.include_router(reviews.router, prefix="/api/v1")
 
 

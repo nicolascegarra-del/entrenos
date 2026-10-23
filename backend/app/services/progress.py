@@ -151,10 +151,17 @@ def user_activities(session: Session, user_id: int, since: date | None = None) -
 
 
 def user_thresholds(session: Session, user_id: int) -> Thresholds:
-    """FC umbral (última que dio Garmin o 89 % de la FC máx.), FC reposo (mediana 30 días) y FC máx."""
+    """
+    FC umbral (la de un test confirmado de carrera de las últimas 8 semanas; si no, la última que dio
+    Garmin o el 89 % de la FC máx.), FC reposo (mediana 30 días) y FC máx. (registrada o de un test).
+    """
+    from app.services.test_results import active_test, tested_hr_max
+
     activities = user_activities(session, user_id)
-    lthr = next((a.metrics["lthr"] for a in reversed(activities) if a.metrics.get("lthr")), None)
-    hr_max = max((a.max_hr for a in activities if a.max_hr), default=None)
+    test = active_test(session, user_id, "running", "lthr")
+    lthr = test.results["lthr"] if test else None
+    lthr = lthr or next((a.metrics["lthr"] for a in reversed(activities) if a.metrics.get("lthr")), None)
+    hr_max = max([a.max_hr for a in activities if a.max_hr] + [tested_hr_max(session, user_id) or 0]) or None
     if hr_max is None:
         # Sin FC máx. registrada: estimación por edad (Tanaka) si el perfil tiene fecha de nacimiento.
         profile = session.get(UserProfile, user_id)

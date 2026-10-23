@@ -17,6 +17,7 @@ from app.models.goal import RaceGoal
 from app.models.health import AthleteZones, DailyMetric
 from app.models.metric import MetricDefinition, MetricScope
 from app.models.notification import NotificationLog, NotificationPrefs, PushSubscription
+from app.models.performance import PerformanceTest
 from app.models.plan import BlockKind, MatchMode, PlannedBlock, PlannedSession
 from app.models.settings import SYNC_INTERVALS, SyncMode, UserSettings
 from app.models.sources import AppleImport, CorosCredential, IngestToken
@@ -29,6 +30,7 @@ __all__ = [
     "ActivityReview",
     "AiReviewSettings",
     "AppleImport",
+    "PerformanceTest",
     "CorosCredential",
     "IngestToken",
     "Achievement",

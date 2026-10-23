@@ -104,7 +104,8 @@ def test_quitar_dispositivo_ajeno_404(client, user, session):
 
 def test_preferencias(client, user):
     prefs = {"daily_session": False, "daily_hour": 20, "timezone": "Europe/Madrid", "overload": True,
-             "sync_error": False, "achievements": True, "plan_changes": True, "activity_reviews": False}  # fmt: skip
+             "sync_error": False, "achievements": True, "plan_changes": True, "activity_reviews": False,
+             "tests": True}  # fmt: skip
     data = client.put("/api/v1/notifications/prefs", json=prefs, headers=auth(user)).json()
     assert data["prefs"] == prefs
     bad = {**prefs, "timezone": "Marte/Olympus"}

@@ -345,9 +345,11 @@ def after_import(session: Session, user_id: int) -> None:
     """Lo mismo que tras sincronizar Garmin: zonas, zapatilla por defecto y logros (nunca rompe la importación)."""
     from app.services.achievements import evaluate
     from app.services.gear import assign_default
+    from app.services.plan_service import match_pending
     from app.services.zones import refresh_zones
 
-    for fn in (refresh_zones, assign_default, evaluate):
+    # Emparejar con el plan primero: si era una sesión de test, se analiza y cuenta para las zonas.
+    for fn in (match_pending, refresh_zones, assign_default, evaluate):
         try:
             fn(session, user_id)
         except Exception:  # noqa: BLE001

@@ -39,6 +39,7 @@ def _to_out(session: Session, planned: PlannedSession) -> SessionOut:
         compliance_score=planned.compliance_score,
         plan_id=planned.plan_id,
         session_kind=planned.session_kind,
+        test_protocol=planned.test_protocol,
         planned_duration_s=estimated_duration_s(steps),
         planned_distance_m=sum(distances) if distances else None,
         blocks=[BlockOut.model_validate(b, from_attributes=True) for b in blocks],
@@ -52,6 +53,21 @@ def _to_detail(session: Session, planned: PlannedSession) -> SessionDetail:
         compliance_detail=planned.compliance_detail,
         activity=ActivitySummary.model_validate(activity, from_attributes=True) if activity else None,
     )
+
+
+def _set_kind(planned: PlannedSession) -> None:
+    if planned.test_protocol:
+        planned.session_kind = "test"
+    elif planned.session_kind == "test":
+        planned.session_kind = None
+
+
+def _analyze_test(session: Session, planned: PlannedSession) -> None:
+    """Sesión de test ya hecha (día pasado con actividad): se analiza al guardarla."""
+    if planned.test_protocol and planned.activity_id:
+        from app.services.performance_tests import detect_planned
+
+        detect_planned(session, planned.user_id)
 
 
 def _replace_blocks(session: Session, planned: PlannedSession, body: SessionIn) -> None:
@@ -94,11 +110,13 @@ def _check_quota(session: SessionDep, user: User, day: date, exclude_id: int | N
 def create_plan(body: SessionIn, session: SessionDep, user: CurrentUser) -> SessionDetail:
     _check_quota(session, user, body.day)
     planned = PlannedSession(user_id=user.id, **body.model_dump(exclude={"blocks"}))
+    _set_kind(planned)
     session.add(planned)
     session.flush()
     _replace_blocks(session, planned, body)
     refresh_match(session, planned)
     session.commit()
+    _analyze_test(session, planned)
     return _to_detail(session, planned)
 
 
@@ -116,9 +134,11 @@ def update_plan(plan_id: int, body: SessionIn, session: SessionDep, user: Curren
         planned.match_mode = MatchMode.AUTO  # cambia el día/deporte: la actividad elegida ya no aplica
     for field, value in body.model_dump(exclude={"blocks"}).items():
         setattr(planned, field, value)
+    _set_kind(planned)
     _replace_blocks(session, planned, body)
     refresh_match(session, planned)
     session.commit()
+    _analyze_test(session, planned)
     return _to_detail(session, planned)
 
 
