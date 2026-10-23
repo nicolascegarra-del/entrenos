@@ -22,7 +22,11 @@ from app.models import Activity, ActivityStream
 from app.services.routes import haversine
 
 MAX_FILE_BYTES = 25_000_000
-SOURCE_NAMES = {"coros": "Actividad de COROS", "health_connect": "Actividad de Health Connect"}
+SOURCE_NAMES = {
+    "coros": "Actividad de COROS",
+    "health_connect": "Actividad de Health Connect",
+    "apple": "Entreno de Apple Watch",
+}
 DEDUP_START_S = 120
 DEDUP_DURATION = 0.05
 SEMICIRCLE = 180 / 2**31
@@ -55,6 +59,7 @@ class ImportedActivity:
     elevation_gain_m: float | None = None
     calories: float | None = None
     name: str = ""
+    timezone: str | None = None  # offset local «+02:00», si la fuente lo sabe
     streams: dict[str, list[float | None]] = field(default_factory=dict)
 
 
@@ -321,7 +326,7 @@ def save_imported(session: Session, user_id: int, act: ImportedActivity, source:
         return dup, False
     activity = Activity(
         user_id=user_id, sport=act.sport, name=act.name or SOURCE_NAMES.get(source, ""),
-        start_time=act.start_time, timezone=None,
+        start_time=act.start_time, timezone=act.timezone,
         duration_s=act.duration_s, moving_duration_s=act.moving_duration_s, distance_m=act.distance_m,
         avg_hr=act.avg_hr, max_hr=act.max_hr, elevation_gain_m=act.elevation_gain_m, calories=act.calories,
         source=source, external_id=external_id,

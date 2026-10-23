@@ -10,6 +10,7 @@ from app.api import (
     activities,
     admin,
     ai,
+    apple,
     auth,
     garmin,
     gear,
@@ -97,6 +98,7 @@ app.include_router(notifications.router, prefix="/api/v1")
 app.include_router(achievements.router, prefix="/api/v1")
 app.include_router(routes.router, prefix="/api/v1")
 app.include_router(sources.router, prefix="/api/v1")
+app.include_router(apple.router, prefix="/api/v1")
 app.include_router(reviews.router, prefix="/api/v1")
 
 

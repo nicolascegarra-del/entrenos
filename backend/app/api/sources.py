@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from app.api.deps import CurrentUser, SessionDep
 from app.core.rate_limit import limiter
 from app.models import CorosCredential, IngestToken
-from app.services import coros, health_connect
+from app.services import apple_health, coros, health_connect
 from app.services.file_import import FileImportError, after_import, parse_file, save_imported
 from app.services.mailer import link
 
@@ -52,6 +52,8 @@ class SourcesOut(BaseModel):
     coros: CorosOut | None
     health_connect: IngestOut | None
     ingest_url: str = Field(description="URL para la app de Health Connect")
+    apple_shortcut_url: str = Field(description="URL para el Atajo de iOS (Apple Watch)")
+    apple_last_at: datetime | None = Field(description="Último entreno llegado de Apple")
 
 
 def _sources(session: SessionDep, user_id: int) -> SourcesOut:
@@ -61,6 +63,8 @@ def _sources(session: SessionDep, user_id: int) -> SourcesOut:
         coros=CorosOut.model_validate(cred, from_attributes=True) if cred else None,
         health_connect=IngestOut.model_validate(token, from_attributes=True) if token else None,
         ingest_url=link("/api/v1/ingest/health-connect"),  # URL pública (Admin → Correo), como los emails
+        apple_shortcut_url=link("/api/v1/ingest/apple-shortcuts"),
+        apple_last_at=last.start_time if (last := apple_health.latest_import_activity(session, user_id)) else None,
     )
 
 

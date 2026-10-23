@@ -124,7 +124,17 @@ En producción los logs salen en JSON (formato Klyp) y no incluyen contraseñas,
 
 ### Otros relojes (además de Garmin)
 
-En **Ajustes → Otros relojes**:
+En la bienvenida y en **Ajustes → Conexiones** se elige la marca (o varias) y cada una muestra solo su forma
+de conectarse:
+
+- **Apple Watch** (Apple no tiene API web de Salud), dos vías complementarias:
+  - **Export de Salud** (Salud → tu foto → «Exportar todos los datos de salud»): el `export.zip` se sube a trozos
+    de 8 MB (`PUT /api/v1/imports/apple-health/{id}?offset=`, hasta 4 GB, se puede reanudar) y un trabajo de
+    Celery lo lee en streaming: entrenos con ruta GPS y pulso, y FC en reposo, HRV (SDNN, en `hrv_sdnn`), sueño
+    y pasos diarios. Nada pisa lo que ya venga de Garmin. El fichero se borra al terminar.
+  - **Atajo de iOS** (automatización diaria): envía los entrenos recientes y el pulso en JSON a
+    `https://<tu-dominio>/api/v1/ingest/apple-shortcuts` con la cabecera `X-Api-Key` (el mismo token personal
+    que Health Connect). Los pasos y el formato están en la propia tarjeta. No trae la ruta GPS.
 
 - **Ficheros FIT, GPX o TCX** de cualquier marca (Suunto, Polar, COROS, Wahoo, Amazfit/Zepp, Strava…).
   Si el entreno ya estaba (por ejemplo, desde Garmin) no se duplica: misma hora ±2 min y duración ±5 %.

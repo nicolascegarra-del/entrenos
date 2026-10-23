@@ -1,6 +1,7 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Text
+from sqlalchemy import BigInteger, Column, DateTime, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
 from app.models.base import created_at_field
@@ -34,3 +35,24 @@ class IngestToken(SQLModel, table=True):
     hint: str = Field(max_length=8)  # últimos caracteres, para reconocerlo
     created_at: datetime = created_at_field()
     last_used_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True)))
+
+
+class AppleImport(SQLModel, table=True):
+    """
+    Importación del `export.zip` de Apple Salud: se sube a trozos (puede pesar cientos de MB) y un
+    trabajo en segundo plano lo lee. El fichero se borra al terminar; aquí queda el resultado.
+    """
+
+    __tablename__ = "apple_import"
+
+    id: str = Field(primary_key=True, max_length=32)
+    user_id: int = Field(foreign_key="user.id", index=True, ondelete="CASCADE")
+    filename: str = Field(max_length=255)
+    size_bytes: int = Field(sa_column=Column(BigInteger, nullable=False))
+    received_bytes: int = Field(default=0, sa_column=Column(BigInteger, nullable=False, server_default="0"))
+    status: str = Field(default="uploading", max_length=16)  # uploading | queued | processing | done | error
+    progress: int = 0  # 0-100 mientras se procesa
+    result: dict = Field(default_factory=dict, sa_column=Column(JSONB, nullable=False, server_default="{}"))
+    error: str = Field(default="", max_length=255)
+    created_at: datetime = created_at_field()
+    updated_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True)))
