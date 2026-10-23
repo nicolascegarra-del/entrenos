@@ -34,11 +34,13 @@ class WorkoutTarget(Protocol):
     def delete_workout(self, workout_id: int) -> None: ...
 
 
-def _id(data: dict, *keys: str) -> int | None:
-    for k in keys:
-        if isinstance(data.get(k), int):
-            return data[k]
-    return None
+def _id(data: object, *keys: str) -> int | None:
+    """Id de la respuesta de Garmin (un objeto, o una lista con uno)."""
+    if isinstance(data, list):
+        data = data[0] if data else {}
+    if not isinstance(data, dict):
+        return None
+    return next((data[k] for k in keys if isinstance(data.get(k), int)), None)
 
 
 def _delete_remote(client: WorkoutTarget, workout_id: int | None) -> None:
@@ -77,7 +79,8 @@ def send(session: Session, planned: PlannedSession, client: WorkoutTarget) -> st
     except Exception as exc:
         from garminconnect import GarminConnectAuthenticationError
 
-        logger.warning("Garmin: fallo al enviar la sesión %s (%s)", planned.id, type(exc).__name__)
+        # El detalle (p. ej. el 400 de Garmin con el campo que no le gusta) ayuda a depurar; nunca lleva tokens.
+        logger.warning("Garmin: fallo al enviar la sesión %s (%s: %s)", planned.id, type(exc).__name__, str(exc)[:300])
         planned.garmin_status = "error"
         planned.garmin_error = (
             "La sesión de Garmin ha caducado: vuelve a conectar Garmin en Ajustes."

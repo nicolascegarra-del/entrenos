@@ -232,3 +232,31 @@ def test_api_descargar_fit(client, user, session):
     assert res.headers["content-disposition"].endswith('-series.fit"') and res.content[8:12] == b".FIT"
     strength = client.post("/api/v1/plans", json={**_plan_body(), "sport": "strength_training"}, headers=h).json()
     assert client.get(f"/api/v1/plans/{strength['id']}/workout.fit", headers=h).status_code == 422
+
+
+def test_el_cliente_real_de_garmin_sabe_enviar():
+    """El cliente real implementa el envío (se coló en la interfaz de sincronización y fallaba en producción)."""
+    from app.services.garmin_client import GarminConnectClient
+
+    calls: list = []
+
+    class Api:
+        def upload_workout(self, w):
+            calls.append(("upload", w["workoutName"]))
+            return {"workoutId": 7}
+
+        def schedule_workout(self, wid, day):
+            calls.append(("schedule", wid, day))
+            return [{"workoutScheduleId": 8}]
+
+        def delete_workout(self, wid):
+            calls.append(("delete", wid))
+
+    client = object.__new__(GarminConnectClient)
+    client.user_id, client._api = 0, Api()
+    planned = PlannedSession(id=1, user_id=1, day=TOMORROW, sport="running", title="Rodaje", notes="")
+    assert garmin_workouts._id(client.upload_workout({"workoutName": "x"}), "workoutId") == 7
+    assert garmin_workouts._id(client.schedule_workout(7, TOMORROW.isoformat()), "workoutScheduleId") == 8
+    client.delete_workout(7)
+    assert calls == [("upload", "x"), ("schedule", 7, TOMORROW.isoformat()), ("delete", 7)]
+    assert planned.title == "Rodaje"

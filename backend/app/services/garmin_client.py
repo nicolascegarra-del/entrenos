@@ -39,26 +39,6 @@ class GarminSource(Protocol):
     def get_activity_splits(self, activity_id: int) -> dict | None: ...
     def download_fit(self, activity_id: int) -> bytes | None: ...
     def get_devices(self) -> list[dict]: ...
-
-    # ── Entrenos programados (envío al reloj) ──
-
-    def _call(self, fn: Callable[[], Any]) -> Any:
-        """Como `_safe`, pero el error llega a quien llama (el envío debe saber si falló)."""
-        try:
-            return fn()
-        except GarminConnectAuthenticationError:
-            self._mark_expired()
-            raise
-
-    def upload_workout(self, workout: dict) -> dict:
-        return self._call(lambda: self._api.upload_workout(workout)) or {}
-
-    def schedule_workout(self, workout_id: int, day: str) -> dict:
-        return self._call(lambda: self._api.schedule_workout(workout_id, day)) or {}
-
-    def delete_workout(self, workout_id: int) -> None:
-        self._call(lambda: self._api.delete_workout(workout_id))
-
     def get_daily(self, day: str) -> dict[str, Any]: ...
 
 
@@ -219,6 +199,25 @@ class GarminConnectClient:
 
     def get_devices(self) -> list[dict]:
         return self._safe("devices", self._api.get_devices) or []
+
+    # ── Entrenos programados (envío al reloj) ──
+
+    def _call(self, fn: Callable[[], Any]) -> Any:
+        """Como `_safe`, pero el error llega a quien llama (el envío debe saber si falló)."""
+        try:
+            return fn()
+        except GarminConnectAuthenticationError:
+            self._mark_expired()
+            raise
+
+    def upload_workout(self, workout: dict) -> dict:
+        return self._call(lambda: self._api.upload_workout(workout)) or {}
+
+    def schedule_workout(self, workout_id: int, day: str) -> dict:
+        return self._call(lambda: self._api.schedule_workout(workout_id, day)) or {}
+
+    def delete_workout(self, workout_id: int) -> None:
+        self._call(lambda: self._api.delete_workout(workout_id))
 
     def get_daily(self, day: str) -> dict[str, Any]:
         return {
