@@ -253,7 +253,9 @@ def coros_official_callback(session: SessionDep, state: str = "", code: str = ""
     from app.tasks.sources import coros_official_sync_task
 
     try:
-        coros_official_sync_task.apply_async(args=[pending.user_id], argsrepr="(usuario)")
+        from app.services.coros_official import FIRST_SYNC_DAYS
+
+        coros_official_sync_task.apply_async(args=[pending.user_id, FIRST_SYNC_DAYS], argsrepr="(usuario, días)")
     except Exception:  # noqa: BLE001 - se sincronizará en la siguiente pasada
         logger.warning("No se pudo encolar la primera sincronización de COROS")
     return RedirectResponse(f"{target}?coros=ok", status_code=status.HTTP_303_SEE_OTHER)

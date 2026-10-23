@@ -82,14 +82,14 @@ def apple_import_task(import_id: str) -> dict:
 
 
 @celery_app.task(name="coros.official_sync_user")
-def coros_official_sync_task(user_id: int) -> int:
-    """Actividades de hoy y ayer por la conexión oficial de COROS."""
+def coros_official_sync_task(user_id: int, days: int | None = None) -> int:
+    """Actividades nuevas de los últimos días por la conexión oficial de COROS (`days`: al conectar, más)."""
     from app.services import coros_official
     from app.services.coros_oauth import CorosOAuthError
 
     with Session(engine) as session:
         try:
-            return coros_official.sync(session, user_id)
+            return coros_official.sync(session, user_id, days=days or coros_official.DAYS_BACK)
         except CorosOAuthError as exc:
             logger.info("COROS oficial: no se pudo sincronizar (%s)", exc)
             return 0

@@ -1,12 +1,12 @@
 """
 Traer las actividades de COROS por la conexión oficial (MCP con OAuth).
 
-Las herramientas de consulta devuelven texto pensado para un asistente, así que no se interpreta la
-lista: se descargan directamente los .FIT de los últimos días (`downloadActivityFitFiles`), que traen
-todo (deporte, ruta, pulso, potencia, vueltas) y se leen con el mismo lector que cualquier FIT. Si el
-servidor manda enlaces en vez del fichero, se descargan de esos enlaces.
+`querySportRecords` devuelve texto pensado para un asistente; de él solo se sacan el LabelId y el
+SportType de cada actividad. Luego se descarga el .FIT de cada una nueva (`downloadActivityFitFiles` con
+su LabelId; por rango de fechas COROS lo bloquea), que trae todo (deporte, ruta, pulso, potencia,
+vueltas) y se lee con el mismo lector que cualquier FIT.
 
-COROS limita a 50 ficheros al día: se piden como mucho 10 por pasada y solo de hoy y ayer, cada 6 h.
+COROS limita a 50 ficheros al día: solo se descargan las que faltan, como mucho 10 por pasada, cada 6 h.
 Lo que ya estaba (de esta conexión, de la antigua o de otro reloj) no se duplica (`save_imported`).
 """
 
@@ -24,7 +24,8 @@ from app.services.file_import import FileImportError, after_import, parse_fit, s
 
 logger = logging.getLogger(__name__)
 
-DAYS_BACK = 1  # hoy y ayer
+DAYS_BACK = 3  # cada pasada mira los últimos días
+FIRST_SYNC_DAYS = 60  # al conectar, el historial reciente
 MAX_FILES = 10
 _URL = re.compile(r"https://[^\s\"'<>)]+")
 BLOCKED = "COROS no ha dejado descargar tus actividades por la conexión oficial. Inténtalo más tarde."
@@ -54,19 +55,49 @@ def fit_blobs(result: dict) -> list[bytes]:
     return [f for f in files if f[8:12] == b".FIT"]
 
 
-def sync(session: Session, user_id: int, mcp: CorosMcp | None = None, today: date | None = None) -> int:
+_RECORD = re.compile(r"LabelId:\s*(\d+)\s*\|\s*SportType:\s*(\d+)", re.IGNORECASE)
+
+
+def records(text: str) -> list[tuple[str, int]]:
+    """(labelId, sportType) de cada actividad en el texto de `querySportRecords`."""
+    return [(m.group(1), int(m.group(2))) for m in _RECORD.finditer(text)]
+
+
+def _texts(result: dict) -> str:
+    return " ".join(c.get("text", "") for c in result.get("content", []) if c.get("type") == "text")
+
+
+def _blocked(session: Session, user_id: int, texts: str) -> int:
+    # COROS a veces corta la petición con un aviso genérico («anomalies»): se avisa sin romper nada.
+    logger.warning("COROS oficial: petición bloqueada (%s)", texts[:200])
+    row = session.get(CorosOAuth, user_id)
+    if row is not None:
+        row.last_error = BLOCKED
+        session.add(row)
+        session.commit()
+    return 0
+
+
+def sync(
+    session: Session, user_id: int, mcp: CorosMcp | None = None, today: date | None = None, days: int = DAYS_BACK
+) -> int:
     """
-    Importa las actividades de hoy y ayer.
+    Importa las actividades nuevas de los últimos `days` días: se listan (`querySportRecords`) y se
+    descarga el .FIT de cada una que no esté ya (`downloadActivityFitFiles` con su LabelId).
 
     Returns:
         Cuántas actividades nuevas.
     """
+    from sqlmodel import col, select
+
+    from app.models import Activity
+
     today = today or date.today()
     mcp = mcp or CorosMcp(session, user_id)
-    start = (today - timedelta(days=DAYS_BACK)).strftime("%Y%m%d")
+    start = (today - timedelta(days=days)).strftime("%Y%m%d")
     try:
-        result = mcp.call_raw(
-            "downloadActivityFitFiles", {"startDate": start, "endDate": today.strftime("%Y%m%d"), "limit": MAX_FILES}
+        listing = mcp.call_raw(
+            "querySportRecords", {"startDate": start, "endDate": today.strftime("%Y%m%d"), "limit": 50}
         )
     except CorosOAuthError as exc:
         row = session.get(CorosOAuth, user_id)
@@ -75,29 +106,38 @@ def sync(session: Session, user_id: int, mcp: CorosMcp | None = None, today: dat
             session.add(row)
             session.commit()
         raise
-    files = fit_blobs(result)
-    texts = " ".join(c.get("text", "") for c in result.get("content", []) if c.get("type") == "text")
-    if not files and "anomal" in texts.lower():
-        # COROS a veces no deja descargar las actividades por esta vía (aviso genérico): se avisa sin romper nada.
-        logger.warning("COROS oficial: descarga de actividades bloqueada (%s)", texts[:200])
-        row = session.get(CorosOAuth, user_id)
-        if row is not None:
-            row.last_error = BLOCKED
-            session.add(row)
-            session.commit()
-        return 0
-    new = 0
-    for data in files:
-        try:
-            act = parse_fit(data)
-        except FileImportError:
-            continue
-        _, created = save_imported(session, user_id, act, "coros", f"fit:{act.start_time.isoformat()}")
-        new += created
+    texts = _texts(listing)
+    if "anomal" in texts.lower():
+        return _blocked(session, user_id, texts)
+    found = records(texts)
+    known = set(
+        session.exec(
+            select(Activity.external_id).where(
+                Activity.user_id == user_id,
+                Activity.source == "coros",
+                col(Activity.external_id).in_([label for label, _ in found] or [""]),
+            )
+        ).all()
+    )
+    new, blocked = 0, False
+    for label, sport in [r for r in found if r[0] not in known][:MAX_FILES]:
+        result = mcp.call_raw("downloadActivityFitFiles", {"labelId": label, "sportType": sport})
+        if not (files := fit_blobs(result)) and "anomal" in _texts(result).lower():
+            _blocked(session, user_id, _texts(result))
+            blocked = True
+            break
+        for data in files[:1]:
+            try:
+                act = parse_fit(data)
+            except FileImportError:
+                continue
+            _, created = save_imported(session, user_id, act, "coros", label)
+            new += created
     row = session.get(CorosOAuth, user_id)
     if row is not None:
-        row.last_error = ""
-        row.last_sync_at = datetime.now(UTC)
+        if not blocked:  # si COROS cortó la descarga, no se da la sincronización por buena
+            row.last_error = ""
+            row.last_sync_at = datetime.now(UTC)
         session.add(row)
         session.commit()
     if new:

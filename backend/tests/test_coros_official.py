@@ -143,17 +143,30 @@ def test_errores_de_coros(session: Session, user: User):
     assert coros_workouts.send(session, past, FakeMcp()) == "error" and "90 días" in past.coros_error
 
 
+LISTING = (
+    "Sport Records — 2026-10-20 to 2026-10-23 (1 records)\n1. Outdoor Run — 2026-10-22\n"
+    "   Duration: 35:12 | Distance: 5.23 km\n   LabelId: 481245905597530213 | SportType: 100"
+)
+
+
 class FakeFitMcp:
-    def __init__(self, files: list[bytes]) -> None:
-        self.files = files
+    def __init__(self, files: list[bytes], listing: str = LISTING) -> None:
+        self.files, self.listing, self.downloads = files, listing, []
 
     def call_raw(self, name: str, arguments: dict) -> dict:
-        assert name == "downloadActivityFitFiles" and arguments["limit"] == 10
-        return {"content": [{"type": "text", "text": "2 files"}] + [
+        if name == "querySportRecords":
+            return {"content": [{"type": "text", "text": _json.dumps(self.listing)}]}
+        assert name == "downloadActivityFitFiles" and arguments["sportType"] == 100
+        self.downloads.append(arguments["labelId"])
+        return {"content": [{"type": "text", "text": "Returned raw FIT file(s)."}] + [
             {"type": "resource", "resource": {"uri": f"coros://fit/{i}", "mimeType": "application/octet-stream",
                                               "blob": base64.b64encode(f).decode()}}
             for i, f in enumerate(self.files)
         ]}  # fmt: skip
+
+
+def test_lista_de_actividades():
+    assert coros_official.records(LISTING) == [("481245905597530213", 100)]
 
 
 def test_sincronizar_actividades_por_fit(session: Session, user: User):
@@ -162,8 +175,10 @@ def test_sincronizar_actividades_por_fit(session: Session, user: User):
     mcp = FakeFitMcp([_fit()])
     assert coros_official.sync(session, user.id, mcp) == 1  # type: ignore[arg-type]
     act = session.exec(select(Activity).where(Activity.user_id == user.id)).one()
-    assert act.source == "coros" and act.sport == "running"
-    assert coros_official.sync(session, user.id, mcp) == 0  # no se duplica
+    assert act.source == "coros" and act.external_id == "481245905597530213" and act.sport == "running"
+    # La segunda pasada ni siquiera descarga: ya la tiene (no gasta el cupo de 50 al día).
+    assert coros_official.sync(session, user.id, mcp) == 0  # type: ignore[arg-type]
+    assert mcp.downloads == ["481245905597530213"]
     assert session.get(CorosOAuth, user.id).last_sync_at is not None
 
 
@@ -321,6 +336,8 @@ def test_descarga_bloqueada_por_coros_se_avisa(session: Session, user: User):
 
     class Blocked:
         def call_raw(self, name, arguments):
+            if name == "querySportRecords":
+                return {"content": [{"type": "text", "text": LISTING}]}
             return {"content": [{"type": "text", "text": "Tool call anomalies detected. High risk..."}]}
 
     assert coros_official.sync(session, user.id, Blocked()) == 0  # type: ignore[arg-type]
