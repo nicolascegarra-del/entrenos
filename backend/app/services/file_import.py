@@ -411,10 +411,26 @@ def save_imported(session: Session, user_id: int, act: ImportedActivity, source:
         session.add(Lap(activity_id=activity.id, **lap))
     for channel, values in act.streams.items():
         if values and not all(v is None or (isinstance(v, float) and math.isnan(v)) for v in values):
-            session.add(ActivityStream(activity_id=activity.id, channel=channel, values=values))
+            session.add(ActivityStream(activity_id=activity.id, channel=channel, values=_floats(values)))
     session.commit()
     session.refresh(activity)
     return activity, True
+
+
+def _floats(values: list) -> list[float | None]:
+    """La columna es un array de float: un FIT puede mezclar enteros y decimales (o NaN) en la misma serie."""
+    out: list[float | None] = []
+    for v in values:
+        if v is None or isinstance(v, bool):
+            out.append(None)
+            continue
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            out.append(None)
+            continue
+        out.append(None if math.isnan(f) or math.isinf(f) else f)
+    return out
 
 
 def after_import(session: Session, user_id: int) -> None:

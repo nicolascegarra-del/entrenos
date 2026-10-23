@@ -343,3 +343,41 @@ def test_descarga_bloqueada_por_coros_se_avisa(session: Session, user: User):
     assert coros_official.sync(session, user.id, Blocked()) == 0  # type: ignore[arg-type]
     row = session.get(CorosOAuth, user.id)
     assert row.last_error == coros_official.BLOCKED and row.last_sync_at is None
+
+
+def test_series_con_enteros_y_decimales(session: Session, user: User):
+    """Regresión: un FIT de COROS mezclaba int y float en una serie y no se podía guardar."""
+    from app.models import ActivityStream
+    from app.services.file_import import ImportedActivity, save_imported
+
+    streams = {"time": [0, 1.0, 2], "cadence": [170, 171.5, None], "hr": [140, float("nan"), 141]}
+    act = ImportedActivity(sport="running", start_time=datetime_start(), duration_s=3, streams=streams)
+    saved, _ = save_imported(session, user.id, act, "coros", "mixto")
+    ch = {
+        s.channel: s.values for s in session.exec(select(ActivityStream).where(ActivityStream.activity_id == saved.id))
+    }
+    assert ch["cadence"] == [170.0, 171.5, None] and ch["hr"] == [140.0, None, 141.0]
+
+
+def test_una_actividad_que_falla_no_para_las_demas(session: Session, user: User, monkeypatch):
+    session.add(CorosOAuth(user_id=user.id, client_id="c", issuer="i", mcp_url="u", access_token_enc="x"))
+    session.commit()
+    two = LISTING + "\n2. Outdoor Run\n   LabelId: 222222222222 | SportType: 100"
+    calls = {"n": 0}
+    real = coros_official.save_imported
+
+    def flaky(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("boom")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(coros_official, "save_imported", flaky)
+    assert coros_official.sync(session, user.id, FakeFitMcp([_fit()], two)) == 1  # type: ignore[arg-type]
+    assert session.get(CorosOAuth, user.id).last_error == "1 actividad no se pudo importar."
+
+
+def datetime_start():
+    from datetime import UTC, datetime
+
+    return datetime(2026, 10, 22, 7, 0, tzinfo=UTC)

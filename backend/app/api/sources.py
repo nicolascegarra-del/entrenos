@@ -270,9 +270,10 @@ def coros_official_callback(session: SessionDep, state: str = "", code: str = ""
 def coros_official_sync(request: Request, session: SessionDep, user: CurrentUser) -> dict:
     if session.get(CorosOAuth, user.id) is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Conecta COROS primero.")
+    from app.services.coros_official import FIRST_SYNC_DAYS
     from app.tasks.sources import coros_official_sync_task
 
-    coros_official_sync_task.apply_async(args=[user.id], argsrepr="(usuario)")
+    coros_official_sync_task.apply_async(args=[user.id, FIRST_SYNC_DAYS], argsrepr="(usuario, días)")
     return {"queued": True}
 
 

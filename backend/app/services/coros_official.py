@@ -119,7 +119,7 @@ def sync(
             )
         ).all()
     )
-    new, blocked = 0, False
+    new, failed, blocked = 0, 0, False
     for label, sport in [r for r in found if r[0] not in known][:MAX_FILES]:
         result = mcp.call_raw("downloadActivityFitFiles", {"labelId": label, "sportType": sport})
         if not (files := fit_blobs(result)) and "anomal" in _texts(result).lower():
@@ -129,14 +129,21 @@ def sync(
         for data in files[:1]:
             try:
                 act = parse_fit(data)
+                _, created = save_imported(session, user_id, act, "coros", label)
+                new += created
             except FileImportError:
-                continue
-            _, created = save_imported(session, user_id, act, "coros", label)
-            new += created
+                failed += 1
+            except Exception:  # una actividad rara no debe impedir importar las demás
+                session.rollback()
+                logger.exception("COROS oficial: no se pudo guardar la actividad %s", label)
+                failed += 1
     row = session.get(CorosOAuth, user_id)
     if row is not None:
         if not blocked:  # si COROS cortó la descarga, no se da la sincronización por buena
-            row.last_error = ""
+            row.last_error = (
+                f"{failed} {'actividad no se pudo' if failed == 1 else 'actividades no se pudieron'} importar."
+                if failed else ""
+            )  # fmt: skip
             row.last_sync_at = datetime.now(UTC)
         session.add(row)
         session.commit()

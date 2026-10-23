@@ -93,6 +93,17 @@ def coros_official_sync_task(user_id: int, days: int | None = None) -> int:
         except CorosOAuthError as exc:
             logger.info("COROS oficial: no se pudo sincronizar (%s)", exc)
             return 0
+        except Exception:
+            # Que se vea en Ajustes y no solo en el log.
+            session.rollback()
+            logger.exception("COROS oficial: fallo al sincronizar")
+            from app.models import CorosOAuth
+
+            if (row := session.get(CorosOAuth, user_id)) is not None:
+                row.last_error = "No se pudieron traer tus actividades de COROS. Inténtalo más tarde."
+                session.add(row)
+                session.commit()
+            return 0
 
 
 @celery_app.task(name="coros.official_sync_all")
