@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import BaseModel
 from sqlmodel import col, distinct, or_, select
 
@@ -148,3 +148,33 @@ def set_race(activity_id: int, body: RaceIn, session: SessionDep, user: CurrentU
     session.commit()
     refresh_zones(session, user.id)  # el VDOT cambia → umbral y zonas pueden cambiar
     return {"activity_id": activity.id, "is_race": activity.is_race}
+
+
+@router.get(
+    "/{activity_id}/analysis",
+    summary="Análisis: tiempo en zonas de FC, VO2max, parciales por km y deriva cardiaca",
+    responses=_NOT_FOUND,
+)
+def get_analysis(activity_id: int, session: SessionDep, user: CurrentUser) -> dict:
+    from app.services.activity_analysis import analysis
+
+    return analysis(session, _get_owned(session, user, activity_id))
+
+
+@router.get(
+    "/{activity_id}/export",
+    summary="Exportar la actividad en FIT, TCX o GPX (para llevarla a otras apps)",
+    responses={**_NOT_FOUND, 422: {"description": "Formato no válido o sin datos para él (GPX sin GPS)"}},
+    response_class=Response,
+)
+def export_activity(
+    activity_id: int, session: SessionDep, user: CurrentUser, format: str = Query("fit", pattern="^(fit|tcx|gpx)$")
+) -> Response:
+    from app.services.activity_export import ExportError, export
+
+    activity = _get_owned(session, user, activity_id)
+    try:
+        data, media, name = export(session, activity, format)
+    except ExportError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    return Response(content=data, media_type=media, headers={"Content-Disposition": f'attachment; filename="{name}"'})

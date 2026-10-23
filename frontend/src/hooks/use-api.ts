@@ -62,6 +62,7 @@ import type {
   LactateTestInput,
   PerformanceTest,
   TestProtocol,
+  ActivityAnalysis,
   MetricDefinition,
   PlannedSession,
   PlannedSessionDetail,
@@ -1426,5 +1427,13 @@ export function useSyncCorosOfficial() {
       apiFetch<{ queued: boolean }>("/api/v1/sources/coros-official/sync", {
         method: "POST",
       }),
+  });
+}
+
+export function useActivityAnalysis(activityId: number) {
+  return useQuery({
+    queryKey: ["activity-analysis", activityId],
+    queryFn: () =>
+      apiFetch<ActivityAnalysis>(`/api/v1/activities/${activityId}/analysis`),
   });
 }

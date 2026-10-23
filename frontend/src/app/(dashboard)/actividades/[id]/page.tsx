@@ -11,6 +11,8 @@ import { FeedbackCard } from "@/components/activity/feedback-card";
 import { GearSelect } from "@/components/activity/gear-select";
 import { LapsTable } from "@/components/activity/laps-table";
 import { RaceToggle } from "@/components/activity/race-toggle";
+import { ActivityAnalysisCards } from "@/components/activity/analysis-cards";
+import { ExportActivity } from "@/components/activity/export-activity";
 import { ReviewCard } from "@/components/activity/review-card";
 import { ActivityTestCard, MarkTest } from "@/components/tests/activity-test";
 import { LactateForm } from "@/components/tests/test-forms";
@@ -33,7 +35,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useActivity, useCatalog, useStreams } from "@/hooks/use-api";
 import { ApiError } from "@/lib/api";
 import { usesShoes } from "@/lib/gear";
-import { testSport } from "@/lib/tests";
 import {
   formatDateTime,
   formatDistance,
@@ -246,7 +247,7 @@ export default function ActivityDetailPage() {
         actions={
           <>
             <AskAi activity={activity} />
-            {(usesShoes(activity.sport) || testSport(activity.sport)) && (
+            {
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -276,6 +277,7 @@ export default function ActivityDetailPage() {
                       </div>
                     </>
                   )}
+                  <ExportActivity activityId={activity.id} />
                   <MarkTest
                     activity={activity}
                     onLactate={
@@ -286,7 +288,7 @@ export default function ActivityDetailPage() {
                   />
                 </PopoverContent>
               </Popover>
-            )}
+            }
           </>
         }
       />
@@ -350,6 +352,8 @@ export default function ActivityDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      <ActivityAnalysisCards activityId={activity.id} />
 
       <LapsTable laps={activity.laps} pace={pace} />
 

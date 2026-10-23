@@ -1221,3 +1221,45 @@ export interface LactateTestInput {
   steps: LactateStepInput[];
   notes?: string;
 }
+
+// ─── Análisis de una actividad ───────────────────────────────────────────────
+
+export interface ActivityAnalysis {
+  hr_zones: {
+    zones: {
+      name: string;
+      min: number;
+      max: number | null;
+      seconds: number;
+      pct: number;
+    }[];
+    lthr: number | null;
+    source: string;
+  };
+  vo2max: {
+    activity: number | null;
+    source: "reloj" | "estimado" | null;
+    current: number | null;
+    current_day: string | null;
+    percentile: {
+      percentile: number;
+      bound: "below" | "above" | null;
+      age_group: string;
+      median: number;
+    } | null;
+  };
+  splits: {
+    km: number;
+    distance_m: number;
+    seconds: number;
+    pace_s_km: number;
+    avg_hr: number | null;
+    elevation_gain_m: number;
+  }[];
+  decoupling: {
+    pct: number;
+    first_ef: number;
+    second_ef: number;
+    level: "bien" | "alta" | "muy alta";
+  } | null;
+}
