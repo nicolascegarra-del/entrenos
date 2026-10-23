@@ -56,10 +56,31 @@ describe("buildNotices", () => {
   });
 });
 
+const SOURCES = {
+  coros: null,
+  health_connect: null,
+  ingest_url: "",
+  apple_shortcut_url: "",
+  apple_last_at: null,
+};
+
 describe("setupSteps", () => {
   it("lo que falta por configurar", () => {
-    const steps = setupSteps({ garmin: garmin("none"), goals: [], gear: [] });
+    const steps = setupSteps({
+      garmin: garmin("none"),
+      goals: [],
+      gear: [],
+      sources: SOURCES,
+    });
     expect(steps.map((s) => s.key)).toEqual(["watch", "goal", "gear"]);
+  });
+
+  it("no pide conectar reloj si ya llega algo de Apple Watch u otro", () => {
+    const steps = setupSteps({
+      garmin: garmin("none"),
+      sources: { ...SOURCES, apple_last_at: "2026-10-01T07:00:00Z" },
+    });
+    expect(steps).toEqual([]);
   });
 
   it("si aún no han cargado los datos, no se muestra nada", () => {

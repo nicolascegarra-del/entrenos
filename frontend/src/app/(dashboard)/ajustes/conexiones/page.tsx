@@ -1,17 +1,15 @@
 "use client";
 
-import { GarminCard } from "@/components/settings/garmin-card";
-import { OtherWatchesCard } from "@/components/settings/other-watches-card";
 import { SettingsPage } from "@/components/settings/settings-page";
+import { WatchConnections } from "@/components/settings/watch-connections";
 
 export default function ConexionesPage() {
   return (
     <SettingsPage
       title="Conexiones"
-      subtitle="Garmin, otros relojes e importar ficheros."
+      subtitle="Tu reloj: Garmin, Apple Watch, COROS, Android o ficheros."
     >
-      <GarminCard />
-      <OtherWatchesCard />
+      <WatchConnections />
     </SettingsPage>
   );
 }

@@ -3,7 +3,10 @@ import type {
   GarminStatus,
   Me,
   NotificationConfig,
+  SourcesStatus,
 } from "@/types/api";
+
+import { otherWatch } from "./watch-brands";
 
 export type SettingsKey =
   "perfil" | "conexiones" | "notificaciones" | "asistente" | "cuenta";
@@ -20,7 +23,9 @@ export function settingsStatus({
   ai,
   notifications,
   me,
+  sources,
 }: {
+  sources?: SourcesStatus;
   garmin?: GarminStatus;
   ai?: AiProviders;
   notifications?: NotificationConfig;
@@ -35,7 +40,9 @@ export function settingsStatus({
         ? { text: `Garmin conectado${name ? ` (${name})` : ""}` }
         : s === "expired"
           ? { text: "Garmin caducado: vuelve a conectarlo", warn: true }
-          : { text: "Sin reloj conectado", warn: true };
+          : otherWatch(sources)
+            ? { text: `${otherWatch(sources)} conectado` }
+            : { text: "Sin reloj conectado", warn: true };
   }
   if (ai) {
     const active = ai.providers.filter((p) => p.configured && p.enabled);

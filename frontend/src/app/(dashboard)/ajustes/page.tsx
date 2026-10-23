@@ -18,6 +18,7 @@ import {
   useGarminStatus,
   useMe,
   useNotifications,
+  useSources,
 } from "@/hooks/use-api";
 import { settingsStatus, type SettingsKey } from "@/lib/settings-sections";
 import { cn } from "@/lib/utils";
@@ -38,7 +39,7 @@ const SECTIONS: {
     key: "conexiones",
     label: "Conexiones",
     icon: Link2,
-    hint: "Garmin, otros relojes e importar",
+    hint: "Tu reloj: Garmin, Apple Watch, COROS…",
   },
   {
     key: "notificaciones",
@@ -66,7 +67,8 @@ export default function AjustesPage() {
   const { data: ai } = useAiProviders();
   const { data: notifications } = useNotifications();
   const { data: me } = useMe();
-  const status = settingsStatus({ garmin, ai, notifications, me });
+  const { data: sources } = useSources();
+  const status = settingsStatus({ garmin, ai, notifications, me, sources });
   return (
     <section className="mx-auto max-w-3xl">
       <PageHeader title="Ajustes" hideTitleOnMobile />

@@ -32,6 +32,7 @@ import {
   useInjuryRisk,
   useLatestReview,
   useSummary,
+  useSources,
 } from "@/hooks/use-api";
 import {
   formatDateTime,
@@ -140,6 +141,7 @@ function SetupCard() {
   const { data: garmin } = useGarminStatus();
   const { data: goals } = useGoals();
   const { data: gear } = useGear();
+  const { data: sources } = useSources();
   const [hidden, setHidden] = useState(true);
   useEffect(() => {
     try {
@@ -148,7 +150,7 @@ function SetupCard() {
       setHidden(false);
     }
   }, []);
-  const steps = setupSteps({ garmin, goals, gear });
+  const steps = setupSteps({ garmin, goals, gear, sources });
   if (hidden || !steps.length) return null;
   return (
     <Card className="shadow-sm">

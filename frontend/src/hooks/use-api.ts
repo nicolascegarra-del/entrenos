@@ -12,6 +12,7 @@ import type {
   ReviewSettings,
   ImportResult,
   SourcesStatus,
+  AppleImport,
   GeoPlace,
   RaceDayPlan,
   CompareResult,
@@ -453,6 +454,18 @@ export function useSources() {
   return useQuery({
     queryKey: ["sources"],
     queryFn: () => apiFetch<SourcesStatus>("/api/v1/sources"),
+  });
+}
+
+/** Última importación del export de Apple Salud; se refresca sola mientras se procesa. */
+export function useAppleImport() {
+  return useQuery({
+    queryKey: ["apple-import"],
+    queryFn: () => apiFetch<AppleImport | null>("/api/v1/imports/apple-health"),
+    refetchInterval: (query) =>
+      ["queued", "processing"].includes(query.state.data?.status ?? "")
+        ? 3000
+        : false,
   });
 }
 

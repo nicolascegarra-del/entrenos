@@ -1044,6 +1044,21 @@ export interface SourcesStatus {
     last_used_at: string | null;
   } | null;
   ingest_url: string;
+  apple_shortcut_url: string;
+  apple_last_at: string | null;
+}
+
+export interface AppleImport {
+  id: string;
+  filename: string;
+  size_bytes: number;
+  received_bytes: number;
+  status: "uploading" | "queued" | "processing" | "done" | "error";
+  progress: number;
+  result: { workouts?: number; duplicates?: number; days?: number };
+  error: string;
+  created_at: string;
+  chunk_bytes: number;
 }
 
 export interface ImportResult {

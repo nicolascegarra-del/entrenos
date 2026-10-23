@@ -230,8 +230,8 @@ export default function ActividadesPage() {
             className="min-h-11 md:min-h-8"
           >
             <Link
-              href="/ajustes/conexiones#otros-relojes"
-              title="Importar FIT, GPX o TCX de otros relojes"
+              href="/ajustes/conexiones"
+              title="Importar entrenos de tu reloj (Apple Watch, ficheros FIT/GPX/TCX…)"
             >
               <FileUp aria-hidden /> Importar
             </Link>

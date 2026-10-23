@@ -16,16 +16,8 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   useConnectCoros,
   useDisconnectCoros,
@@ -41,7 +33,9 @@ import { formatDateTime } from "@/lib/format";
 const errorText = (e: unknown) =>
   e instanceof ApiError ? e.message : "No se pudo completar la operación.";
 
-function Section({
+type Sources = NonNullable<ReturnType<typeof useSources>["data"]>;
+
+export function Section({
   icon: Icon,
   title,
   children,
@@ -60,7 +54,7 @@ function Section({
   );
 }
 
-function ImportFiles() {
+export function ImportFiles() {
   const input = useRef<HTMLInputElement>(null);
   const upload = useImportFile();
   const [last, setLast] = useState<{ id: number; created: boolean } | null>(
@@ -134,11 +128,7 @@ function ImportFiles() {
   );
 }
 
-function Coros({
-  data,
-}: {
-  data: NonNullable<ReturnType<typeof useSources>["data"]>;
-}) {
+export function Coros({ data }: { data: Sources }) {
   const connect = useConnectCoros();
   const sync = useSyncCoros();
   const disconnect = useDisconnectCoros();
@@ -256,60 +246,42 @@ function Coros({
   );
 }
 
-function HealthConnect({
-  data,
-}: {
-  data: NonNullable<ReturnType<typeof useSources>["data"]>;
-}) {
+const copy = (text: string) =>
+  navigator.clipboard
+    ?.writeText(text)
+    .then(() => toast.success("Copiado."))
+    .catch(() => toast.error("No se pudo copiar."));
+
+/** Texto en una línea con botón de copiar (URLs del webhook). */
+export function CopyRow({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1.5 text-xs">
+        {value}
+      </code>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-11 md:size-8"
+        aria-label={label}
+        onClick={() => copy(value)}
+      >
+        <Copy aria-hidden />
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Token personal para enviar datos desde el móvil (Health Connect en Android o el Atajo de iOS):
+ * es el mismo para los dos; se muestra una sola vez al crearlo.
+ */
+export function PersonalToken({ data }: { data: Sources }) {
   const token = useIngestToken();
   const [plain, setPlain] = useState<string | null>(null);
   const hc = data.health_connect;
-  const copy = (text: string) =>
-    navigator.clipboard
-      ?.writeText(text)
-      .then(() => toast.success("Copiado."))
-      .catch(() => toast.error("No se pudo copiar."));
   return (
-    <Section
-      icon={Smartphone}
-      title="Samsung, Xiaomi/Amazfit, Huawei y Wear OS (Health Connect)"
-    >
-      <ol className="list-decimal space-y-1 pl-5 text-xs text-muted-foreground">
-        <li>
-          En tu Android, sincroniza tu reloj con Health Connect desde su app
-          (Samsung Health, Zepp, Mi Fitness, Huawei Health…).
-        </li>
-        <li>
-          Instala la app libre{" "}
-          <a
-            href="https://github.com/mcnaveen/health-connect-webhook"
-            target="_blank"
-            rel="noreferrer noopener"
-            className="text-klyp-accent underline"
-          >
-            Health Connect Webhook
-          </a>{" "}
-          y dale permiso para leer entrenamientos, pulso, sueño y pasos.
-        </li>
-        <li>
-          Añade un webhook con esta URL y la cabecera{" "}
-          <code className="rounded bg-muted px-1">X-Api-Key</code> con tu token.
-        </li>
-      </ol>
-      <div className="flex flex-wrap items-center gap-2">
-        <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1.5 text-xs">
-          {data.ingest_url}
-        </code>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-11 md:size-8"
-          aria-label="Copiar la URL"
-          onClick={() => copy(data.ingest_url)}
-        >
-          <Copy aria-hidden />
-        </Button>
-      </div>
+    <div className="space-y-2">
       {plain && (
         <div className="space-y-1 rounded-md border border-amber-300 bg-amber-50 p-2 text-amber-950 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-200">
           <p className="text-xs font-medium">
@@ -346,7 +318,7 @@ function HealthConnect({
             if (
               hc &&
               !window.confirm(
-                "¿Crear un token nuevo? El anterior dejará de funcionar.",
+                "¿Crear un token nuevo? El anterior dejará de funcionar (también en Health Connect o en el Atajo).",
               )
             )
               return;
@@ -374,45 +346,44 @@ function HealthConnect({
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+export function HealthConnect({ data }: { data: Sources }) {
+  return (
+    <Section
+      icon={Smartphone}
+      title="Samsung, Xiaomi/Amazfit, Huawei y Wear OS (Health Connect)"
+    >
+      <ol className="list-decimal space-y-1 pl-5 text-xs text-muted-foreground">
+        <li>
+          En tu Android, sincroniza tu reloj con Health Connect desde su app
+          (Samsung Health, Zepp, Mi Fitness, Huawei Health…).
+        </li>
+        <li>
+          Instala la app libre{" "}
+          <a
+            href="https://github.com/mcnaveen/health-connect-webhook"
+            target="_blank"
+            rel="noreferrer noopener"
+            className="text-klyp-accent underline"
+          >
+            Health Connect Webhook
+          </a>{" "}
+          y dale permiso para leer entrenamientos, pulso, sueño y pasos.
+        </li>
+        <li>
+          Añade un webhook con esta URL y la cabecera{" "}
+          <code className="rounded bg-muted px-1">X-Api-Key</code> con tu token.
+        </li>
+      </ol>
+      <CopyRow value={data.ingest_url} label="Copiar la URL" />
+      <PersonalToken data={data} />
       <p className="text-xs text-muted-foreground">
         Llegan los entrenos (con pulso medio y máximo), el sueño y los pasos. Si
         un entreno ya estaba por otra vía, no se duplica.
       </p>
     </Section>
-  );
-}
-
-/** Ajustes → Otros relojes: ficheros, COROS y Health Connect. */
-export function OtherWatchesCard() {
-  const { data, isPending, isError, refetch } = useSources();
-  return (
-    <Card id="otros-relojes" className="scroll-mt-20 shadow-sm">
-      <CardHeader>
-        <CardTitle className="font-heading text-lg">Otros relojes</CardTitle>
-        <CardDescription>
-          Además de Garmin: importa ficheros, conecta COROS o recibe los datos
-          de relojes Android a través de Health Connect.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <ImportFiles />
-        {isPending ? (
-          <Skeleton className="h-40" />
-        ) : isError ? (
-          <Button
-            variant="outline"
-            className="min-h-11"
-            onClick={() => refetch()}
-          >
-            Reintentar
-          </Button>
-        ) : (
-          <>
-            <Coros data={data} />
-            <HealthConnect data={data} />
-          </>
-        )}
-      </CardContent>
-    </Card>
   );
 }

@@ -6,6 +6,8 @@ describe("stepIndex", () => {
   it("encuentra el paso del parámetro", () => {
     expect(stepIndex("perfil")).toBe(2);
     expect(ONBOARDING_STEPS[stepIndex("listo")].label).toBe("Listo");
+    expect(stepIndex("reloj")).toBe(1);
+    expect(stepIndex("garmin")).toBe(1); // enlaces de antes de elegir marca
   });
 
   it("sin parámetro o con uno desconocido empieza por la bienvenida", () => {

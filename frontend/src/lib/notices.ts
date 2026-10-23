@@ -1,4 +1,12 @@
-import type { Gear, GarminStatus, InjuryReport, RaceGoal } from "@/types/api";
+import type {
+  Gear,
+  GarminStatus,
+  InjuryReport,
+  RaceGoal,
+  SourcesStatus,
+} from "@/types/api";
+
+import { otherWatch } from "./watch-brands";
 
 export interface Notice {
   key: string;
@@ -53,13 +61,20 @@ export function setupSteps({
   garmin,
   goals,
   gear,
+  sources,
 }: {
+  sources?: SourcesStatus;
   garmin?: GarminStatus;
   goals?: RaceGoal[];
   gear?: Gear[];
 }): SetupStep[] {
   const steps: SetupStep[] = [];
-  if (garmin && garmin.connection.status === "none")
+  if (
+    garmin &&
+    garmin.connection.status === "none" &&
+    sources &&
+    !otherWatch(sources)
+  )
     steps.push({
       key: "watch",
       label: "Conecta tu reloj",

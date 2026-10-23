@@ -17,17 +17,19 @@ import { Suspense } from "react";
 import { toast } from "sonner";
 
 import { AiProvidersCard } from "@/components/settings/ai-providers-card";
-import { GarminCard } from "@/components/settings/garmin-card";
 import { ProfileCard } from "@/components/settings/profile-card";
+import { WatchConnections } from "@/components/settings/watch-connections";
 import { Button } from "@/components/ui/button";
 import {
   useAiProviders,
   useFinishOnboarding,
   useGarminStatus,
   useProfile,
+  useSources,
 } from "@/hooks/use-api";
 import { ONBOARDING_STEPS, stepIndex } from "@/lib/onboarding";
 import { cn } from "@/lib/utils";
+import { otherWatch } from "@/lib/watch-brands";
 
 /** Barra de progreso con el nombre de cada paso. */
 function Progress({ current }: { current: number }) {
@@ -114,7 +116,9 @@ function CheckRow({
 
 function Summary() {
   const garmin = useGarminStatus();
+  const sources = useSources();
   const profile = useProfile();
+  const watch = garmin.data?.connected ? "Garmin" : otherWatch(sources.data);
   const ai = useAiProviders();
   const profileDone =
     !!profile.data?.birth_date &&
@@ -125,10 +129,10 @@ function Summary() {
       <Intro text="Así queda tu cuenta. Lo que falte lo puedes completar cuando quieras desde Ajustes." />
       <ul className="space-y-2">
         <CheckRow
-          done={garmin.data?.connected}
-          label="Garmin conectado"
-          pending="Sin Garmin no hay actividades que analizar."
-          step="garmin"
+          done={!!watch}
+          label={watch ? `${watch} conectado` : "Reloj conectado"}
+          pending="Sin reloj no hay entrenos que analizar."
+          step="reloj"
         />
         <CheckRow
           done={profileDone}
@@ -144,10 +148,10 @@ function Summary() {
           optional
         />
       </ul>
-      {garmin.data?.connected && (
+      {watch && (
         <p className="text-sm text-muted-foreground">
-          La primera sincronización puede tardar unos minutos; tus actividades
-          irán apareciendo en Actividades y en el Resumen.
+          La primera sincronización puede tardar unos minutos; tus entrenos irán
+          apareciendo en Entrenos y en Hoy.
         </p>
       )}
     </div>
@@ -187,8 +191,8 @@ function Wizard() {
             {[
               {
                 icon: Watch,
-                title: "Conectar Garmin",
-                text: "Para traer tus actividades y métricas diarias del reloj.",
+                title: "Conectar tu reloj",
+                text: "Garmin, Apple Watch, COROS, Samsung, Xiaomi, Huawei, Suunto, Polar…: tus entrenos y métricas diarias.",
               },
               {
                 icon: UserRound,
@@ -218,11 +222,11 @@ function Wizard() {
         </section>
       )}
 
-      {step === "garmin" && (
+      {step === "reloj" && (
         <section className="space-y-3">
-          <h1 className="font-heading text-2xl font-bold">Conecta Garmin</h1>
-          <Intro text="Entra con tu cuenta de Garmin Connect. Solo guardamos los tokens de acceso cifrados, nunca tu contraseña. Al conectar, tu perfil se rellena solo con los datos de Garmin." />
-          <GarminCard />
+          <h1 className="font-heading text-2xl font-bold">Conecta tu reloj</h1>
+          <Intro text="Elige la marca de tu reloj y te decimos cómo traer tus entrenos. Nunca guardamos tus contraseñas." />
+          <WatchConnections />
         </section>
       )}
 
@@ -298,7 +302,7 @@ function Wizard() {
 }
 
 /**
- * Configuración guiada para la primera vez que alguien entra: Garmin, perfil y
+ * Configuración guiada para la primera vez que alguien entra: reloj, perfil y
  * asistente IA, reutilizando las mismas tarjetas de Ajustes. Se puede saltar
  * cualquier paso y repetir desde Ajustes → Cuenta.
  */
