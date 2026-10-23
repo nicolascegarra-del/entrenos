@@ -327,7 +327,7 @@ export default function MaterialPage() {
     <section className="mx-auto max-w-3xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="font-heading text-2xl font-bold md:text-3xl">
+          <h1 className="font-heading text-2xl font-bold max-lg:sr-only md:text-3xl">
             Material
           </h1>
           <p className="text-sm text-muted-foreground">

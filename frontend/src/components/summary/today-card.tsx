@@ -47,7 +47,7 @@ export function TodayCard({
     <Card className="shadow-md">
       <CardHeader>
         <CardTitle className="font-heading text-lg">
-          <span className="capitalize">{weekday}</span>
+          {weekday.charAt(0).toUpperCase() + weekday.slice(1)}
         </CardTitle>
       </CardHeader>
       <CardContent className="grid gap-3 md:grid-cols-3">

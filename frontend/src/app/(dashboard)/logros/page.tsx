@@ -184,7 +184,9 @@ export default function LogrosPage() {
   return (
     <section className="mx-auto max-w-4xl space-y-4">
       <div>
-        <h1 className="font-heading text-2xl font-bold md:text-3xl">Logros</h1>
+        <h1 className="font-heading text-2xl font-bold max-lg:sr-only md:text-3xl">
+          Logros
+        </h1>
         <p className="text-sm text-muted-foreground">
           Tu constancia, tus retos del mes y los hitos que has ido consiguiendo.
         </p>

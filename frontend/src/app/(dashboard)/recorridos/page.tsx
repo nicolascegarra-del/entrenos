@@ -15,7 +15,7 @@ export default function RecorridosPage() {
   return (
     <section className="mx-auto max-w-3xl space-y-4">
       <div>
-        <h1 className="font-heading text-2xl font-bold md:text-3xl">
+        <h1 className="font-heading text-2xl font-bold max-lg:sr-only md:text-3xl">
           Recorridos
         </h1>
         <p className="text-sm text-muted-foreground">

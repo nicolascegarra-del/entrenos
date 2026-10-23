@@ -72,7 +72,7 @@ export default function ObjetivosPage() {
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="font-heading text-2xl font-bold md:text-3xl">
+        <h1 className="font-heading text-2xl font-bold max-lg:sr-only md:text-3xl">
           Objetivos
         </h1>
         <Button asChild className="min-h-11">
