@@ -25,7 +25,7 @@ from datetime import UTC, date, datetime
 
 from sqlmodel import Session, col, select
 
-from app.models import Activity, ActivityStream, PerformanceTest, PlannedSession
+from app.models import Activity, ActivityStream, Lap, PerformanceTest, PlannedSession
 from app.services.plan_steps import local_day, sport_family
 from app.services.race_models import daniels_paces, vdot
 from app.services.zones import CS_TO_THRESHOLD, hr_zones
@@ -43,6 +43,11 @@ VALID_RANGES = {
     "vo2max": (20, 90),
     "hr_max": (120, 230),
     "vdot": (20, 90),
+    "ftp": (50, 600),
+    "css_pace_s_100m": (50, 240),
+    "lt1_hr": (80, 210),
+    "lt1_pace_s_km": (150, 700),
+    "lt1_power": (30, 600),
 }
 
 
@@ -104,12 +109,31 @@ PROTOCOLS: dict[str, Protocol] = {
         Protocol("bike_hr_20min", "Bici: 20 min a tope (FC)", "cycling", "FC de umbral en bici (aprox.)",
                  "Tras calentar, 20 min al máximo esfuerzo sostenible.",
                  _blocks(WARMUP, ("steady", 1200, None), COOLDOWN)),
+        Protocol("bike_ftp_20min", "Bici: FTP 20 min (potencia)", "cycling", "FTP y zonas de potencia",
+                 "Tras calentar (con 5 min fuertes), 20 min a la máxima potencia que puedas mantener regular.",
+                 _blocks(WARMUP, ("interval", 300, None), ("recovery", 600, None), ("steady", 1200, None),
+                         COOLDOWN)),
+        Protocol("bike_ramp", "Bici: test de rampa (potencia)", "cycling", "FTP (75 % de tu mejor minuto)",
+                 "En rodillo: sube unos 20-25 W cada minuto hasta no poder más.",
+                 _blocks(WARMUP, ("interval", 60, None, 20), COOLDOWN)),
+        Protocol("swim_css", "Natación: CSS (400 + 200 m)", "swimming", "Ritmo umbral en el agua y zonas",
+                 "Tras calentar, 400 m a tope, 5-10 min suaves y 200 m a tope. Marca una vuelta en cada uno.",
+                 _blocks(("warmup", None, 400), ("interval", None, 400), ("recovery", 400, None),
+                         ("interval", None, 200), ("cooldown", None, 200))),
+        Protocol("lactate", "Test de lactato escalonado", "running", "LT1, LT2 y zonas de verdad",
+                 "Escalones de 3-5 min cada vez más rápidos (o con más vatios); al final de cada uno, una gota "
+                 "de sangre en el lactatómetro. Mete el lactato de cada escalón.",
+                 detectable=False),
+        Protocol("lab", "Informe de laboratorio", "running", "VO2max y umbrales de una prueba de esfuerzo",
+                 "Copia los valores del informe: VO2max, FC máxima y los dos umbrales (VT1/VT2 o LT1/LT2) "
+                 "con su FC y su ritmo o vatios.",
+                 detectable=False),
         Protocol("manual", "Resultado conocido", "running", "Lo que ya sabes (otro test, un informe…)",
                  "Mete a mano los valores que tengas: FC umbral, ritmo umbral, VO2max o FC máxima.",
                  detectable=False),
     )
 }  # fmt: skip
-MANUAL_KEYS = ("lthr", "threshold_pace_s_km", "vo2max", "hr_max")
+MANUAL_KEYS = ("lthr", "threshold_pace_s_km", "vo2max", "hr_max", "ftp")
 
 
 class TestError(ValueError):
@@ -119,34 +143,46 @@ class TestError(ValueError):
 # ─── Series y tramos ─────────────────────────────────────────────────────────
 
 
+class _Prefix:
+    """Sumas acumuladas de un canal con huecos: media y cobertura de cualquier tramo en O(1)."""
+
+    def __init__(self, values: list[float | None], zero_ok: bool = False) -> None:
+        self.sum, self.n = [0.0], [0]
+        for v in values:
+            ok = v is not None and (v > 0 or (zero_ok and v == 0))
+            self.sum.append(self.sum[-1] + (v if ok else 0.0))  # type: ignore[operator]
+            self.n.append(self.n[-1] + ok)
+
+    def stats(self, i: int, j: int) -> tuple[float | None, float]:
+        count = self.n[j + 1] - self.n[i]
+        points = j - i + 1
+        avg = (self.sum[j + 1] - self.sum[i]) / count if count else None
+        return avg, (count / points if points else 0.0)
+
+
 @dataclass
 class Series:
     t: list[float]
     d: list[float | None]  # distancia acumulada «limpia» (None si la actividad no tiene)
     hr: list[float | None]
-    # Sumas acumuladas de FC y de puntos con FC: la media de cualquier tramo en O(1).
-    _hr_sum: list[float] = field(default_factory=list)
-    _hr_n: list[int] = field(default_factory=list)
+    power: list[float | None] = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        total, n = 0.0, 0
-        self._hr_sum, self._hr_n = [0.0], [0]
-        for h in self.hr:
-            if h:
-                total, n = total + h, n + 1
-            self._hr_sum.append(total)
-            self._hr_n.append(n)
+        self._hr = _Prefix(self.hr)
+        # Potencia: los ceros (dejar de pedalear) cuentan, como en la potencia media del ciclocomputador.
+        self._power = _Prefix(self.power or [None] * len(self.t), zero_ok=True)
 
     @classmethod
     def load(cls, session: Session, activity_id: int) -> "Series":
         rows = session.exec(
             select(ActivityStream).where(
-                ActivityStream.activity_id == activity_id, col(ActivityStream.channel).in_(("time", "distance", "hr"))
+                ActivityStream.activity_id == activity_id,
+                col(ActivityStream.channel).in_(("time", "distance", "hr", "power")),
             )
         ).all()
         ch = {r.channel: r.values for r in rows}
-        time, dist, hr = ch.get("time") or [], ch.get("distance") or [], ch.get("hr") or []
-        t_out, d_out, h_out = [], [], []
+        time, dist, hr, power = (ch.get(k) or [] for k in ("time", "distance", "hr", "power"))
+        t_out, d_out, h_out, p_out = [], [], [], []
         last_d: float | None = None
         clean = 0.0
         for i, t in enumerate(time):
@@ -161,18 +197,25 @@ class Series:
             d_out.append(clean if last_d is not None else None)
             h = hr[i] if i < len(hr) else None
             h_out.append(float(h) if h else None)
-        return cls(t_out, d_out, h_out)
+            w = power[i] if i < len(power) else None
+            p_out.append(float(w) if w is not None else None)
+        return cls(t_out, d_out, h_out, p_out)
 
     @property
     def has_distance(self) -> bool:
         return any(v is not None for v in self.d) and (self.d[-1] or 0) > 0
 
+    @property
+    def has_power(self) -> bool:
+        return sum(1 for w in self.power if w) > len(self.t) / 2
+
     def hr_stats(self, i: int, j: int) -> tuple[float | None, float]:
         """FC media del tramo y fracción de puntos con FC."""
-        count = self._hr_n[j + 1] - self._hr_n[i]
-        points = j - i + 1
-        avg = (self._hr_sum[j + 1] - self._hr_sum[i]) / count if count else None
-        return avg, (count / points if points else 0.0)
+        return self._hr.stats(i, j)
+
+    def power_stats(self, i: int, j: int) -> tuple[float | None, float]:
+        """Potencia media del tramo (con los ceros) y fracción de puntos con dato."""
+        return self._power.stats(i, j)
 
     def max_gap(self, i: int, j: int) -> float:
         return max((self.t[k + 1] - self.t[k] for k in range(i, j)), default=0.0)
@@ -285,7 +328,8 @@ def _check_effort(o: Outcome, avg_hr: float | None, hr_max: float | None) -> Non
 def _check_coherence(o: Outcome, current: dict) -> None:
     """Muy lejos de lo que ya estimaba la app suele ser un error de datos (o un test mal hecho)."""
     far = []
-    for key, label in (("lthr", "FC umbral"), ("threshold_pace_s_km", "ritmo umbral")):
+    for key, label in (("lthr", "FC umbral"), ("threshold_pace_s_km", "ritmo umbral"), ("ftp", "FTP"),
+                       ("css_pace_s_100m", "CSS")):  # fmt: skip
         new, old = o.results.get(key), current.get(key)
         if new and old and abs(new - old) / old > COHERENCE_TOLERANCE:
             far.append(f"{label} un {round(abs(new - old) / old * 100)} % distinta")
@@ -428,6 +472,113 @@ def _max_hr(s: Series) -> Outcome:
     return o
 
 
+# ─── Potencia (FTP) ──────────────────────────────────────────────────────────
+
+# Coggan: % del FTP (límite superior de cada zona).
+POWER_ZONES = (("Z1 Recuperación", 0, 0.55), ("Z2 Resistencia", 0.55, 0.75), ("Z3 Tempo", 0.75, 0.90),
+               ("Z4 Umbral", 0.90, 1.05), ("Z5 VO2max", 1.05, 1.20), ("Z6 Anaeróbica", 1.20, 1.50),
+               ("Z7 Neuromuscular", 1.50, None))  # fmt: skip
+
+
+def power_zones(ftp: float) -> list[dict]:
+    return [
+        {"name": name, "min": round(ftp * lo), "max": round(ftp * hi) - 1 if hi else None}
+        for name, lo, hi in POWER_ZONES
+    ]
+
+
+def _ftp(s: Series, duration: int, factor: float, label: str) -> Outcome:
+    """FTP = factor × la mejor potencia media de `duration` s (20 min: 95 %; rampa, 1 min: 75 %)."""
+    o = Outcome()
+    if not o.check("potencia", s.has_power, "Con potencia." if s.has_power else
+                   "La actividad no tiene potencia: usa el test de FC o un potenciómetro.", critical=True):  # fmt: skip
+        return o
+
+    def score(i: int, j: int) -> float | None:
+        avg, coverage = s.power_stats(i, j)
+        return avg if coverage >= MIN_HR_COVERAGE else None
+
+    ij = best_by_duration(s, duration, score)
+    if not _check_window(o, s, ij, label):
+        return o
+    i, j = ij  # type: ignore[misc]
+    avg, _ = s.power_stats(i, j)
+    if avg:
+        ftp = round(avg * factor)
+        o.results.update({"ftp": ftp, "best_power_w": round(avg), "power_zones": power_zones(ftp)})
+    if duration >= 600 and avg:
+        # Regularidad: ningún tercio a más de un 10 % de la media (salida explosiva o pinchar al final).
+        edges = [s.index_at(s.t[i] + (s.t[j] - s.t[i]) * k / 3) for k in range(4)]
+        parts = [s.power_stats(a, b)[0] for a, b in zip(edges, edges[1:], strict=False) if b > a]
+        worst = max((abs(w - avg) / avg for w in parts if w), default=0.0)
+        o.check("regularidad", worst <= 0.10, "Potencia regular." if worst <= 0.10 else
+                f"La potencia varió un {round(worst * 100)} % entre tramos: reparte mejor el esfuerzo.")  # fmt: skip
+        avg_hr, coverage = s.hr_stats(s.index_at(s.t[j] - 1200), j)
+        if avg_hr and coverage >= MIN_HR_COVERAGE:
+            o.results["lthr"] = round(avg_hr * factor)
+            o.results["hr_zones"] = hr_zones(o.results["lthr"])
+    o.results["_avg_hr"] = s.hr_stats(i, j)[0]
+    return o
+
+
+# ─── Natación (CSS) ──────────────────────────────────────────────────────────
+
+# Ritmo por 100 m respecto al CSS (segundos que se suman): límite rápido y lento de cada zona.
+CSS_ZONES = (("Z1 Recuperación", 15, None), ("Z2 Aeróbica", 8, 15), ("Z3 Tempo", 3, 8),
+             ("Z4 Umbral (CSS)", -2, 3), ("Z5 VO2max", None, -2))  # fmt: skip
+
+
+def css_zones(css_pace: float) -> list[dict]:
+    """Rangos de ritmo por 100 m: `fast` = límite rápido, `slow` = límite lento (None = sin límite)."""
+    return [
+        {"name": name, "fast": round(css_pace + lo) if lo is not None else None,
+         "slow": round(css_pace + hi) if hi is not None else None}
+        for name, lo, hi in CSS_ZONES
+    ]  # fmt: skip
+
+
+def css_from_times(t400: float, t200: float) -> dict:
+    """CSS (m/s) = (400 − 200) / (T400 − T200); se da como ritmo por 100 m."""
+    speed = 200 / (t400 - t200)
+    pace = round(100 / speed)
+    return {"css_pace_s_100m": pace, "t400_s": round(t400), "t200_s": round(t200), "css_zones": css_zones(pace)}
+
+
+def _fastest_laps(laps: list[Lap], meters: float) -> float | None:
+    """Menor tiempo de vueltas seguidas que suman `meters` (±2 %): vale con vueltas por largo o por serie."""
+    best = None
+    for i in range(len(laps)):
+        dist = time = 0.0
+        for lap in laps[i:]:
+            dist += lap.distance_m or 0
+            time += lap.duration_s
+            if dist >= meters * 0.98:
+                if dist <= meters * 1.02 and (best is None or time < best):
+                    best = time
+                break
+    return best
+
+
+def _css(session: Session, activity: Activity) -> Outcome:
+    o = Outcome()
+    laps = list(session.exec(select(Lap).where(Lap.activity_id == activity.id).order_by(col(Lap.index))).all())
+    t400, t200 = _fastest_laps(laps, 400), _fastest_laps(laps, 200)
+    found = t400 is not None and t200 is not None
+    if not o.check("duracion", found, "400 y 200 m encontrados en las vueltas." if found else
+                   "No encuentro un 400 y un 200 en las vueltas: mete los tiempos a mano.", critical=True):  # fmt: skip
+        return o
+    ratio = t400 / t200  # type: ignore[operator]
+    if ratio <= 1:
+        o.check(
+            "coherencia_css", False, "El 400 no puede ser más rápido que el 200: revisa las vueltas.", critical=True
+        )
+        return o
+    o.check("coherencia_css", 1.9 <= ratio <= 2.5, "Los dos tiempos encajan." if 1.9 <= ratio <= 2.5 else
+            "El 400 y el 200 no encajan del todo (¿fuiste a tope en los dos?).")  # fmt: skip
+    o.results.update(css_from_times(t400, t200))  # type: ignore[arg-type]
+    return o
+
+
 DETECTORS: dict[str, Callable[[Series], Outcome]] = {
     "run_30min": lambda s: _threshold_run(s, 1800, 1.0, 1200),
     "run_20min": lambda s: _threshold_run(s, 1200, 0.95, None),
@@ -438,6 +589,8 @@ DETECTORS: dict[str, Callable[[Series], Outcome]] = {
     "max_hr": _max_hr,
     "bike_hr_30min": lambda s: _threshold_bike(s, 1800, 1.0, 1200),
     "bike_hr_20min": lambda s: _threshold_bike(s, 1200, 0.95, None),
+    "bike_ftp_20min": lambda s: _ftp(s, 1200, 0.95, "20 min con potencia"),
+    "bike_ramp": lambda s: _ftp(s, 60, 0.75, "1 min con potencia"),
 }
 
 
@@ -446,16 +599,27 @@ def detect(session: Session, activity: Activity, protocol: str) -> Outcome:
     from app.services import progress as prog
     from app.services.zones import estimate_thresholds
 
-    o = DETECTORS[protocol](Series.load(session, activity.id))
+    detector = DETECTORS.get(protocol)
+    o = detector(Series.load(session, activity.id)) if detector else _css(session, activity)
     avg_hr = o.results.pop("_avg_hr", None)
     if o.failed:
         return o
     thr = prog.user_thresholds(session, activity.user_id)
     if protocol != "max_hr":
         _check_effort(o, avg_hr, thr.hr_max)
-    if PROTOCOLS[protocol].sport == "running" and protocol != "max_hr":
+    sport = PROTOCOLS[protocol].sport
+    if sport == "running" and protocol != "max_hr":
         current = estimate_thresholds(session, activity.user_id)
         _check_coherence(o, {"lthr": current["lthr"], "threshold_pace_s_km": current["threshold_pace_s_km"]})
+    elif sport in ("cycling", "swimming"):
+        from app.services.test_results import active_test
+
+        previous = {}
+        for key in ("ftp", "lthr", "css_pace_s_100m"):
+            if key in o.results and (prev := active_test(session, activity.user_id, sport, key)):
+                previous[key] = prev.results[key]
+        if previous:
+            _check_coherence(o, previous)
     _check_ranges(o)
     return o
 
@@ -500,24 +664,140 @@ def test_from_activity(
     return row
 
 
-def manual_test(
-    session: Session, user_id: int, sport: str, test_date: date, values: dict, notes: str = ""
+def with_zones(sport: str, results: dict) -> dict:
+    """Añade las zonas que dependen de los valores: FC en bici, potencia (FTP) y natación (CSS)."""
+    out = dict(results)
+    if sport_family(sport) == "cycling" and out.get("lthr"):
+        out["hr_zones"] = hr_zones(out["lthr"])
+    if out.get("ftp"):
+        out["power_zones"] = power_zones(out["ftp"])
+    if out.get("css_pace_s_100m"):
+        out["css_zones"] = css_zones(out["css_pace_s_100m"])
+    return out
+
+
+def _save_confirmed(
+    session: Session,
+    user_id: int,
+    sport: str,
+    protocol: str,
+    test_date: date,
+    results: dict,
+    notes: str,
+    checks: list[dict] | None = None,
+    activity_id: int | None = None,
 ) -> PerformanceTest:
-    """Resultado conocido metido a mano: queda confirmado (se fía de quien lo mete) y se aplica."""
-    results = {k: values[k] for k in MANUAL_KEYS if values.get(k) is not None}
-    bad = [k for k, v in results.items() if not VALID_RANGES[k][0] <= v <= VALID_RANGES[k][1]]
-    if bad or not results:
-        raise TestError("Revisa los valores: alguno está fuera de lo posible." if bad else "Mete al menos un valor.")
-    if sport_family(sport) == "cycling" and "lthr" in results:
-        results["hr_zones"] = hr_zones(results["lthr"])
-    row = PerformanceTest(user_id=user_id, sport=sport, protocol="manual", test_date=test_date, source="manual",
-                          status="confirmed", confidence="alta", results=results, notes=notes[:500],
+    row = PerformanceTest(user_id=user_id, sport=sport, protocol=protocol, test_date=test_date, source="manual",
+                          status="confirmed", confidence="alta", results=with_zones(sport, results),
+                          checks=checks or [], notes=notes[:500], activity_id=activity_id,
                           confirmed_at=datetime.now(UTC))  # fmt: skip
     session.add(row)
     session.commit()
     session.refresh(row)
     _apply(session, row)
     return row
+
+
+def _in_range(results: dict) -> None:
+    bad = [k for k, v in results.items() if k in VALID_RANGES and not VALID_RANGES[k][0] <= v <= VALID_RANGES[k][1]]
+    if bad:
+        raise TestError("Revisa los valores: alguno está fuera de lo posible.")
+    if not results:
+        raise TestError("Mete al menos un valor.")
+
+
+def manual_test(
+    session: Session, user_id: int, sport: str, test_date: date, values: dict, notes: str = "",
+    protocol: str = "manual",
+) -> PerformanceTest:  # fmt: skip
+    """
+    Resultado metido a mano (queda confirmado: se fía de quien lo mete) y se aplica:
+
+    - `manual`: FC umbral, ritmo umbral, VO2max, FC máx. o FTP.
+    - `lab`: informe de laboratorio; el segundo umbral (VT2/LT2) da la FC y el ritmo umbral (o el FTP en
+      bici) y el primero (VT1/LT1) queda como referencia del techo de la Z2.
+    - `swim_css`: los tiempos de 400 y 200 m.
+    """
+    v = {k: x for k, x in values.items() if x is not None}
+    if protocol == "swim_css":
+        t400, t200 = v.get("t400_s"), v.get("t200_s")
+        if not t400 or not t200 or t400 <= t200:
+            raise TestError("Mete los tiempos de 400 y 200 m (el 400, más lento que el 200).")
+        results = css_from_times(t400, t200)
+        _in_range({"css_pace_s_100m": results["css_pace_s_100m"]})
+        return _save_confirmed(session, user_id, "swimming", protocol, test_date, results, notes)
+    if protocol == "lab":
+        results = {
+            "vo2max": v.get("vo2max"), "hr_max": v.get("hr_max"),
+            "lt1_hr": v.get("vt1_hr"), "lt1_pace_s_km": v.get("vt1_pace_s_km"), "lt1_power": v.get("vt1_power"),
+            "lthr": v.get("vt2_hr"), "threshold_pace_s_km": v.get("vt2_pace_s_km"), "ftp": v.get("vt2_power"),
+        }  # fmt: skip
+        results = {k: x for k, x in results.items() if x is not None}
+    else:
+        results = {k: v[k] for k in MANUAL_KEYS if k in v}
+    if sport_family(sport) != "running":
+        results.pop("threshold_pace_s_km", None)
+        results.pop("lt1_pace_s_km", None)
+    _in_range(results)
+    return _save_confirmed(session, user_id, sport, protocol, test_date, results, notes)
+
+
+def lactate_test(
+    session: Session, user_id: int, sport: str, test_date: date, steps: list[dict], notes: str = "",
+    activity: Activity | None = None,
+) -> PerformanceTest:  # fmt: skip
+    """
+    Test de lactato escalonado. Cada escalón: `lactate` y su intensidad (`pace_s_km` o `power`) y FC, o
+    `lap_index` para tomar ritmo, potencia y FC de esa vuelta de la actividad.
+
+    Raises:
+        TestError: pocos escalones o valores imposibles, o sin umbral anaeróbico.
+    """
+    from app.services.lactate import LactateError, Step, analyze
+
+    cycling = sport_family(sport) == "cycling"
+    laps = {}
+    if activity is not None:
+        laps = {lap.index: lap for lap in session.exec(select(Lap).where(Lap.activity_id == activity.id)).all()}
+    parsed = []
+    for s in steps:
+        lap = laps.get(s.get("lap_index")) if s.get("lap_index") is not None else None
+        hr = s.get("hr") or (lap.avg_hr if lap else None)
+        if cycling:
+            power = s.get("power") or ((lap.metrics or {}).get("avg_power") if lap else None)
+            intensity = float(power) if power else 0.0
+        else:
+            pace = s.get("pace_s_km")
+            speed = 1000 / pace if pace else (lap.avg_speed if lap else None)
+            intensity = float(speed) if speed else 0.0
+        parsed.append(Step(intensity=intensity, lactate=float(s.get("lactate") or 0), hr=hr))
+    try:
+        raw, checks = analyze(parsed)
+    except LactateError as exc:
+        raise TestError(str(exc)) from exc
+    if "lt2" not in raw:
+        raise TestError(next(c["message"] for c in checks if c["key"] == "lt2"))
+    results: dict = {"lt2_method": raw.get("lt2_method"), "baseline_mmol": raw["baseline_mmol"],
+                     "lactate_steps": raw["steps"]}  # fmt: skip
+    if raw.get("lt1_hr"):
+        results["lt1_hr"] = raw["lt1_hr"]
+    if raw.get("lt2_hr"):
+        results["lthr"] = raw["lt2_hr"]
+    if cycling:
+        results["ftp"] = round(raw["lt2"])
+        if raw.get("lt1"):
+            results["lt1_power"] = round(raw["lt1"])
+        if raw.get("obla"):
+            results["obla_power"] = round(raw["obla"])
+    else:
+        results["threshold_pace_s_km"] = _pace(raw["lt2"])
+        if raw.get("lt1"):
+            results["lt1_pace_s_km"] = _pace(raw["lt1"])
+        if raw.get("obla"):
+            results["obla_pace_s_km"] = _pace(raw["obla"])
+    _in_range({k: v for k, v in results.items() if k in VALID_RANGES})
+    return _save_confirmed(session, user_id, sport, "lactate", test_date, results, notes, checks,
+                           activity.id if activity else None)  # fmt: skip
 
 
 def confirm(session: Session, row: PerformanceTest) -> PerformanceTest:
@@ -614,6 +894,10 @@ def summary_text(row: PerformanceTest) -> str:
         parts.append(f"VDOT {r['vdot']}")
     if r.get("hr_max"):
         parts.append(f"FC máx. {r['hr_max']}")
+    if r.get("ftp"):
+        parts.append(f"FTP {r['ftp']} W")
+    if r.get("css_pace_s_100m"):
+        parts.append(f"CSS {_mmss(r['css_pace_s_100m'])}/100 m")
     return " · ".join(parts) or "Sin valores"
 
 

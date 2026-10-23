@@ -27,6 +27,8 @@ class UserProfile(SQLModel, table=True):
     weight_kg: float | None = Field(default=None, gt=0, lt=400)
     height_cm: float | None = Field(default=None, gt=0, lt=260)
     source: str = Field(default="manual", max_length=16)  # garmin | manual
+    # False = «no hago tests de lactato»: se ocultan el test escalonado y sus campos.
+    lactate_tests: bool = Field(default=True, sa_column_kwargs={"server_default": "true"})
     updated_at: datetime = Field(
         default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, onupdate=utcnow)
     )

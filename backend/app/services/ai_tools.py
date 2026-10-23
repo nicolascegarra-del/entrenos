@@ -333,6 +333,16 @@ def zonas_y_umbrales(session: Session, user_id: int, args: dict) -> tuple[str, d
         }
         for h in rep.get("history") or []
     ]
+    from app.services.performance_tests import PROTOCOLS, summary_text, user_tests
+
+    tests = [t for t in user_tests(session, user_id, limit=10) if t.status != "failed"]
+    if tests:
+        out["tests"] = [
+            {"fecha": str(t.test_date), "tipo": PROTOCOLS[t.protocol].label if t.protocol in PROTOCOLS else t.protocol,
+             "deporte": t.sport, "estado": "aplicado" if t.status == "confirmed" else "sin confirmar",
+             "resultado": summary_text(t)}
+            for t in tests
+        ]  # fmt: skip
     eff = effective_paces(session, user_id)
     if eff:
         out["ritmos_entrenamiento"] = {k: f"{clock(v[0])}–{clock(v[1])}/km" for k, v in eff["paces"].items()}
@@ -686,7 +696,7 @@ TOOLS: list[ToolSpec] = [
     ToolSpec(
         "zonas_y_umbrales",
         "Zonas de FC y de ritmo vigentes, FC y ritmo umbral con su fuente y alternativas, historial de cambios y "
-        "ritmos de entrenamiento (E/M/T/I/R).",
+        "ritmos de entrenamiento (E/M/T/I/R) y tus tests de rendimiento (umbral, VO2max, lactato, FTP, CSS).",
         {"type": "object", "properties": {}},
     ),
     ToolSpec(

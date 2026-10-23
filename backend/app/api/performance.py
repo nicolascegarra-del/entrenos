@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import select
 
 from app.api.deps import CurrentUser, SessionDep
-from app.models import Activity, PerformanceTest
+from app.models import Activity, PerformanceTest, UserProfile
 from app.services import performance_tests as pt
 
 router = APIRouter(tags=["tests de rendimiento"])
@@ -34,14 +34,49 @@ class TestOut(BaseModel):
     confirmed_at: datetime | None
 
 
+SPORT_PATTERN = "^(running|cycling|swimming)$"
+
+
 class ManualIn(BaseModel):
-    sport: str = Field(pattern="^(running|cycling|swimming)$")
+    """Resultado conocido (`manual`), informe de laboratorio (`lab`) o tiempos de CSS (`swim_css`)."""
+
+    protocol: str = Field(default="manual", pattern="^(manual|lab|swim_css)$")
+    sport: str = Field(pattern=SPORT_PATTERN)
     test_date: date
     lthr: int | None = Field(default=None, ge=100, le=210)
     threshold_pace_s_km: int | None = Field(default=None, ge=150, le=600)
     vo2max: float | None = Field(default=None, ge=20, le=90)
     hr_max: int | None = Field(default=None, ge=120, le=230)
+    ftp: int | None = Field(default=None, ge=50, le=600)
+    vt1_hr: int | None = Field(default=None, ge=80, le=210)
+    vt1_pace_s_km: int | None = Field(default=None, ge=150, le=700)
+    vt1_power: int | None = Field(default=None, ge=30, le=600)
+    vt2_hr: int | None = Field(default=None, ge=100, le=210)
+    vt2_pace_s_km: int | None = Field(default=None, ge=150, le=600)
+    vt2_power: int | None = Field(default=None, ge=50, le=600)
+    t400_s: float | None = Field(default=None, ge=150, le=1500)
+    t200_s: float | None = Field(default=None, ge=70, le=800)
     notes: str = Field(default="", max_length=500)
+
+
+class LactateStepIn(BaseModel):
+    lactate: float = Field(ge=0.3, le=25)
+    pace_s_km: int | None = Field(default=None, ge=120, le=900)
+    power: int | None = Field(default=None, ge=20, le=1000)
+    hr: int | None = Field(default=None, ge=50, le=230)
+    lap_index: int | None = Field(default=None, ge=0, description="Tomar ritmo/potencia y FC de esta vuelta")
+
+
+class LactateIn(BaseModel):
+    sport: str = Field(pattern="^(running|cycling)$")
+    test_date: date
+    activity_id: int | None = None
+    steps: list[LactateStepIn] = Field(min_length=4, max_length=20)
+    notes: str = Field(default="", max_length=500)
+
+
+class TestPrefs(BaseModel):
+    lactate_tests: bool = True
 
 
 class MarkIn(BaseModel):
@@ -86,10 +121,48 @@ def create_manual(body: ManualIn, session: SessionDep, user: CurrentUser) -> Tes
     if body.test_date > date.today():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "La fecha no puede ser futura.")
     try:
-        row = pt.manual_test(session, user.id, body.sport, body.test_date, body.model_dump(), body.notes)
+        row = pt.manual_test(session, user.id, body.sport, body.test_date, body.model_dump(), body.notes, body.protocol)
     except pt.TestError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     return _out(session, row)
+
+
+@router.post(
+    "/tests/lactate",
+    summary="Test de lactato escalonado: LT1, LT2 (Dmax modificado u OBLA 4 mmol) y zonas",
+    status_code=status.HTTP_201_CREATED,
+    responses={422: {"description": "Escalones insuficientes o sin umbral"}},
+)
+def create_lactate(body: LactateIn, session: SessionDep, user: CurrentUser) -> TestOut:
+    if body.test_date > date.today():
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "La fecha no puede ser futura.")
+    activity = None
+    if body.activity_id is not None:
+        activity = session.get(Activity, body.activity_id)
+        if activity is None or activity.user_id != user.id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Actividad no encontrada.")
+    try:
+        row = pt.lactate_test(
+            session, user.id, body.sport, body.test_date, [s.model_dump() for s in body.steps], body.notes, activity
+        )
+    except pt.TestError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    return _out(session, row)
+
+
+@router.get("/tests/preferences", summary="Preferencias de los tests (p. ej. si haces lactato)")
+def get_test_prefs(session: SessionDep, user: CurrentUser) -> TestPrefs:
+    profile = session.get(UserProfile, user.id)
+    return TestPrefs(lactate_tests=profile.lactate_tests if profile else True)
+
+
+@router.put("/tests/preferences", summary="Guardar las preferencias de los tests")
+def put_test_prefs(body: TestPrefs, session: SessionDep, user: CurrentUser) -> TestPrefs:
+    profile = session.get(UserProfile, user.id) or UserProfile(user_id=user.id)
+    profile.lactate_tests = body.lactate_tests
+    session.add(profile)
+    session.commit()
+    return body
 
 
 @router.get("/activities/{activity_id}/test", summary="Test de esta actividad (si se marcó como test)")
