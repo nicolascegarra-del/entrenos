@@ -58,6 +58,11 @@ const KINDS: { key: keyof NotificationPrefs; label: string; help: string }[] = [
     help: "Cuando la IA termina el análisis de un entreno recién sincronizado.",
   },
   {
+    key: "tests",
+    label: "Resultados de tus tests",
+    help: "Cuando un test planificado se analiza al sincronizarlo, para que lo revises.",
+  },
+  {
     key: "achievements",
     label: "Récords y logros",
     help: "Nuevas mejores marcas y retos conseguidos.",

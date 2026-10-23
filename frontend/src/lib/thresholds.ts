@@ -1,10 +1,11 @@
 import { formatDuration } from "@/lib/format";
 
 export type ThresholdSource =
-  "garmin" | "vdot" | "velocidad_critica" | "mejor_hora";
+  "test" | "garmin" | "vdot" | "velocidad_critica" | "mejor_hora";
 
 /** Nombre corto de cada estimación del ritmo umbral. */
 export const THRESHOLD_LABEL: Record<ThresholdSource, string> = {
+  test: "Tu test",
   garmin: "Garmin",
   vdot: "Daniels (tu nivel de carrera)",
   velocidad_critica: "Velocidad crítica",

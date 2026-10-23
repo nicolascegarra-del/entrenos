@@ -12,6 +12,7 @@ import { GearSelect } from "@/components/activity/gear-select";
 import { LapsTable } from "@/components/activity/laps-table";
 import { RaceToggle } from "@/components/activity/race-toggle";
 import { ReviewCard } from "@/components/activity/review-card";
+import { ActivityTestCard, MarkTest } from "@/components/tests/activity-test";
 import { RouteCard } from "@/components/activity/route-card";
 import {
   StreamCharts,
@@ -31,6 +32,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useActivity, useCatalog, useStreams } from "@/hooks/use-api";
 import { ApiError } from "@/lib/api";
 import { usesShoes } from "@/lib/gear";
+import { testSport } from "@/lib/tests";
 import {
   formatDateTime,
   formatDistance,
@@ -242,7 +244,7 @@ export default function ActivityDetailPage() {
         actions={
           <>
             <AskAi activity={activity} />
-            {usesShoes(activity.sport) && (
+            {(usesShoes(activity.sport) || testSport(activity.sport)) && (
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -255,18 +257,24 @@ export default function ActivityDetailPage() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent align="end" className="w-72 space-y-3">
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      Zapatillas
-                    </p>
-                    <GearSelect activity={activity} />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      ¿Fue una carrera a tope? Solo esas cuentan para tu nivel.
-                    </p>
-                    <RaceToggle activity={activity} />
-                  </div>
+                  {usesShoes(activity.sport) && (
+                    <>
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Zapatillas
+                        </p>
+                        <GearSelect activity={activity} />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          ¿Fue una carrera a tope? Solo esas cuentan para tu
+                          nivel.
+                        </p>
+                        <RaceToggle activity={activity} />
+                      </div>
+                    </>
+                  )}
+                  <MarkTest activity={activity} />
                 </PopoverContent>
               </Popover>
             )}
@@ -275,6 +283,8 @@ export default function ActivityDetailPage() {
       />
 
       <StatsGrid activity={activity} catalog={catalog} />
+
+      <ActivityTestCard activityId={activity.id} />
 
       <ReviewCard activity={activity} />
 

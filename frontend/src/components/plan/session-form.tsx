@@ -9,6 +9,7 @@ import {
   type Control,
   type UseFormRegister,
 } from "react-hook-form";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
 import { PacesExplanationBlock } from "@/components/goals/explanation";
@@ -16,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useTrainingPaces } from "@/hooks/use-api";
+import { useTestProtocols, useTrainingPaces } from "@/hooks/use-api";
 import { formatDuration } from "@/lib/format";
 import {
   BLOCK_KINDS,
@@ -32,6 +33,7 @@ import type {
   PlannedBlock,
   PlannedSessionInput,
   TargetMetric,
+  TestProtocol,
 } from "@/types/api";
 
 const SPORTS = [
@@ -514,8 +516,31 @@ function BlockEditor({
   );
 }
 
+/** «Test: 30 min a tope», sin repetir la palabra si el nombre ya la lleva. */
+const testTitle = (label: string) =>
+  label.toLowerCase().startsWith("test") ? label : `Test: ${label}`;
+
+/** Bloques de la plantilla de un test, con los campos que no trae a null. */
+function templateBlocks(protocol: TestProtocol): BlockForm[] {
+  return protocol.template.map((b) =>
+    toForm({
+      kind: b.kind ?? "steady",
+      repeat: b.repeat ?? 1,
+      duration_s: b.duration_s ?? null,
+      distance_m: b.distance_m ?? null,
+      target_metric: null,
+      target_min: null,
+      target_max: null,
+      recovery_duration_s: b.recovery_duration_s ?? null,
+      recovery_distance_m: null,
+    }),
+  );
+}
+
 interface SessionFormProps {
   initial?: PlannedSessionInput;
+  /** Protocolo de test con el que empezar (p. ej. desde «Planificar un test»). */
+  initialTest?: string | null;
   defaultDay?: string;
   submitLabel: string;
   onSubmit: (body: PlannedSessionInput) => Promise<unknown>;
@@ -523,6 +548,7 @@ interface SessionFormProps {
 
 export function SessionForm({
   initial,
+  initialTest,
   defaultDay,
   submitLabel,
   onSubmit,
@@ -552,6 +578,28 @@ export function SessionForm({
   const { data: training } = useTrainingPaces();
   const paces = training?.paces ?? null;
   const templates = buildTemplates(paces);
+  const { data: protocols } = useTestProtocols();
+  const testOptions = (protocols ?? []).filter((p) => p.detectable);
+  const [testProtocol, setTestProtocol] = useState<string | null>(
+    initial?.test_protocol ?? null,
+  );
+  const applyTest = (key: string) => {
+    setTestProtocol(key || null);
+    const protocol = testOptions.find((p) => p.key === key);
+    if (!protocol) return;
+    setValue("title", testTitle(protocol.label));
+    setValue("sport", protocol.sport);
+    replace(templateBlocks(protocol));
+  };
+  // Viene de «Planificar un test»: se aplica la plantilla en cuanto llegan los protocolos.
+  const applied = useRef(false);
+  useEffect(() => {
+    if (applied.current || initial || !initialTest || !protocols) return;
+    applied.current = true;
+    applyTest(initialTest);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [protocols, initialTest, initial]);
+  const chosenTest = testOptions.find((p) => p.key === testProtocol);
 
   const submit = handleSubmit((values) =>
     onSubmit({
@@ -560,6 +608,7 @@ export function SessionForm({
       title: values.title.trim(),
       notes: values.notes,
       blocks: values.blocks.map(fromForm),
+      test_protocol: testProtocol,
     }),
   );
 
@@ -585,6 +634,28 @@ export function SessionForm({
           ))}
         </div>
       )}
+
+      <div className="space-y-1 rounded-lg border p-3">
+        <Label htmlFor="test-protocol">¿Es una sesión de test?</Label>
+        <select
+          id="test-protocol"
+          className={selectClass}
+          value={testProtocol ?? ""}
+          onChange={(e) => applyTest(e.target.value)}
+        >
+          <option value="">No, una sesión normal</option>
+          {testOptions.map((p) => (
+            <option key={p.key} value={p.key}>
+              {testTitle(p.label)}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-muted-foreground">
+          {chosenTest
+            ? `${chosenTest.summary}. ${chosenTest.how} Al sincronizar el entreno se analiza solo y te avisamos para que lo revises.`
+            : "Si eliges un test, rellenamos la sesión con su protocolo y la analizamos al sincronizarla."}
+        </p>
+      </div>
 
       <Card className="py-0 shadow-sm">
         <CardContent className="grid gap-3 p-3 md:grid-cols-3 md:p-4">

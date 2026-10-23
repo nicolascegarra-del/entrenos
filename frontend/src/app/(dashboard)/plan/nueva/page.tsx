@@ -13,11 +13,13 @@ import { toIsoDay } from "@/lib/plan";
 
 function NewSession() {
   const router = useRouter();
-  const day = useSearchParams().get("dia") ?? toIsoDay(new Date());
+  const params = useSearchParams();
+  const day = params.get("dia") ?? toIsoDay(new Date());
   const save = useSavePlan();
   return (
     <SessionForm
       defaultDay={day}
+      initialTest={params.get("test")}
       submitLabel="Guardar sesión"
       onSubmit={async (body) => {
         try {

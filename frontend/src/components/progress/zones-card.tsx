@@ -7,11 +7,13 @@ import { thresholdAlternatives, type ThresholdSource } from "@/lib/thresholds";
 import type { ZoneSet, ZonesReport } from "@/types/api";
 
 const LTHR_SOURCE = {
+  test: "la de tu último test confirmado (manda durante 8 semanas)",
   garmin: "la última que calculó Garmin",
   fc_max: "estimada como el 89 % de tu FC máxima",
 } as const;
 
 const PACE_SOURCE = {
+  test: "tu último test confirmado (manda durante 8 semanas sobre Garmin y las estimaciones)",
   garmin: "el umbral de lactato que calcula tu reloj Garmin",
   vdot: "ritmo umbral (T) de Daniels según tu nivel de carrera",
   velocidad_critica: "estimado a partir de tu velocidad crítica",

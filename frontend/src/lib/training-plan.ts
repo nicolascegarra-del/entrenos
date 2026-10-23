@@ -25,6 +25,7 @@ export const KIND_LABEL: Record<SessionKind, string> = {
   intervals: "Series",
   race_pace: "Ritmo de carrera",
   race: "Carrera",
+  test: "Test",
 };
 
 export const ACTION_LABEL: Record<PlanAdjustment["action"], string> = {

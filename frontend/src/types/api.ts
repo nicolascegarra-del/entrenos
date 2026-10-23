@@ -100,6 +100,8 @@ export interface PlannedSessionInput {
   title: string;
   notes: string;
   blocks: PlannedBlock[];
+  /** Sesión de test: al sincronizar el entreno se analiza sola. */
+  test_protocol?: string | null;
 }
 
 export interface PlannedSession extends PlannedSessionInput {
@@ -695,12 +697,13 @@ export interface ZoneSet {
   valid_from: string;
   thresholds: {
     lthr: number | null;
-    lthr_source: "garmin" | "fc_max" | null;
+    lthr_source: "test" | "garmin" | "fc_max" | null;
     threshold_pace_s_km: number | null;
     pace_source: ThresholdSource | null;
     vdot: number | null;
     candidates?: Partial<Record<ThresholdSource, number>>;
     garmin_date?: string | null;
+    test_date?: string | null;
   };
   zones: {
     hr: { name: string; min: number; max: number | null }[];
@@ -719,7 +722,7 @@ export interface ZonesReport {
 
 export type PlanPhase = "base" | "build" | "peak" | "taper";
 export type SessionKind =
-  "easy" | "long" | "threshold" | "intervals" | "race_pace" | "race";
+  "easy" | "long" | "threshold" | "intervals" | "race_pace" | "race" | "test";
 
 export interface TrainingPlanInput {
   goal_id: number;
@@ -843,6 +846,7 @@ export interface NotificationPrefs {
   achievements: boolean;
   plan_changes: boolean;
   activity_reviews: boolean;
+  tests: boolean;
 }
 
 export interface NotificationConfig {
@@ -1094,4 +1098,68 @@ export interface ReviewSettings {
   daily_max: number;
   has_ai: boolean;
   used_today: number;
+}
+
+// ─── Tests de rendimiento ────────────────────────────────────────────────────
+
+export type TestSport = "running" | "cycling" | "swimming";
+
+export interface TestProtocol {
+  key: string;
+  label: string;
+  sport: TestSport;
+  summary: string;
+  how: string;
+  detectable: boolean;
+  template: Partial<PlannedBlock>[];
+}
+
+export interface TestCheck {
+  key: string;
+  ok: boolean;
+  message: string;
+  critical: boolean;
+}
+
+export interface TestResults {
+  lthr?: number;
+  threshold_pace_s_km?: number;
+  vo2max?: number;
+  hr_max?: number;
+  vdot?: number;
+  time_s?: number;
+  distance_m?: number;
+  cs_speed?: number;
+  d_prime_m?: number;
+  hr_zones?: { name: string; min: number; max: number | null }[];
+  window_s?: [number, number];
+}
+
+export interface PerformanceTest {
+  id: number;
+  sport: TestSport;
+  protocol: string;
+  protocol_label: string;
+  test_date: string;
+  activity_id: number | null;
+  activity_name: string | null;
+  source: "manual" | "activity" | "planned";
+  status: "detected" | "confirmed" | "failed";
+  confidence: "alta" | "media" | "baja" | "";
+  results: TestResults;
+  checks: TestCheck[];
+  notes: string;
+  summary: string;
+  created_at: string;
+  confirmed_at: string | null;
+}
+
+export interface ManualTestInput {
+  sport: TestSport;
+  test_date: string;
+  lthr?: number | null;
+  threshold_pace_s_km?: number | null;
+  vo2max?: number | null;
+  hr_max?: number | null;
+  notes?: string;
 }

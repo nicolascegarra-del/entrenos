@@ -58,6 +58,9 @@ import type {
   TrainingPlanReport,
   PaceCurve,
   ZonesReport,
+  ManualTestInput,
+  PerformanceTest,
+  TestProtocol,
   MetricDefinition,
   PlannedSession,
   PlannedSessionDetail,
@@ -1219,5 +1222,92 @@ export function useCancelPlan() {
     mutationFn: (id: number) =>
       apiFetch<void>(`/api/v1/training-plans/${id}`, { method: "DELETE" }),
     onSuccess: () => refreshPlanViews(queryClient),
+  });
+}
+
+// ─── Tests de rendimiento ────────────────────────────────────────────────────
+
+/** Lo que cambia al confirmar o borrar un test: zonas, ritmos e indicadores que usan el umbral. */
+const TEST_KEYS = [
+  "tests",
+  "activity-test",
+  "zones",
+  "training-paces",
+  "summary",
+  "insights",
+];
+
+function useInvalidateTests() {
+  const queryClient = useQueryClient();
+  return () => {
+    for (const key of TEST_KEYS)
+      queryClient.invalidateQueries({ queryKey: [key] });
+  };
+}
+
+export function useTestProtocols() {
+  return useQuery({
+    queryKey: ["test-protocols"],
+    queryFn: () => apiFetch<TestProtocol[]>("/api/v1/tests/protocols"),
+    staleTime: 60 * 60_000,
+  });
+}
+
+export function useTests() {
+  return useQuery({
+    queryKey: ["tests"],
+    queryFn: () => apiFetch<PerformanceTest[]>("/api/v1/tests"),
+  });
+}
+
+export function useActivityTest(activityId: number) {
+  return useQuery({
+    queryKey: ["activity-test", activityId],
+    queryFn: () =>
+      apiFetch<PerformanceTest | null>(`/api/v1/activities/${activityId}/test`),
+  });
+}
+
+export function useMarkTest(activityId: number) {
+  const invalidate = useInvalidateTests();
+  return useMutation({
+    mutationFn: (protocol: string) =>
+      apiFetch<PerformanceTest>(`/api/v1/activities/${activityId}/test`, {
+        method: "POST",
+        body: JSON.stringify({ protocol }),
+      }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useConfirmTest() {
+  const invalidate = useInvalidateTests();
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiFetch<PerformanceTest>(`/api/v1/tests/${id}/confirm`, {
+        method: "POST",
+      }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useDeleteTest() {
+  const invalidate = useInvalidateTests();
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiFetch<void>(`/api/v1/tests/${id}`, { method: "DELETE" }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useCreateManualTest() {
+  const invalidate = useInvalidateTests();
+  return useMutation({
+    mutationFn: (body: ManualTestInput) =>
+      apiFetch<PerformanceTest>("/api/v1/tests", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: invalidate,
   });
 }
