@@ -26,6 +26,7 @@ from app.api import (
     strength,
     training_plans,
     users,
+    workouts,
 )
 from app.api import settings as settings_api
 from app.core.config import get_settings
@@ -101,6 +102,7 @@ app.include_router(routes.router, prefix="/api/v1")
 app.include_router(sources.router, prefix="/api/v1")
 app.include_router(apple.router, prefix="/api/v1")
 app.include_router(performance.router, prefix="/api/v1")
+app.include_router(workouts.router, prefix="/api/v1")
 app.include_router(reviews.router, prefix="/api/v1")
 
 

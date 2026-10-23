@@ -19,6 +19,7 @@ celery_app = Celery(
         "app.tasks.notifications",
         "app.tasks.sources",
         "app.tasks.ai",
+        "app.tasks.workouts",
     ],
 )
 celery_app.conf.update(
@@ -38,6 +39,8 @@ celery_app.conf.update(
         "notifications-daily": {"task": "notifications.daily", "schedule": 15 * 60},
         # Otros relojes: COROS cada hora (Health Connect llega solo por webhook).
         "coros-sync": {"task": "coros.sync_all", "schedule": 3600},
+        # Sesiones de los próximos 7 días a Garmin (quien tenga el envío automático activado).
+        "garmin-workouts": {"task": "garmin.send_workouts_all", "schedule": 6 * 3600},
     },
 )
 

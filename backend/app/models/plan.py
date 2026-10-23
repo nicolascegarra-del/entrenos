@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from enum import StrEnum
 
-from sqlalchemy import Column, Index, String, UniqueConstraint
+from sqlalchemy import BigInteger, Column, DateTime, Index, String, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 from app.models.base import created_at_field, jsonb_field
@@ -41,6 +41,13 @@ class PlannedSession(SQLModel, table=True):
     session_kind: str | None = Field(default=None, max_length=16)  # easy | long | threshold | intervals | test…
     # Sesión de test: protocolo de `performance_tests.PROTOCOLS` (al sincronizar se analiza sola).
     test_protocol: str | None = Field(default=None, max_length=32)
+    # Envío al reloj (Garmin Connect): ids remotos, estado y huella de lo enviado para detectar cambios.
+    garmin_workout_id: int | None = Field(default=None, sa_column=Column(BigInteger, nullable=True))
+    garmin_schedule_id: int | None = Field(default=None, sa_column=Column(BigInteger, nullable=True))
+    garmin_status: str = Field(default="", max_length=16)  # "" | sent | error
+    garmin_error: str = Field(default="", max_length=255)
+    garmin_hash: str = Field(default="", max_length=16)
+    garmin_sent_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True)))
     created_at: datetime = created_at_field()
 
 

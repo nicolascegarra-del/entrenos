@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Literal, Self
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -65,6 +65,10 @@ class SessionOut(BaseModel):
     plan_id: int | None = None  # generada por un plan de entrenamiento
     session_kind: str | None = None  # easy | long | threshold | intervals | race_pace | race | test
     test_protocol: str | None = None
+    garmin_status: str = ""  # "" | sent | error
+    garmin_error: str = ""
+    garmin_sent_at: datetime | None = None
+    garmin_outdated: bool = False  # enviada, pero la sesión ha cambiado después
     planned_duration_s: float
     planned_distance_m: float | None
     blocks: list[BlockOut]

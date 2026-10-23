@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Response, status
 from sqlmodel import Session, delete, select
 
 from app.api.deps import CurrentUser, SessionDep
+from app.api.workouts import queue_delete, queue_send
 from app.models import Activity, MatchMode, PlannedBlock, PlannedSession, User
 from app.schemas.activity import ActivitySummary
 from app.schemas.plan import BlockOut, MatchIn, SessionDetail, SessionIn, SessionOut
@@ -40,6 +41,10 @@ def _to_out(session: Session, planned: PlannedSession) -> SessionOut:
         plan_id=planned.plan_id,
         session_kind=planned.session_kind,
         test_protocol=planned.test_protocol,
+        garmin_status=planned.garmin_status,
+        garmin_error=planned.garmin_error,
+        garmin_sent_at=planned.garmin_sent_at,
+        garmin_outdated=_garmin_outdated(planned, blocks),
         planned_duration_s=estimated_duration_s(steps),
         planned_distance_m=sum(distances) if distances else None,
         blocks=[BlockOut.model_validate(b, from_attributes=True) for b in blocks],
@@ -53,6 +58,18 @@ def _to_detail(session: Session, planned: PlannedSession) -> SessionDetail:
         compliance_detail=planned.compliance_detail,
         activity=ActivitySummary.model_validate(activity, from_attributes=True) if activity else None,
     )
+
+
+def _garmin_outdated(planned: PlannedSession, blocks: list[PlannedBlock]) -> bool:
+    """Enviada a Garmin, pero con cambios después (día o bloques)."""
+    if planned.garmin_status != "sent":
+        return False
+    from app.services.workout_export import WorkoutExportError, content_hash, garmin_workout
+
+    try:
+        return content_hash(planned, garmin_workout(planned, blocks)) != planned.garmin_hash
+    except WorkoutExportError:
+        return True
 
 
 def _set_kind(planned: PlannedSession) -> None:
@@ -117,6 +134,7 @@ def create_plan(body: SessionIn, session: SessionDep, user: CurrentUser) -> Sess
     refresh_match(session, planned)
     session.commit()
     _analyze_test(session, planned)
+    queue_send(session, user.id)
     return _to_detail(session, planned)
 
 
@@ -139,13 +157,17 @@ def update_plan(plan_id: int, body: SessionIn, session: SessionDep, user: Curren
     refresh_match(session, planned)
     session.commit()
     _analyze_test(session, planned)
+    queue_send(session, user.id)
     return _to_detail(session, planned)
 
 
 @router.delete("/{plan_id}", summary="Borrar sesión planificada", status_code=204, responses=_NOT_FOUND)
 def delete_plan(plan_id: int, session: SessionDep, user: CurrentUser) -> Response:
-    session.delete(_owned(session, user.id, plan_id))
+    planned = _owned(session, user.id, plan_id)
+    workout_id = planned.garmin_workout_id
+    session.delete(planned)
     session.commit()
+    queue_delete(user.id, workout_id)  # también se quita del calendario de Garmin
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

@@ -23,3 +23,5 @@ class UserSettings(SQLModel, table=True):
     sync_mode: SyncMode = Field(default=SyncMode.AUTO, sa_column=Column(String(16), nullable=False))
     sync_interval_min: int = DEFAULT_SYNC_INTERVAL
     weekly_goal_sessions: int = Field(default=3, ge=1, le=14)  # racha: semanas con al menos N entrenos
+    # Enviar solas a Garmin las sesiones de los próximos 7 días (y sus cambios).
+    garmin_workouts_auto: bool = Field(default=False, sa_column_kwargs={"server_default": "false"})
