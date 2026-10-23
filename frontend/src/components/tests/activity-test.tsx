@@ -1,6 +1,6 @@
 "use client";
 
-import { FlaskConical, Loader2 } from "lucide-react";
+import { Droplet, FlaskConical, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   useActivityTest,
   useMarkTest,
+  useTestPrefs,
   useTestProtocols,
 } from "@/hooks/use-api";
 import { ApiError } from "@/lib/api";
@@ -17,8 +18,16 @@ import { protocolsFor } from "@/lib/tests";
 import type { ActivitySummary } from "@/types/api";
 
 /** Dentro del menú «⋯» de la actividad: marcarla como test y analizarla. */
-export function MarkTest({ activity }: { activity: ActivitySummary }) {
+export function MarkTest({
+  activity,
+  onLactate,
+}: {
+  activity: ActivitySummary;
+  /** Abrir el formulario de lactato con las vueltas de la actividad (si hace lactato). */
+  onLactate?: () => void;
+}) {
   const { data: protocols } = useTestProtocols();
+  const { data: prefs } = useTestPrefs();
   const options = protocolsFor(protocols, activity.sport);
   const mark = useMarkTest(activity.id);
   const [protocol, setProtocol] = useState("");
@@ -83,6 +92,15 @@ export function MarkTest({ activity }: { activity: ActivitySummary }) {
         )}
         Analizar como test
       </Button>
+      {onLactate && (prefs?.lactate_tests ?? true) && (
+        <Button
+          variant="ghost"
+          className="min-h-11 w-full md:min-h-9"
+          onClick={onLactate}
+        >
+          <Droplet aria-hidden /> Meter lactatos de las vueltas
+        </Button>
+      )}
     </div>
   );
 }

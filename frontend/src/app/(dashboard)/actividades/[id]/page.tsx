@@ -4,7 +4,7 @@ import type { LatLngTuple } from "leaflet";
 import { Ellipsis, Watch } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { AskAi } from "@/components/activity/ask-ai";
 import { FeedbackCard } from "@/components/activity/feedback-card";
@@ -13,6 +13,7 @@ import { LapsTable } from "@/components/activity/laps-table";
 import { RaceToggle } from "@/components/activity/race-toggle";
 import { ReviewCard } from "@/components/activity/review-card";
 import { ActivityTestCard, MarkTest } from "@/components/tests/activity-test";
+import { LactateForm } from "@/components/tests/test-forms";
 import { RouteCard } from "@/components/activity/route-card";
 import {
   StreamCharts,
@@ -174,6 +175,7 @@ export default function ActivityDetailPage() {
     refetch,
   } = useActivity(id);
   const { data: catalog = [] } = useCatalog();
+  const [lactateOpen, setLactateOpen] = useState(false);
   const channels = activity
     ? [...chartChannels(activity.channels), "lat", "lon"]
     : [];
@@ -274,7 +276,14 @@ export default function ActivityDetailPage() {
                       </div>
                     </>
                   )}
-                  <MarkTest activity={activity} />
+                  <MarkTest
+                    activity={activity}
+                    onLactate={
+                      activity.laps.length >= 4
+                        ? () => setLactateOpen(true)
+                        : undefined
+                    }
+                  />
                 </PopoverContent>
               </Popover>
             )}
@@ -285,6 +294,27 @@ export default function ActivityDetailPage() {
       <StatsGrid activity={activity} catalog={catalog} />
 
       <ActivityTestCard activityId={activity.id} />
+
+      {lactateOpen && (
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="font-heading text-lg">
+              Test de lactato con las vueltas
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <LactateForm
+              activity={{
+                id: activity.id,
+                sport: activity.sport,
+                date: activity.start_time.slice(0, 10),
+                laps: activity.laps,
+              }}
+              onDone={() => setLactateOpen(false)}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <ReviewCard activity={activity} />
 

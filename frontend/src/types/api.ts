@@ -1133,6 +1133,21 @@ export interface TestResults {
   d_prime_m?: number;
   hr_zones?: { name: string; min: number; max: number | null }[];
   window_s?: [number, number];
+  ftp?: number;
+  best_power_w?: number;
+  power_zones?: { name: string; min: number; max: number | null }[];
+  css_pace_s_100m?: number;
+  t400_s?: number;
+  t200_s?: number;
+  css_zones?: { name: string; fast: number | null; slow: number | null }[];
+  lt1_hr?: number;
+  lt1_pace_s_km?: number;
+  lt1_power?: number;
+  obla_pace_s_km?: number;
+  obla_power?: number;
+  lt2_method?: "dmax" | "obla";
+  baseline_mmol?: number;
+  lactate_steps?: { intensity: number; lactate: number; hr: number | null }[];
 }
 
 export interface PerformanceTest {
@@ -1155,11 +1170,37 @@ export interface PerformanceTest {
 }
 
 export interface ManualTestInput {
+  protocol?: "manual" | "lab" | "swim_css";
   sport: TestSport;
   test_date: string;
   lthr?: number | null;
   threshold_pace_s_km?: number | null;
   vo2max?: number | null;
   hr_max?: number | null;
+  ftp?: number | null;
+  vt1_hr?: number | null;
+  vt1_pace_s_km?: number | null;
+  vt1_power?: number | null;
+  vt2_hr?: number | null;
+  vt2_pace_s_km?: number | null;
+  vt2_power?: number | null;
+  t400_s?: number | null;
+  t200_s?: number | null;
+  notes?: string;
+}
+
+export interface LactateStepInput {
+  lactate: number;
+  pace_s_km?: number | null;
+  power?: number | null;
+  hr?: number | null;
+  lap_index?: number | null;
+}
+
+export interface LactateTestInput {
+  sport: "running" | "cycling";
+  test_date: string;
+  activity_id?: number | null;
+  steps: LactateStepInput[];
   notes?: string;
 }

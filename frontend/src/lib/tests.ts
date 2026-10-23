@@ -58,8 +58,35 @@ export function testValues(
       label: "VDOT",
       value: r.vdot.toLocaleString("es-ES", { maximumFractionDigits: 1 }),
     });
+  if (r.ftp) out.push({ key: "ftp", label: "FTP", value: `${r.ftp} W` });
+  if (r.css_pace_s_100m)
+    out.push({
+      key: "css",
+      label: "CSS",
+      value: `${formatDuration(r.css_pace_s_100m)} /100 m`,
+    });
+  if (r.lt1_pace_s_km)
+    out.push({
+      key: "lt1_pace",
+      label: "Umbral aeróbico (LT1)",
+      value: `${formatDuration(r.lt1_pace_s_km)} /km`,
+    });
+  if (r.lt1_power)
+    out.push({
+      key: "lt1_power",
+      label: "Umbral aeróbico (LT1)",
+      value: `${r.lt1_power} W`,
+    });
+  if (r.lt1_hr)
+    out.push({ key: "lt1_hr", label: "FC en LT1", value: `${r.lt1_hr} ppm` });
   if (r.hr_max)
     out.push({ key: "hr_max", label: "FC máxima", value: `${r.hr_max} ppm` });
+  if (r.t400_s && r.t200_s)
+    out.push({
+      key: "css_times",
+      label: "400 / 200 m",
+      value: `${formatDuration(r.t400_s)} / ${formatDuration(r.t200_s)}`,
+    });
   if (r.time_s)
     out.push({ key: "time", label: "Tiempo", value: formatDuration(r.time_s) });
   if (r.distance_m)
@@ -105,3 +132,19 @@ export function parsePace(text: string): number | null {
   const m = /^(\d{1,2}):([0-5]\d)$/.exec(value);
   return m ? Number(m[1]) * 60 + Number(m[2]) : Number.NaN;
 }
+
+/** «m:ss» o «h:mm:ss» → segundos (vacío = null; NaN si no se entiende). */
+export function parseTime(text: string): number | null {
+  const value = text.trim();
+  if (!value) return null;
+  const m = /^(?:(\d+):)?(\d{1,2}):([0-5]\d)$/.exec(value);
+  return m
+    ? Number(m[1] ?? 0) * 3600 + Number(m[2]) * 60 + Number(m[3])
+    : Number.NaN;
+}
+
+/** Cómo se calculó el LT2 del test de lactato. */
+export const LT2_METHOD: Record<"dmax" | "obla", string> = {
+  dmax: "Dmax modificado (curva de tu lactato)",
+  obla: "4 mmol/L (OBLA)",
+};

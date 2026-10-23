@@ -5,6 +5,7 @@ import type { PerformanceTest, TestProtocol } from "@/types/api";
 import {
   isActive,
   parsePace,
+  parseTime,
   protocolsFor,
   testSport,
   testValues,
@@ -62,6 +63,30 @@ describe("isActive", () => {
     expect(isActive(test("confirmed", "2026-10-01"), today)).toBe(true);
     expect(isActive(test("confirmed", "2026-08-01"), today)).toBe(false);
     expect(isActive(test("detected", "2026-10-20"), today)).toBe(false);
+  });
+});
+
+describe("valores de la fase 2", () => {
+  it("FTP, CSS y LT1", () => {
+    const v = testValues({
+      ftp: 266,
+      css_pace_s_100m: 95,
+      lt1_pace_s_km: 296,
+      lt1_hr: 155,
+    });
+    expect(v.map((x) => x.value)).toEqual([
+      "266 W",
+      "1:35 /100 m",
+      "4:56 /km",
+      "155 ppm",
+    ]);
+  });
+
+  it("parseTime acepta m:ss y h:mm:ss", () => {
+    expect(parseTime("6:00")).toBe(360);
+    expect(parseTime("1:02:03")).toBe(3723);
+    expect(parseTime("")).toBeNull();
+    expect(parseTime("6m")).toBeNaN();
   });
 });
 

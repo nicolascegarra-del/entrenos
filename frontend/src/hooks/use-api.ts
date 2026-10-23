@@ -59,6 +59,7 @@ import type {
   PaceCurve,
   ZonesReport,
   ManualTestInput,
+  LactateTestInput,
   PerformanceTest,
   TestProtocol,
   MetricDefinition,
@@ -1309,5 +1310,37 @@ export function useCreateManualTest() {
         body: JSON.stringify(body),
       }),
     onSuccess: invalidate,
+  });
+}
+
+export function useCreateLactateTest() {
+  const invalidate = useInvalidateTests();
+  return useMutation({
+    mutationFn: (body: LactateTestInput) =>
+      apiFetch<PerformanceTest>("/api/v1/tests/lactate", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useTestPrefs() {
+  return useQuery({
+    queryKey: ["test-prefs"],
+    queryFn: () =>
+      apiFetch<{ lactate_tests: boolean }>("/api/v1/tests/preferences"),
+  });
+}
+
+export function useSaveTestPrefs() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { lactate_tests: boolean }) =>
+      apiFetch<{ lactate_tests: boolean }>("/api/v1/tests/preferences", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (data) => queryClient.setQueryData(["test-prefs"], data),
   });
 }

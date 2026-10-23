@@ -10,14 +10,16 @@ import {
 import Link from "next/link";
 import { toast } from "sonner";
 
+import { LactateChart } from "@/components/tests/lactate-chart";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useConfirmTest, useDeleteTest } from "@/hooks/use-api";
 import { ApiError } from "@/lib/api";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatDuration } from "@/lib/format";
 import {
   CONFIDENCE_LABEL,
   isActive,
+  LT2_METHOD,
   STATUS_LABEL,
   testValues,
 } from "@/lib/tests";
@@ -70,6 +72,57 @@ export function TestResult({
             </div>
           ))}
         </dl>
+      )}
+
+      {test.results.lactate_steps && (
+        <div className="space-y-1">
+          <LactateChart
+            results={test.results}
+            cycling={test.sport === "cycling"}
+          />
+          {test.results.lt2_method && (
+            <p className="text-xs text-muted-foreground">
+              LT2 por {LT2_METHOD[test.results.lt2_method]}; basal{" "}
+              {test.results.baseline_mmol?.toLocaleString("es-ES")} mmol/L.
+            </p>
+          )}
+        </div>
+      )}
+
+      {test.results.power_zones && (
+        <details className="text-sm">
+          <summary className="min-h-11 cursor-pointer content-center font-medium md:min-h-8">
+            Zonas de potencia
+          </summary>
+          <ul className="mt-1 space-y-0.5 tabular-nums text-muted-foreground">
+            {test.results.power_zones.map((z) => (
+              <li key={z.name}>
+                {z.name}: {z.min}
+                {z.max ? `–${z.max}` : "+"} W
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {test.results.css_zones && (
+        <details className="text-sm">
+          <summary className="min-h-11 cursor-pointer content-center font-medium md:min-h-8">
+            Zonas de natación (por 100 m)
+          </summary>
+          <ul className="mt-1 space-y-0.5 tabular-nums text-muted-foreground">
+            {test.results.css_zones.map((z) => (
+              <li key={z.name}>
+                {z.name}:{" "}
+                {z.fast == null
+                  ? `más rápido de ${formatDuration(z.slow)}`
+                  : z.slow == null
+                    ? `más lento de ${formatDuration(z.fast)}`
+                    : `${formatDuration(z.fast)}–${formatDuration(z.slow)}`}
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
 
       {test.results.hr_zones && (
