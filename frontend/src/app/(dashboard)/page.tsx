@@ -89,7 +89,7 @@ function InjuryBanner() {
   const worst = data.checks.filter((c) => c.status === data.status);
   return (
     <Link
-      href="/progresion#lesiones"
+      href="/progresion/salud#lesiones"
       className={cn(
         "flex min-h-11 items-start gap-2 rounded-lg border p-3 text-sm hover:opacity-90",
         st.className,
