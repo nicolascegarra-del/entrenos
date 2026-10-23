@@ -77,7 +77,11 @@ export function CoachNudges() {
         />
       </Link>,
     );
-  return items.length ? <div className="space-y-2">{items}</div> : null;
+  return items.length ? (
+    <div className="space-y-2" data-tour="coach-nudges">
+      {items}
+    </div>
+  ) : null;
 }
 
 /** Detalle de una sesión del plan: la propuesta pendiente del entrenador, con aceptar / rechazar. */

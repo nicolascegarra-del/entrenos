@@ -280,6 +280,7 @@ export function SendUpcomingButton() {
   if (!settings?.garmin_connected && !settings?.coros_connected) return null;
   return (
     <Button
+      data-tour="send-watch"
       variant="outline"
       className="min-h-11 md:min-h-9"
       disabled={send.isPending}

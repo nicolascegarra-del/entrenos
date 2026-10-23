@@ -19,6 +19,7 @@ export function SectionTabs() {
   return (
     <nav
       aria-label={`Secciones de ${section.label}`}
+      data-tour="section-tabs"
       className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 -mx-3 mb-3 border-b bg-background/95 px-3 backdrop-blur md:-mx-6 md:px-6 lg:hidden"
     >
       <ul className="flex gap-1 overflow-x-auto [scrollbar-width:none]">

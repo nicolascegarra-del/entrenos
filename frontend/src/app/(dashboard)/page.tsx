@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TodayCard } from "@/components/summary/today-card";
+import { TourInvite } from "@/components/tour/tour-invite";
 import {
   useAchievements,
   useGarminStatus,
@@ -246,6 +247,7 @@ function StreakStrip() {
   return (
     <Link
       href="/logros"
+      data-tour="streak"
       className="flex min-h-11 flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border p-3 text-sm hover:bg-muted/60"
     >
       <span className="flex items-center gap-1.5 font-medium">
@@ -297,6 +299,7 @@ export default function HoyPage() {
     return (
       <section className="space-y-4">
         <PageHeader title="Hoy" hideTitleOnMobile />
+        <TourInvite />
         <EmptyState icon={Footprints} title="Empieza conectando Garmin">
           <p className="max-w-sm text-sm text-muted-foreground">
             Sincroniza tus actividades desde{" "}
@@ -327,14 +330,17 @@ export default function HoyPage() {
   return (
     <section className="space-y-4 md:space-y-6">
       <PageHeader title="Hoy" hideTitleOnMobile />
+      <TourInvite />
 
-      <TodayCard summary={data} goals={goals} today={today} />
+      <div data-tour="today-card">
+        <TodayCard summary={data} goals={goals} today={today} />
+      </div>
       <Notices />
       <LatestReviewLine />
       <CoachNudges />
       <SetupCard />
 
-      <div className="space-y-2">
+      <div className="space-y-2" data-tour="week-kpis">
         <h2 className="font-heading text-lg font-semibold">Esta semana</h2>
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           <Kpi

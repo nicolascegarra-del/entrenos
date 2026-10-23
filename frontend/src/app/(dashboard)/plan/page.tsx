@@ -127,14 +127,23 @@ export default function PlanPage() {
         actions={
           <>
             {!activePlan && (
-              <Button asChild variant="outline" className="min-h-11 md:min-h-9">
+              <Button
+                asChild
+                data-tour="auto-plan"
+                variant="outline"
+                className="min-h-11 md:min-h-9"
+              >
                 <Link href="/plan/generar">
                   <Sparkles aria-hidden /> Crear plan automático
                 </Link>
               </Button>
             )}
             <SendUpcomingButton />
-            <Button asChild className="hidden min-h-9 lg:inline-flex">
+            <Button
+              asChild
+              data-tour="new-session"
+              className="hidden min-h-9 lg:inline-flex"
+            >
               <Link href={newSessionHref}>
                 <Plus aria-hidden /> Nueva sesión
               </Link>
@@ -162,6 +171,7 @@ export default function PlanPage() {
       {/* Botón flotante en el móvil: la acción principal del calendario, a mano del pulgar. */}
       <Button
         asChild
+        data-tour="new-session"
         className="fixed right-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 h-12 rounded-full px-5 shadow-md lg:hidden"
       >
         <Link href={newSessionHref}>
@@ -204,7 +214,7 @@ export default function PlanPage() {
           onRetry={() => plans.refetch()}
         />
       ) : (
-        <ol className="grid gap-2 lg:grid-cols-7">
+        <ol className="grid gap-2 lg:grid-cols-7" data-tour="plan-week">
           {days.map((day, i) => {
             const iso = toIsoDay(day);
             const dayPlans = (plans.data ?? []).filter((p) => p.day === iso);

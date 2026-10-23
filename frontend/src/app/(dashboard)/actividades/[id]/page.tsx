@@ -247,11 +247,14 @@ export default function ActivityDetailPage() {
         }
         actions={
           <>
-            <AskAi activity={activity} />
+            <div data-tour="ask-ai" className="empty:hidden">
+              <AskAi activity={activity} />
+            </div>
             {
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
+                    data-tour="activity-menu"
                     variant="outline"
                     size="icon"
                     className="size-11 md:size-8"
@@ -297,7 +300,9 @@ export default function ActivityDetailPage() {
         }
       />
 
-      <StatsGrid activity={activity} catalog={catalog} />
+      <div data-tour="activity-stats">
+        <StatsGrid activity={activity} catalog={catalog} />
+      </div>
 
       <ActivityTestCard activityId={activity.id} />
 
@@ -322,7 +327,9 @@ export default function ActivityDetailPage() {
         </Card>
       )}
 
-      <ReviewCard activity={activity} />
+      <div data-tour="ai-review" className="empty:hidden">
+        <ReviewCard activity={activity} />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2 md:gap-6">
         {(streamsPending || route.length > 1) && (
@@ -357,7 +364,9 @@ export default function ActivityDetailPage() {
         </Card>
       </div>
 
-      <ActivityAnalysisCards activityId={activity.id} />
+      <div data-tour="activity-zones" className="empty:hidden">
+        <ActivityAnalysisCards activityId={activity.id} />
+      </div>
 
       <LapsTable laps={activity.laps} pace={pace} />
 

@@ -342,6 +342,7 @@ export default function ActividadesPage() {
           <>
             {activities.length > 0 && (
               <Button
+                data-tour="select-activities"
                 variant={selecting ? "secondary" : "ghost"}
                 size="sm"
                 className="min-h-11 md:min-h-8"
@@ -355,6 +356,7 @@ export default function ActividadesPage() {
             )}
             <Button
               asChild
+              data-tour="import"
               variant="outline"
               size="sm"
               className="min-h-11 md:min-h-8"
@@ -369,7 +371,7 @@ export default function ActividadesPage() {
           </>
         }
       />
-      <div className="relative">
+      <div className="relative" data-tour="activity-search">
         <Search
           className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
           aria-hidden
@@ -383,7 +385,9 @@ export default function ActividadesPage() {
           className="h-11 pl-9 md:h-9"
         />
       </div>
-      <SportFilter value={sport} onChange={setSport} />
+      <div data-tour="sport-filter">
+        <SportFilter value={sport} onChange={setSport} />
+      </div>
 
       {isPending ? (
         <div

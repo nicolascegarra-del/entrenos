@@ -37,7 +37,11 @@ function Shell({ children }: { children: React.ReactNode }) {
       <PageHeader
         title="Progreso"
         hideTitleOnMobile
-        actions={<PeriodPicker />}
+        actions={
+          <div data-tour="period">
+            <PeriodPicker />
+          </div>
+        }
       />
       {children}
       {insights && (

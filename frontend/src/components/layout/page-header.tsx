@@ -1,6 +1,7 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
+import { TourButton } from "@/components/tour/tour-button";
 import { cn } from "@/lib/utils";
 
 /**
@@ -46,9 +47,10 @@ export function PageHeader({
             <p className="text-sm text-muted-foreground">{subtitle}</p>
           )}
         </div>
-        {actions && (
-          <div className="flex flex-wrap items-center gap-2">{actions}</div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {actions}
+          <TourButton className="max-lg:hidden" />
+        </div>
       </div>
     </header>
   );

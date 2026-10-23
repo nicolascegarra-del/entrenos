@@ -333,6 +333,7 @@ function AssistantChat() {
           )}
           <Button
             asChild
+            data-tour="weekly-review"
             variant="ghost"
             size="sm"
             className="min-h-11 md:min-h-8"
@@ -383,6 +384,7 @@ function AssistantChat() {
               {coachSettings && !coachSettings.interview_done && (
                 <button
                   type="button"
+                  data-tour="interview"
                   onClick={() => {
                     setInterview(true);
                     interviewStarted.current = true;
@@ -464,6 +466,7 @@ function AssistantChat() {
               Tu pregunta
             </label>
             <textarea
+              data-tour="chat-input"
               id="pregunta"
               rows={1}
               value={input}

@@ -15,6 +15,8 @@ import {
 } from "@/components/layout/nav";
 import { SectionTabs } from "@/components/layout/section-tabs";
 import { SyncButton } from "@/components/layout/sync-button";
+import { TourButton } from "@/components/tour/tour-button";
+import { TourProvider } from "@/components/tour/tour-provider";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -39,7 +41,10 @@ function MoreLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { data: me } = useMe();
   return (
-    <div className="flex flex-col gap-3">
+    <div
+      className="flex flex-col gap-3"
+      data-tour={onNavigate ? undefined : "more"}
+    >
       {moreFor(!!me?.is_admin).map((group) => (
         <div key={group.title ?? "principal"} className="flex flex-col gap-1">
           {group.title && (
@@ -73,7 +78,7 @@ function SidebarNav() {
   const pathname = usePathname();
   const { section: current, sub } = currentLocation(pathname);
   return (
-    <nav className="flex flex-col gap-1" aria-label="Principal">
+    <nav className="flex flex-col gap-1" aria-label="Principal" data-tour="nav">
       {SECTIONS.map((section) => {
         const Icon = section.icon;
         const active = current?.key === section.key;
@@ -81,6 +86,7 @@ function SidebarNav() {
           <div key={section.key}>
             <Link
               href={section.href}
+              data-tour={`tab-${section.key}`}
               aria-current={
                 active && !section.children.length ? "page" : undefined
               }
@@ -93,7 +99,10 @@ function SidebarNav() {
               {section.label}
             </Link>
             {active && section.children.length > 0 && (
-              <ul className="mt-1 mb-2 ml-5 flex flex-col gap-0.5 border-l border-sidebar-border pl-3">
+              <ul
+                data-tour="section-tabs"
+                className="mt-1 mb-2 ml-5 flex flex-col gap-0.5 border-l border-sidebar-border pl-3"
+              >
                 {section.children.map((c) => {
                   const on = c.href === sub?.href;
                   return (
@@ -175,6 +184,7 @@ function BottomNav() {
   return (
     <nav
       aria-label="Principal"
+      data-tour="nav"
       className="fixed inset-x-0 bottom-0 z-30 flex border-t border-sidebar-border bg-sidebar pb-[env(safe-area-inset-bottom)] lg:hidden"
     >
       {SECTIONS.map(({ key, href, label, icon: Icon }) => {
@@ -183,6 +193,7 @@ function BottomNav() {
           <Link
             key={key}
             href={href}
+            data-tour={`tab-${key}`}
             aria-current={active ? "page" : undefined}
             className={tabClass(active)}
           >
@@ -198,6 +209,7 @@ function BottomNav() {
         <SheetTrigger asChild>
           <button
             type="button"
+            data-tour="more"
             className={tabClass(moreActive)}
             aria-current={moreActive ? "page" : undefined}
           >
@@ -227,39 +239,47 @@ function BottomNav() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   return (
-    <div className="min-h-dvh bg-background lg:grid lg:grid-cols-[16rem_1fr]">
-      <aside className="hidden flex-col gap-5 overflow-y-auto bg-sidebar p-4 lg:sticky lg:top-0 lg:flex lg:h-dvh">
-        <div className="flex items-center justify-between gap-1">
-          <Brand />
-        </div>
-        <div className="px-1 text-sidebar-foreground">
-          <SyncButton />
-        </div>
-        <SidebarNav />
-        <div className="border-t border-sidebar-border pt-4">
-          <MoreLinks />
-        </div>
-        <div className="mt-auto">
-          <SessionActions />
-        </div>
-      </aside>
+    <TourProvider>
+      <div className="min-h-dvh bg-background lg:grid lg:grid-cols-[16rem_1fr]">
+        <aside className="hidden flex-col gap-5 overflow-y-auto bg-sidebar p-4 lg:sticky lg:top-0 lg:flex lg:h-dvh">
+          <div className="flex items-center justify-between gap-1">
+            <Brand />
+          </div>
+          <div className="px-1 text-sidebar-foreground">
+            <SyncButton />
+          </div>
+          <SidebarNav />
+          <div className="border-t border-sidebar-border pt-4">
+            <MoreLinks />
+          </div>
+          <div className="mt-auto">
+            <SessionActions />
+          </div>
+        </aside>
 
-      {/* Cabecera móvil: dónde estás y sincronizar, siempre a mano. */}
-      <header className="sticky top-0 z-20 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center justify-between gap-2 bg-sidebar px-3 pt-[env(safe-area-inset-top)] text-sidebar-foreground lg:hidden">
-        <div className="flex min-w-0 items-center gap-2 font-heading text-lg font-semibold">
-          <Activity className="size-5 shrink-0 text-klyp-accent" aria-hidden />
-          <span className="truncate">{screenTitle(pathname)}</span>
-        </div>
-        <SyncButton />
-      </header>
+        {/* Cabecera móvil: dónde estás y sincronizar, siempre a mano. */}
+        <header className="sticky top-0 z-20 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center justify-between gap-2 bg-sidebar px-3 pt-[env(safe-area-inset-top)] text-sidebar-foreground lg:hidden">
+          <div className="flex min-w-0 items-center gap-2 font-heading text-lg font-semibold">
+            <Activity
+              className="size-5 shrink-0 text-klyp-accent"
+              aria-hidden
+            />
+            <span className="truncate">{screenTitle(pathname)}</span>
+          </div>
+          <div className="flex shrink-0 items-center">
+            <TourButton className="text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground" />
+            <SyncButton />
+          </div>
+        </header>
 
-      {/* Hueco inferior para que la barra de pestañas no tape el contenido. */}
-      <main className="mx-auto w-full max-w-6xl p-3 pb-[calc(5rem+env(safe-area-inset-bottom))] md:p-6 md:pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-6">
-        <SectionTabs />
-        {children}
-      </main>
+        {/* Hueco inferior para que la barra de pestañas no tape el contenido. */}
+        <main className="mx-auto w-full max-w-6xl p-3 pb-[calc(5rem+env(safe-area-inset-bottom))] md:p-6 md:pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-6">
+          <SectionTabs />
+          {children}
+        </main>
 
-      <BottomNav />
-    </div>
+        <BottomNav />
+      </div>
+    </TourProvider>
   );
 }

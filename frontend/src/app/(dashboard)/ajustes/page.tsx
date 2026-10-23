@@ -72,7 +72,10 @@ export default function AjustesPage() {
   return (
     <section className="mx-auto max-w-3xl">
       <PageHeader title="Ajustes" hideTitleOnMobile />
-      <ul className="divide-y overflow-hidden rounded-lg border bg-card shadow-sm">
+      <ul
+        data-tour="settings-list"
+        className="divide-y overflow-hidden rounded-lg border bg-card shadow-sm"
+      >
         {SECTIONS.map(({ key, label, icon: Icon, hint }) => {
           const st = status[key];
           return (

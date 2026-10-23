@@ -22,6 +22,7 @@ export function SyncButton({ compact = false }: { compact?: boolean }) {
     return (
       <Button
         asChild
+        data-tour="sync"
         variant="ghost"
         size="sm"
         className="min-h-11 gap-1.5 text-amber-300 md:min-h-8"
@@ -43,6 +44,7 @@ export function SyncButton({ compact = false }: { compact?: boolean }) {
   const failed = data.last_run?.status === "error";
   return (
     <Button
+      data-tour="sync"
       variant="ghost"
       size="sm"
       className={cn("min-h-11 gap-1.5 md:min-h-8", failed && "text-amber-300")}

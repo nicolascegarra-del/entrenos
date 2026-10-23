@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  CircleHelp,
   CalendarDays,
   Footprints,
   LayoutDashboard,
@@ -91,7 +92,10 @@ export const MORE_GROUPS: { title: string | null; items: MoreLink[] }[] = [
   },
   {
     title: "Ayuda",
-    items: [{ href: "/glosario", label: "Glosario", icon: BookOpen }],
+    items: [
+      { href: "/ayuda", label: "Tours por la app", icon: CircleHelp },
+      { href: "/glosario", label: "Glosario", icon: BookOpen },
+    ],
   },
 ];
 
