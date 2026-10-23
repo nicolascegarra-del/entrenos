@@ -6,14 +6,17 @@ import {
   ArrowUpRight,
   CalendarDays,
   ChevronRight,
+  CircleDashed,
   Flame,
   Clock,
   Footprints,
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { InfoTerm } from "@/components/glossary/info-term";
+import { PageHeader } from "@/components/layout/page-header";
 import { ScoreBadge } from "@/components/plan/status-badge";
 import { INSIGHT_STATUS } from "@/components/progress/insight";
 import { EmptyState, ErrorState } from "@/components/states";
@@ -23,6 +26,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TodayCard } from "@/components/summary/today-card";
 import {
   useAchievements,
+  useGarminStatus,
+  useGear,
   useGoals,
   useInjuryRisk,
   useSummary,
@@ -35,6 +40,7 @@ import {
   sportInfo,
 } from "@/lib/format";
 import type { GlossaryKey } from "@/lib/glossary";
+import { buildNotices, type Notice, setupSteps } from "@/lib/notices";
 import { toIsoDay } from "@/lib/plan";
 import { cn } from "@/lib/utils";
 
@@ -81,30 +87,113 @@ function Kpi({
 const pct = (now: number, before: number) =>
   before > 0 ? ((now - before) / before) * 100 : null;
 
-/** Aviso de riesgo de lesión en el Resumen: solo aparece si hay algo que vigilar. */
-function InjuryBanner() {
-  const { data } = useInjuryRisk();
-  if (!data || data.status === "good") return null;
-  const st = INSIGHT_STATUS[data.status];
-  const worst = data.checks.filter((c) => c.status === data.status);
-  return (
-    <Link
-      href="/progresion/salud#lesiones"
-      className={cn(
-        "flex min-h-11 items-start gap-2 rounded-lg border p-3 text-sm hover:opacity-90",
-        st.className,
-      )}
-    >
-      <st.icon className="mt-0.5 size-4 shrink-0" aria-hidden />
-      <span className="min-w-0 flex-1">
-        <span className="font-medium">
-          <span className="sr-only">{st.label}: </span>
-          {worst.map((c) => c.title).join(" · ")}
+/** Avisos de hoy en una sola tarjeta (Garmin caducado, riesgo de lesión); el resto, plegado. */
+function Notices() {
+  const { data: injury } = useInjuryRisk();
+  const { data: garmin } = useGarminStatus();
+  const notices = buildNotices({ garmin, injury });
+  if (!notices.length) return null;
+  const [first, ...rest] = notices;
+  const row = (n: Notice) => {
+    const st = INSIGHT_STATUS[n.status];
+    return (
+      <Link
+        key={n.key}
+        href={n.href}
+        className={cn(
+          "flex min-h-11 items-start gap-2 rounded-lg border p-3 text-sm hover:opacity-90",
+          st.className,
+        )}
+      >
+        <st.icon className="mt-0.5 size-4 shrink-0" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span className="font-medium">
+            <span className="sr-only">{st.label}: </span>
+            {n.title}
+          </span>
+          {n.message && <span className="block">{n.message}</span>}
         </span>
-        <span className="block">{worst[0]?.message}</span>
-      </span>
-      <ChevronRight className="mt-0.5 size-4 shrink-0" aria-hidden />
-    </Link>
+        <ChevronRight className="mt-0.5 size-4 shrink-0" aria-hidden />
+      </Link>
+    );
+  };
+  return (
+    <section aria-label="Avisos" className="space-y-2">
+      {row(first)}
+      {rest.length > 0 && (
+        <details>
+          <summary className="min-h-11 cursor-pointer content-center text-sm text-muted-foreground">
+            {rest.length === 1 ? "1 aviso más" : `${rest.length} avisos más`}
+          </summary>
+          <div className="mt-2 space-y-2">{rest.map(row)}</div>
+        </details>
+      )}
+    </section>
+  );
+}
+
+const SETUP_HIDDEN = "hoy.configuracion-oculta";
+
+/** «Completa tu configuración»: lo que falta para sacarle partido (se puede ocultar). */
+function SetupCard() {
+  const { data: garmin } = useGarminStatus();
+  const { data: goals } = useGoals();
+  const { data: gear } = useGear();
+  const [hidden, setHidden] = useState(true);
+  useEffect(() => {
+    try {
+      setHidden(window.localStorage.getItem(SETUP_HIDDEN) === "1");
+    } catch {
+      setHidden(false);
+    }
+  }, []);
+  const steps = setupSteps({ garmin, goals, gear });
+  if (hidden || !steps.length) return null;
+  return (
+    <Card className="shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardTitle className="font-heading text-base">
+          Completa tu configuración
+        </CardTitle>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="min-h-11 text-muted-foreground md:min-h-8"
+          onClick={() => {
+            setHidden(true);
+            try {
+              window.localStorage.setItem(SETUP_HIDDEN, "1");
+            } catch {
+              // Solo es una comodidad.
+            }
+          }}
+        >
+          Ocultar
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-1">
+          {steps.map((step) => (
+            <li key={step.key}>
+              <Link
+                href={step.href}
+                className="flex min-h-11 items-center gap-2 rounded-md px-2 text-sm hover:bg-muted"
+              >
+                <CircleDashed
+                  className="size-4 shrink-0 text-klyp-accent"
+                  aria-hidden
+                />
+                <span className="flex-1">{step.label}</span>
+                <ChevronRight
+                  className="size-4 shrink-0 text-muted-foreground"
+                  aria-hidden
+                />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -136,7 +225,8 @@ function StreakStrip() {
   );
 }
 
-export default function ResumenPage() {
+/** Hoy: cómo llegas, avisos, la semana y lo siguiente que toca. */
+export default function HoyPage() {
   const { data, isPending, isError, refetch } = useSummary();
   const { data: goals } = useGoals();
   const today = toIsoDay(new Date());
@@ -165,7 +255,7 @@ export default function ResumenPage() {
   if (!data.recent.length && !data.planned_this_week.length) {
     return (
       <section className="space-y-4">
-        <h1 className="font-heading text-2xl font-bold md:text-3xl">Resumen</h1>
+        <PageHeader title="Hoy" hideTitleOnMobile />
         <EmptyState icon={Footprints} title="Empieza conectando Garmin">
           <p className="max-w-sm text-sm text-muted-foreground">
             Sincroniza tus actividades desde{" "}
@@ -190,80 +280,85 @@ export default function ResumenPage() {
   }
 
   const { this_week: now, last_week: before, fitness } = data;
+  const upcoming = data.planned_this_week
+    .filter((p) => p.day >= today || p.compliance_score != null)
+    .slice(0, 3);
   return (
     <section className="space-y-4 md:space-y-6">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="font-heading text-2xl font-bold md:text-3xl">Resumen</h1>
-        <Button
-          asChild
-          variant="outline"
-          size="sm"
-          className="min-h-11 md:min-h-8"
-        >
-          <Link href="/asistente">
-            <Sparkles aria-hidden /> Pregúntale a la IA
-          </Link>
-        </Button>
-      </div>
+      <PageHeader title="Hoy" hideTitleOnMobile />
 
       <TodayCard summary={data} goals={goals} today={today} />
-      <InjuryBanner />
-      <StreakStrip />
+      <Notices />
+      <SetupCard />
 
-      <h2 className="font-heading text-lg font-semibold">Esta semana</h2>
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <Kpi
-          label="Distancia"
-          value={formatDistance(now.distance_m)}
-          delta={pct(now.distance_m, before.distance_m)}
-        />
-        <Kpi
-          label="Tiempo"
-          value={formatDuration(now.duration_s)}
-          delta={pct(now.duration_s, before.duration_s)}
-        />
-        <Kpi
-          label="Actividades"
-          value={String(now.count)}
-          sub={`${before.count} la semana pasada`}
-        />
-        <Kpi
-          label="Carga"
-          term="load"
-          value={formatNumber(now.load)}
-          delta={pct(now.load, before.load)}
-        />
-        <Kpi
-          label="Frescura"
-          term="tsb"
-          value={fitness ? formatNumber(fitness.tsb) : "—"}
-          sub={data.form_label ?? undefined}
-        />
-        <Kpi
-          label="Forma física"
-          term="ctl"
-          value={fitness ? formatNumber(fitness.ctl) : "—"}
-          sub="media de 6 semanas"
-        />
-        <Kpi
-          label="VO2max"
-          term="vo2max"
-          value={data.vo2max ? formatNumber(data.vo2max) : "—"}
-          sub="ml/kg/min"
-        />
-        <Kpi
-          label="FC en reposo"
-          term="resting_hr"
-          value={data.resting_hr ? `${formatNumber(data.resting_hr)}` : "—"}
-          sub="ppm"
-        />
+      <div className="space-y-2">
+        <h2 className="font-heading text-lg font-semibold">Esta semana</h2>
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <Kpi
+            label="Distancia"
+            value={formatDistance(now.distance_m)}
+            delta={pct(now.distance_m, before.distance_m)}
+          />
+          <Kpi
+            label="Tiempo"
+            value={formatDuration(now.duration_s)}
+            delta={pct(now.duration_s, before.duration_s)}
+          />
+          <Kpi
+            label="Actividades"
+            value={String(now.count)}
+            sub={`${before.count} la semana pasada`}
+          />
+          <Kpi
+            label="Carga"
+            term="load"
+            value={formatNumber(now.load)}
+            delta={pct(now.load, before.load)}
+          />
+        </div>
+        <details className="group">
+          <summary className="min-h-11 cursor-pointer content-center text-sm text-klyp-accent">
+            <span className="group-open:hidden">
+              Ver forma, VO2max y FC en reposo
+            </span>
+            <span className="hidden group-open:inline">Ocultar</span>
+          </summary>
+          <div className="mt-2 grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <Kpi
+              label="Frescura"
+              term="tsb"
+              value={fitness ? formatNumber(fitness.tsb) : "—"}
+              sub={data.form_label ?? undefined}
+            />
+            <Kpi
+              label="Forma física"
+              term="ctl"
+              value={fitness ? formatNumber(fitness.ctl) : "—"}
+              sub="media de 6 semanas"
+            />
+            <Kpi
+              label="VO2max"
+              term="vo2max"
+              value={data.vo2max ? formatNumber(data.vo2max) : "—"}
+              sub="ml/kg/min"
+            />
+            <Kpi
+              label="FC en reposo"
+              term="resting_hr"
+              value={data.resting_hr ? `${formatNumber(data.resting_hr)}` : "—"}
+              sub="ppm"
+            />
+          </div>
+        </details>
       </div>
+
+      <StreakStrip />
 
       <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
         <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between gap-2">
             <CardTitle className="font-heading text-lg">
-              Plan de la semana
+              Próximas sesiones
             </CardTitle>
             {data.compliance_avg != null && (
               <span className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -273,8 +368,8 @@ export default function ResumenPage() {
             )}
           </CardHeader>
           <CardContent className="space-y-2">
-            {data.planned_this_week.length ? (
-              data.planned_this_week.map((p) => {
+            {upcoming.length ? (
+              upcoming.map((p) => {
                 const { icon: Icon } = sportInfo(p.sport);
                 const weekday = new Date(
                   `${p.day}T12:00:00`,
@@ -286,7 +381,7 @@ export default function ResumenPage() {
                   <Link
                     key={p.id}
                     href={`/plan/${p.id}`}
-                    className="flex items-center gap-3 rounded-md bg-muted/60 p-3 hover:bg-muted"
+                    className="flex min-h-11 items-center gap-3 rounded-md bg-muted/60 p-3 hover:bg-muted"
                   >
                     <Icon
                       className="size-5 shrink-0 text-klyp-accent"
@@ -305,7 +400,7 @@ export default function ResumenPage() {
                     ) : (
                       <span className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Clock className="size-3" aria-hidden />
-                        {p.day < today ? "Sin actividad" : "Pendiente"}
+                        Pendiente
                       </span>
                     )}
                   </Link>
@@ -313,12 +408,12 @@ export default function ResumenPage() {
               })
             ) : (
               <p className="text-sm text-muted-foreground">
-                No hay sesiones planificadas esta semana.
+                No tienes más sesiones planificadas esta semana.
               </p>
             )}
             <Button asChild variant="outline" className="mt-1 min-h-11 w-full">
               <Link href="/plan">
-                <CalendarDays aria-hidden /> Ir al plan
+                <CalendarDays aria-hidden /> Ver el calendario
               </Link>
             </Button>
           </CardContent>
@@ -330,20 +425,20 @@ export default function ResumenPage() {
               Últimas actividades
             </CardTitle>
             <Link
-              href="/progresion"
-              className="flex items-center gap-1 text-sm text-klyp-accent hover:underline"
+              href="/actividades"
+              className="flex min-h-11 items-center gap-1 text-sm text-klyp-accent hover:underline"
             >
-              Progresión <ArrowRight className="size-4" aria-hidden />
+              Ver todas <ArrowRight className="size-4" aria-hidden />
             </Link>
           </CardHeader>
           <CardContent className="space-y-2">
-            {data.recent.map((a) => {
+            {data.recent.slice(0, 3).map((a) => {
               const { icon: Icon, label } = sportInfo(a.sport);
               return (
                 <Link
                   key={a.id}
                   href={`/actividades/${a.id}`}
-                  className="flex items-center gap-3 rounded-md bg-muted/60 p-3 hover:bg-muted"
+                  className="flex min-h-11 items-center gap-3 rounded-md bg-muted/60 p-3 hover:bg-muted"
                 >
                   <Icon
                     className="size-5 shrink-0 text-klyp-accent"
@@ -369,6 +464,25 @@ export default function ResumenPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Link
+        href={`/asistente?q=${encodeURIComponent("¿Cómo va mi semana de entrenamiento y qué me recomiendas para los próximos días?")}`}
+        className="flex min-h-11 items-center gap-3 rounded-lg border p-3 text-sm hover:bg-muted/60"
+      >
+        <Sparkles className="size-5 shrink-0 text-klyp-accent" aria-hidden />
+        <span className="flex-1">
+          <span className="block font-medium">
+            Pregúntale a la IA sobre tu semana
+          </span>
+          <span className="text-xs text-muted-foreground">
+            Mira tus entrenos, pulso y zonas, y te explica en qué se basa.
+          </span>
+        </span>
+        <ChevronRight
+          className="size-4 shrink-0 text-muted-foreground"
+          aria-hidden
+        />
+      </Link>
     </section>
   );
 }
