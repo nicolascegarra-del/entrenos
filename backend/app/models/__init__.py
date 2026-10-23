@@ -4,7 +4,14 @@ from app.models.account import GarminCredential, GarminStatus, Invitation, Sex, 
 from app.models.achievement import Achievement
 from app.models.activity import Activity, ActivityRaw, ActivityStream, Device, Lap
 from app.models.admin import AppSetting, AuditLog, EmailVerification, PasswordReset
-from app.models.ai import AiProvider, AiProviderConfig, ChatConversation, ChatMessage
+from app.models.ai import (
+    ActivityReview,
+    AiProvider,
+    AiProviderConfig,
+    AiReviewSettings,
+    ChatConversation,
+    ChatMessage,
+)
 from app.models.gear import Gear
 from app.models.goal import RaceGoal
 from app.models.health import AthleteZones, DailyMetric
@@ -19,6 +26,8 @@ from app.models.training import TrainingPlan, TrainingPlanWeek
 from app.models.user import AccountTier, User, UserStatus
 
 __all__ = [
+    "ActivityReview",
+    "AiReviewSettings",
     "CorosCredential",
     "IngestToken",
     "Achievement",

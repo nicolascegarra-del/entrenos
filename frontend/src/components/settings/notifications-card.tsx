@@ -53,6 +53,11 @@ const KINDS: { key: keyof NotificationPrefs; label: string; help: string }[] = [
     help: "El ajuste semanal de tu plan automático y por qué.",
   },
   {
+    key: "activity_reviews",
+    label: "Análisis de tus entrenos",
+    help: "Cuando la IA termina el análisis de un entreno recién sincronizado.",
+  },
+  {
     key: "achievements",
     label: "Récords y logros",
     help: "Nuevas mejores marcas y retos conseguidos.",

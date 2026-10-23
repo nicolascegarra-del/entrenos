@@ -7,6 +7,9 @@ import {
 
 import { apiFetch } from "@/lib/api";
 import type {
+  ActivityReview,
+  LatestReview,
+  ReviewSettings,
   ImportResult,
   SourcesStatus,
   GeoPlace,
@@ -532,6 +535,60 @@ export function useSetWeeklyGoal() {
         body: JSON.stringify({ sessions }),
       }),
     onSuccess: (data) => queryClient.setQueryData(["achievements"], data),
+  });
+}
+
+// ─── Análisis de entrenos ────────────────────────────────────────────────────
+
+export function useActivityReview(activityId: number) {
+  return useQuery({
+    queryKey: ["review", activityId],
+    queryFn: () =>
+      apiFetch<ActivityReview | null>(
+        `/api/v1/activities/${activityId}/review`,
+      ),
+    // Mientras la IA escribe, se consulta cada 4 s hasta que esté listo.
+    refetchInterval: (query) =>
+      query.state.data?.status === "pending" ? 4000 : false,
+  });
+}
+
+export function useRequestReview(activityId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<ActivityReview>(`/api/v1/activities/${activityId}/review`, {
+        method: "POST",
+      }),
+    onSuccess: (data) => queryClient.setQueryData(["review", activityId], data),
+  });
+}
+
+export function useLatestReview() {
+  return useQuery({
+    queryKey: ["review", "latest"],
+    queryFn: () => apiFetch<LatestReview | null>("/api/v1/ai/reviews/latest"),
+  });
+}
+
+export function useReviewSettings() {
+  return useQuery({
+    queryKey: ["review-settings"],
+    queryFn: () => apiFetch<ReviewSettings>("/api/v1/ai/review-settings"),
+  });
+}
+
+export function useSaveReviewSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (
+      body: Pick<ReviewSettings, "enabled" | "sports" | "daily_max">,
+    ) =>
+      apiFetch<ReviewSettings>("/api/v1/ai/review-settings", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (data) => queryClient.setQueryData(["review-settings"], data),
   });
 }
 

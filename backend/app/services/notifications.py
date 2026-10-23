@@ -52,6 +52,7 @@ KINDS = {
     "sync_error": "sync_error",
     "achievement": "achievements",
     "plan_change": "plan_changes",
+    "activity_review": "activity_reviews",
 }
 
 

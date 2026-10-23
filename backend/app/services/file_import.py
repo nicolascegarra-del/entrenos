@@ -347,3 +347,9 @@ def after_import(session: Session, user_id: int) -> None:
             fn(session, user_id)
         except Exception:  # noqa: BLE001
             session.rollback()
+    try:
+        from app.services.activity_review import queue_reviews
+
+        queue_reviews(session, user_id, datetime.now(UTC) - timedelta(minutes=15))
+    except Exception:  # noqa: BLE001 - el análisis es secundario
+        session.rollback()

@@ -11,6 +11,7 @@ import { FeedbackCard } from "@/components/activity/feedback-card";
 import { GearSelect } from "@/components/activity/gear-select";
 import { LapsTable } from "@/components/activity/laps-table";
 import { RaceToggle } from "@/components/activity/race-toggle";
+import { ReviewCard } from "@/components/activity/review-card";
 import { RouteCard } from "@/components/activity/route-card";
 import {
   StreamCharts,
@@ -274,6 +275,8 @@ export default function ActivityDetailPage() {
       />
 
       <StatsGrid activity={activity} catalog={catalog} />
+
+      <ReviewCard activity={activity} />
 
       <div className="grid gap-4 lg:grid-cols-2 md:gap-6">
         {(streamsPending || route.length > 1) && (

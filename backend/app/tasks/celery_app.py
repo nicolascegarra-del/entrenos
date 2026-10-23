@@ -18,6 +18,7 @@ celery_app = Celery(
         "app.tasks.plans",
         "app.tasks.notifications",
         "app.tasks.sources",
+        "app.tasks.ai",
     ],
 )
 celery_app.conf.update(

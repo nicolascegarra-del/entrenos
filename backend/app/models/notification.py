@@ -34,6 +34,7 @@ class NotificationPrefs(SQLModel, table=True):
     sync_error: bool = True  # sincronización fallida o Garmin desconectado
     achievements: bool = True  # récords y logros
     plan_changes: bool = True  # ajuste semanal del plan automático
+    activity_reviews: bool = True  # el análisis de la IA de un entreno está listo
 
 
 class NotificationLog(SQLModel, table=True):

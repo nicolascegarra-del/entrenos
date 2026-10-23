@@ -20,6 +20,7 @@ from app.models import (
     Achievement,
     Activity,
     ActivityFeedback,
+    ActivityReview,
     AiProviderConfig,
     AppSetting,
     AthleteZones,
@@ -234,6 +235,7 @@ def export_user_data(session: Session, user: User) -> dict:
             session.exec(select(PlannedBlock).where(col(PlannedBlock.session_id).in_(plan_ids))).all()
         ),
         "race_goals": _dump(session.exec(select(RaceGoal).where(RaceGoal.user_id == uid)).all()),
+        "activity_reviews": _dump(session.exec(select(ActivityReview).where(ActivityReview.user_id == uid)).all()),
         "achievements": _dump(session.exec(select(Achievement).where(Achievement.user_id == uid)).all()),
         "gear": _dump(session.exec(select(Gear).where(Gear.user_id == uid)).all()),
         "notification_prefs": _dump(

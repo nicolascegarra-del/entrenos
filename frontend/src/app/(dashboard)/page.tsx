@@ -30,6 +30,7 @@ import {
   useGear,
   useGoals,
   useInjuryRisk,
+  useLatestReview,
   useSummary,
 } from "@/hooks/use-api";
 import {
@@ -197,6 +198,43 @@ function SetupCard() {
   );
 }
 
+/** Último análisis de la IA (si lo hay): una línea con su primera frase y enlace al entreno. */
+function LatestReviewLine() {
+  const { data } = useLatestReview();
+  if (!data) return null;
+  const first =
+    data.content
+      .split("\n")
+      .map((l) =>
+        l
+          .replace(/\*\*[^*]+\*\*:?/g, "")
+          .replace(/\*\*/g, "")
+          .trim(),
+      )
+      .find((l) => l.length > 20) ?? "";
+  return (
+    <Link
+      href={`/actividades/${data.activity_id}`}
+      className="flex min-h-11 items-start gap-3 rounded-lg border p-3 text-sm hover:bg-muted/60"
+    >
+      <Sparkles
+        className="mt-0.5 size-5 shrink-0 text-klyp-accent"
+        aria-hidden
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium">
+          Análisis de «{data.activity_name}»
+        </span>
+        <span className="line-clamp-2 text-muted-foreground">{first}</span>
+      </span>
+      <ChevronRight
+        className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+        aria-hidden
+      />
+    </Link>
+  );
+}
+
 /** Racha semanal y reto de km del mes, con enlace a Logros. */
 function StreakStrip() {
   const { data } = useAchievements();
@@ -289,6 +327,7 @@ export default function HoyPage() {
 
       <TodayCard summary={data} goals={goals} today={today} />
       <Notices />
+      <LatestReviewLine />
       <SetupCard />
 
       <div className="space-y-2">

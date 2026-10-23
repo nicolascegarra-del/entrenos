@@ -842,6 +842,7 @@ export interface NotificationPrefs {
   sync_error: boolean;
   achievements: boolean;
   plan_changes: boolean;
+  activity_reviews: boolean;
 }
 
 export interface NotificationConfig {
@@ -1049,4 +1050,33 @@ export interface ImportResult {
   activity_id: number;
   created: boolean;
   source: string;
+}
+
+// ─── Análisis de entrenos con la IA ──────────────────────────────────────────
+
+export type ReviewSport =
+  "running" | "cycling" | "strength" | "swimming" | "other";
+
+export interface ActivityReview {
+  activity_id: number;
+  status: "pending" | "done" | "error";
+  content: string;
+  error: string;
+  model_label: string | null;
+  tools: string[] | null;
+  updated_at: string | null;
+  created_at: string;
+}
+
+export interface LatestReview extends ActivityReview {
+  activity_name: string;
+  activity_day: string;
+}
+
+export interface ReviewSettings {
+  enabled: boolean;
+  sports: ReviewSport[];
+  daily_max: number;
+  has_ai: boolean;
+  used_today: number;
 }
