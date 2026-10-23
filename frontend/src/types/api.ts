@@ -637,6 +637,8 @@ export interface ChatMessage {
   model: string | null;
   /** Datos que consultó el asistente para responder. */
   tools?: string[] | null;
+  /** Lo que hizo el entrenador: datos guardados en la ficha, propuestas del plan… */
+  effects?: CoachEffect[] | null;
   created_at: string;
 }
 
@@ -858,6 +860,7 @@ export interface NotificationPrefs {
   plan_changes: boolean;
   activity_reviews: boolean;
   tests: boolean;
+  weekly_review: boolean;
 }
 
 export interface NotificationConfig {
@@ -1262,4 +1265,65 @@ export interface ActivityAnalysis {
     second_ef: number;
     level: "bien" | "alta" | "muy alta";
   } | null;
+}
+
+// ─── Entrenador IA ───────────────────────────────────────────────────────────
+
+export type CoachEffect =
+  | {
+      tipo: "memoria";
+      accion: "guardado" | "corregido" | "olvidado";
+      id: number;
+      categoria: string;
+      categoria_nombre: string;
+      dato: string;
+    }
+  | {
+      tipo: "propuesta";
+      id: number;
+      sesion_id: number;
+      resumen: string;
+      motivo: string;
+    }
+  | { tipo: "entrevista"; accion: "terminada" };
+
+export interface CoachSettings {
+  health_consent: boolean;
+  health_consent_at: string | null;
+  interview_done: boolean;
+  weekly_review: boolean;
+  categories: Record<string, string>;
+  health_categories: string[];
+}
+
+export interface CoachMemory {
+  id: number;
+  category: string;
+  content: string;
+  source: "ia" | "usuario" | "entrevista" | "revision";
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface WeeklyCheckin {
+  id: number;
+  week_start: string;
+  status: "pending" | "processing" | "done" | "error";
+  answers: Record<string, number | string>;
+  summary: string;
+  error: string;
+  effects: CoachEffect[] | null;
+  updated_at: string | null;
+}
+
+export interface PlanProposal {
+  id: number;
+  planned_session_id: number;
+  session_title: string | null;
+  session_day: string | null;
+  summary: string;
+  reason: string;
+  change: Record<string, unknown>;
+  status: "pending" | "accepted" | "rejected" | "expired";
+  created_at: string;
 }

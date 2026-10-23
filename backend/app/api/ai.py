@@ -10,7 +10,7 @@ import json
 import logging
 from collections.abc import Iterator
 from datetime import UTC, date, datetime, time, timedelta
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
@@ -25,9 +25,9 @@ from app.core.crypto import decrypt_secret, encrypt_secret
 from app.core.db import engine
 from app.core.rate_limit import limiter
 from app.models import Activity, AiProvider, AiProviderConfig, ChatConversation, ChatMessage, User
-from app.services import ai_tools
+from app.services import ai_tools, coach
 from app.services import progress as prog
-from app.services.ai_context import conversation_title, format_context, system_prompt
+from app.services.ai_context import conversation_title, format_context, interview_prompt, system_prompt
 from app.services.ai_tools import clock
 from app.services.insights import build_insights
 from app.services.llm import PROVIDERS, LLMError, check_model, list_models, stream_chat
@@ -93,6 +93,7 @@ class ChatIn(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     conversation_id: int | None = None
     provider: AiProvider | None = None
+    mode: Literal["interview"] | None = Field(default=None, description="interview = entrevista inicial")
 
 
 class MessageOut(BaseModel):
@@ -102,6 +103,7 @@ class MessageOut(BaseModel):
     provider: str | None
     model: str | None
     tools: list[str] | None = None
+    effects: list[dict] | None = None  # datos guardados en la ficha y propuestas de cambio del plan
     created_at: datetime
 
 
@@ -433,6 +435,9 @@ def chat(request: Request, body: ChatIn, session: SessionDep, user: CurrentUser)
 
     # Todo lo que necesita la BD se lee aquí: el generador corre después y usa su propia sesión.
     system = system_prompt(format_context(_gather(session, user), date.today()))
+    system += "\n\n" + coach.context_block(session, user.id)
+    if body.mode == "interview":
+        system += "\n" + interview_prompt()
     # Calcular el contexto guarda cachés (curva de ritmos, huellas de recorrido) en las actividades: se
     # confirman ya para no dejar filas bloqueadas mientras dura la respuesta (las herramientas escriben las mismas).
     session.commit()
@@ -443,12 +448,18 @@ def chat(request: Request, body: ChatIn, session: SessionDep, user: CurrentUser)
         yield _sse("meta", {"conversation_id": conversation_id, "provider": provider, "model": model})
         parts: list[str] = []
         consulted: list[str] = []
+        effects: list[dict] = []
+        pending: list[dict] = []
         tokens_in = tokens_out = None
         # Las herramientas leen la BD con su propia sesión (el generador corre después de la petición).
         with Session(engine) as tools_db:
 
             def run_tool(call) -> tuple[str, str]:
-                return ai_tools.execute(tools_db, user_id, call.name, call.args)
+                label, result = ai_tools.execute(tools_db, user_id, call.name, call.args)
+                if (effect := ai_tools.effect_of(call.name, result)) is not None:
+                    effects.append(effect)
+                    pending.append(effect)
+                return label, result
 
             try:
                 for chunk in stream_chat(provider, api_key, model, system, history, tools=ai_tools.TOOLS,
@@ -456,6 +467,8 @@ def chat(request: Request, body: ChatIn, session: SessionDep, user: CurrentUser)
                     if chunk.tool:
                         consulted.append(chunk.tool)
                         yield _sse("tool", {"label": chunk.tool})
+                    while pending:
+                        yield _sse("effect", pending.pop(0))
                     if chunk.text:
                         parts.append(chunk.text)
                         yield _sse("delta", {"text": chunk.text})
@@ -479,6 +492,7 @@ def chat(request: Request, body: ChatIn, session: SessionDep, user: CurrentUser)
                 input_tokens=tokens_in,
                 output_tokens=tokens_out,
                 tools=consulted or None,
+                effects=effects or None,
             )
             db.add(message)
             db.commit()

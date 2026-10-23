@@ -63,6 +63,10 @@ import type {
   PerformanceTest,
   TestProtocol,
   ActivityAnalysis,
+  CoachMemory,
+  CoachSettings,
+  PlanProposal,
+  WeeklyCheckin,
   MetricDefinition,
   PlannedSession,
   PlannedSessionDetail,
@@ -1457,6 +1461,118 @@ export function useDeleteActivities() {
         "zones",
         "fitness",
       ])
+        queryClient.invalidateQueries({ queryKey: [key] });
+    },
+  });
+}
+
+// ─── Entrenador IA ───────────────────────────────────────────────────────────
+
+export function useCoachSettings() {
+  return useQuery({
+    queryKey: ["coach-settings"],
+    queryFn: () => apiFetch<CoachSettings>("/api/v1/coach/settings"),
+  });
+}
+
+export function useSaveCoachSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { health_consent?: boolean; weekly_review?: boolean }) =>
+      apiFetch<CoachSettings>("/api/v1/coach/settings", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["coach-settings"], data);
+      queryClient.invalidateQueries({ queryKey: ["coach-memories"] });
+    },
+  });
+}
+
+export function useCoachMemories() {
+  return useQuery({
+    queryKey: ["coach-memories"],
+    queryFn: () => apiFetch<CoachMemory[]>("/api/v1/coach/memories"),
+  });
+}
+
+/** Añadir (sin id), corregir (con id) o borrar (remove) un dato de la ficha. */
+export function useSaveCoachMemory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (m: {
+      id?: number;
+      category?: string;
+      content?: string;
+      remove?: boolean;
+    }): Promise<void> => {
+      if (m.remove) {
+        await apiFetch<void>(`/api/v1/coach/memories/${m.id}`, {
+          method: "DELETE",
+        });
+        return;
+      }
+      await apiFetch<CoachMemory>(
+        m.id ? `/api/v1/coach/memories/${m.id}` : "/api/v1/coach/memories",
+        {
+          method: m.id ? "PUT" : "POST",
+          body: JSON.stringify({ category: m.category, content: m.content }),
+        },
+      );
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["coach-memories"] }),
+  });
+}
+
+export function useCheckin() {
+  return useQuery({
+    queryKey: ["coach-checkin"],
+    queryFn: () => apiFetch<WeeklyCheckin | null>("/api/v1/coach/checkin"),
+    refetchInterval: (query) =>
+      query.state.data?.status === "processing" ? 2500 : false,
+  });
+}
+
+export function useOpenCheckin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<WeeklyCheckin>("/api/v1/coach/checkin", { method: "POST" }),
+    onSuccess: (data) => queryClient.setQueryData(["coach-checkin"], data),
+  });
+}
+
+export function useAnswerCheckin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; answers: Record<string, number | string> }) =>
+      apiFetch<WeeklyCheckin>(`/api/v1/coach/checkin/${v.id}/answers`, {
+        method: "POST",
+        body: JSON.stringify(v.answers),
+      }),
+    onSuccess: (data) => queryClient.setQueryData(["coach-checkin"], data),
+  });
+}
+
+export function useProposals() {
+  return useQuery({
+    queryKey: ["coach-proposals"],
+    queryFn: () => apiFetch<PlanProposal[]>("/api/v1/coach/proposals"),
+  });
+}
+
+export function useDecideProposal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; accept: boolean }) =>
+      apiFetch<PlanProposal>(
+        `/api/v1/coach/proposals/${v.id}/${v.accept ? "accept" : "reject"}`,
+        { method: "POST" },
+      ),
+    onSuccess: () => {
+      for (const key of ["coach-proposals", "plans", "plan"])
         queryClient.invalidateQueries({ queryKey: [key] });
     },
   });

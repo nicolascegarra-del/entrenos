@@ -16,7 +16,7 @@ from sqlmodel import Session, col, func, select
 
 from app.core.crypto import decrypt_secret
 from app.models import Activity, ActivityReview, AiProvider, AiProviderConfig, AiReviewSettings
-from app.services import ai_tools, notifications
+from app.services import ai_tools, coach, notifications
 from app.services.llm import PROVIDERS, LLMError, stream_chat
 from app.services.plan_steps import local_day, sport_family
 
@@ -171,14 +171,15 @@ def generate(session: Session, review_id: int) -> ActivityReview | None:
     provider = AiProvider(config.provider)
     question = (f"Analiza este entreno: «{activity.name or activity.sport}» del "
                 f"{local_day(activity.start_time, activity.timezone).strftime('%d/%m/%Y')}.\n\n"
-                f"DATOS:\n{facts(session, review.user_id, activity)}")  # fmt: skip
+                f"DATOS:\n{facts(session, review.user_id, activity)}\n\n"
+                f"{coach.context_block(session, review.user_id)}")  # fmt: skip
     parts: list[str] = []
     consulted: list[str] = []
     tokens_in = tokens_out = None
     try:
         for chunk in stream_chat(
             provider, decrypt_secret(config.key_enc), config.model, REVIEW_PROMPT,
-            [{"role": "user", "content": question}], tools=ai_tools.TOOLS,
+            [{"role": "user", "content": question}], tools=ai_tools.READ_TOOLS,
             executor=lambda call: ai_tools.execute(session, review.user_id, call.name, call.args),
         ):  # fmt: skip
             if chunk.text:

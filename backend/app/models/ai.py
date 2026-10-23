@@ -65,6 +65,8 @@ class ChatMessage(SQLModel, table=True):
     input_tokens: int | None = None
     output_tokens: int | None = None
     tools: list | None = jsonb_field(nullable=True)  # datos que consultó el asistente (etiquetas)
+    # Lo que hizo el entrenador en esa respuesta: datos guardados en la ficha y propuestas de cambio del plan.
+    effects: list | None = jsonb_field(nullable=True)
     created_at: datetime = created_at_field()
 
 

@@ -15,6 +15,7 @@ from datetime import date, timedelta
 from sqlmodel import Session, col, select
 
 from app.models import Activity, ActivityFeedback, ActivityStream, DailyMetric, Gear, Lap, PlannedSession, RaceGoal
+from app.services import coach
 from app.services import progress as prog
 from app.services.insights import decoupling_pct, is_steady
 from app.services.llm import ToolSpec
@@ -485,6 +486,7 @@ def plan_y_objetivos(session: Session, user_id: int, args: dict) -> tuple[str, d
         "sesiones": [
             _clean(
                 {
+                    "id": s.id,
                     "fecha": str(s.day),
                     "titulo": s.title,
                     "deporte": s.sport,
@@ -741,6 +743,81 @@ TOOLS: list[ToolSpec] = [
     ),
 ]
 
+_BLOCK = {
+    "type": "object",
+    "properties": {
+        "kind": {"type": "string", "enum": ["warmup", "steady", "interval", "recovery", "cooldown"]},
+        "repeat": {"type": "integer", "description": "Repeticiones (1 si no es una serie)"},
+        "duration_s": {"type": "number", "description": "Duración en segundos (o distance_m)"},
+        "distance_m": {"type": "number", "description": "Distancia en metros (o duration_s)"},
+        "target_metric": {"type": "string", "enum": ["pace", "speed", "hr", "power", "cadence"]},
+        "target_min": {"type": "number", "description": "Ritmo en s/km, FC en ppm, potencia en W…"},
+        "target_max": {"type": "number"},
+        "recovery_duration_s": {"type": "number", "description": "Recuperación entre repeticiones (s)"},
+    },
+    "required": ["kind", "repeat"],
+}
+
+COACH_TOOLS: list[ToolSpec] = [
+    ToolSpec(
+        "memoria_del_atleta",
+        "Su ficha completa (lo que sabes de él más allá del reloj) con los ids de cada dato, si dio consentimiento "
+        "para datos de salud y si hizo la entrevista inicial.",
+        {"type": "object", "properties": {}},
+    ),
+    ToolSpec(
+        "guardar_en_memoria",
+        "Guarda en su ficha algo duradero que te ha CONTADO (no lo que deduces de los datos): historial, lesiones, "
+        "salud, disponibilidad, preferencias, objetivos o vida diaria. Una frase clara en tercera persona, con fecha "
+        "o época si la dijo. Para corregir un dato existente pasa reemplaza_id. Lesiones y salud solo si dio "
+        "consentimiento.",
+        {
+            "type": "object",
+            "properties": {
+                "categoria": {"type": "string", "enum": list(coach.CATEGORIES)},
+                "dato": {
+                    "type": "string",
+                    "description": "Ej.: «Tendinitis aquílea izquierda en primavera de 2025, ya recuperada»",
+                },
+                "reemplaza_id": {"type": "integer", "description": "Id del dato que corrige (opcional)"},
+            },
+            "required": ["categoria", "dato"],
+        },
+    ),
+    ToolSpec(
+        "olvidar_dato",
+        "Borra un dato de su ficha (cuando te dice que ya no es así o que lo olvides).",
+        {"type": "object", "properties": {"id": {"type": "integer"}}, "required": ["id"]},
+    ),
+    ToolSpec(
+        "terminar_entrevista",
+        "Marca la entrevista inicial como hecha (cuando ya has preguntado lo esencial o él quiere parar).",
+        {"type": "object", "properties": {}},
+    ),
+    ToolSpec(
+        "proponer_cambio_plan",
+        "Propone cambiar una sesión futura del plan (mover de día, cambiar título, notas o bloques). NO la cambia: "
+        "la persona verá la propuesta y la aceptará o rechazará. Usa el id de plan_y_objetivos y explica el motivo.",
+        {
+            "type": "object",
+            "properties": {
+                "sesion_id": {"type": "integer"},
+                "motivo": {"type": "string", "description": "Por qué (se le enseña tal cual)"},
+                "nuevo_dia": _DATE,
+                "nuevo_titulo": {"type": "string"},
+                "notas": {"type": "string"},
+                "bloques": {"type": "array", "items": _BLOCK, "description": "Bloques nuevos completos (opcional)"},
+            },
+            "required": ["sesion_id", "motivo"],
+        },
+    ),
+]
+# Solo lectura (análisis automáticos) y todas (chat con el entrenador).
+READ_TOOLS = TOOLS
+TOOLS = TOOLS + COACH_TOOLS
+# Herramientas cuyo resultado lleva un «efecto» que se enseña en el chat (guardado, propuesta…).
+EFFECT_TOOLS = {"guardar_en_memoria", "olvidar_dato", "terminar_entrevista", "proponer_cambio_plan"}
+
 _HANDLERS: dict[str, Callable[[Session, int, dict], tuple[str, dict]]] = {
     "buscar_actividades": buscar_actividades,
     "detalle_actividad": detalle_actividad,
@@ -752,7 +829,22 @@ _HANDLERS: dict[str, Callable[[Session, int, dict], tuple[str, dict]]] = {
     "dia_de_carrera": dia_de_carrera,
     "salud_diaria": salud_diaria,
     "lesiones_y_material": lesiones_y_material,
+    "memoria_del_atleta": coach.tool_memoria,
+    "guardar_en_memoria": coach.tool_guardar,
+    "olvidar_dato": coach.tool_olvidar,
+    "terminar_entrevista": coach.tool_terminar_entrevista,
+    "proponer_cambio_plan": coach.tool_proponer,
 }
+
+
+def effect_of(name: str, result: str) -> dict | None:
+    """El «efecto» de una herramienta de escritura, para enseñarlo en el chat."""
+    if name not in EFFECT_TOOLS:
+        return None
+    try:
+        return json.loads(result).get("efecto")
+    except (ValueError, AttributeError):
+        return None
 
 
 def execute(session: Session, user_id: int, name: str, args: dict | None) -> tuple[str, str]:

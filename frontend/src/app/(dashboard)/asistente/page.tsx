@@ -8,6 +8,8 @@ import {
   Sparkles,
   Square,
   Trash2,
+  UserRoundSearch,
+  CalendarCheck,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -15,6 +17,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Consulted } from "@/components/assistant/consulted";
+import { CoachEffects } from "@/components/assistant/effects";
 import { Markdown } from "@/components/assistant/markdown";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -27,6 +30,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useAiProviders,
+  useCoachSettings,
   useConversation,
   useConversations,
   useDeleteConversation,
@@ -35,7 +39,7 @@ import { ApiError, apiFetch } from "@/lib/api";
 import { streamChat } from "@/lib/chat-stream";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { AiProviderId, Conversation } from "@/types/api";
+import type { AiProviderId, CoachEffect, Conversation } from "@/types/api";
 
 const SUGGESTIONS = [
   "Analiza mi último entreno: ritmo, pulso, zonas y vueltas",
@@ -51,6 +55,8 @@ interface Bubble {
   content: string;
   /** Datos que consultó el asistente. */
   tools?: string[];
+  /** Lo que hizo el entrenador (datos guardados, propuestas del plan). */
+  effects?: CoachEffect[];
 }
 
 const selectClass =
@@ -135,6 +141,12 @@ function AssistantChat() {
   const [provider, setProvider] = useState<AiProviderId | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Entrevista inicial: se pide con ?modo=entrevista y dura hasta que el entrenador la da por terminada.
+  const [interview, setInterview] = useState(
+    params.get("modo") === "entrevista",
+  );
+  const { data: coachSettings } = useCoachSettings();
+  const interviewStarted = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -150,6 +162,7 @@ function AssistantChat() {
       role: m.role,
       content: m.content,
       tools: m.tools ?? [],
+      effects: m.effects ?? [],
     })) ?? [];
   const bubbles = [...saved, ...pending];
 
@@ -165,7 +178,7 @@ function AssistantChat() {
     router.replace(id ? `/asistente?c=${id}` : "/asistente");
   };
 
-  const send = async (text: string) => {
+  const send = async (text: string, forceInterview = false) => {
     const message = text.trim();
     if (!message || streaming) return;
     setInput("");
@@ -179,7 +192,12 @@ function AssistantChat() {
     let currentId = conversationId;
     try {
       await streamChat(
-        { message, conversation_id: conversationId, provider: chosen },
+        {
+          message,
+          conversation_id: conversationId,
+          provider: chosen,
+          mode: interview || forceInterview ? "interview" : null,
+        },
         {
           onMeta: (meta) => {
             currentId = meta.conversation_id;
@@ -192,6 +210,23 @@ function AssistantChat() {
                   : b,
               ),
             ),
+          onEffect: (effect) => {
+            if (effect.tipo === "entrevista") {
+              setInterview(false);
+              queryClient.invalidateQueries({ queryKey: ["coach-settings"] });
+            }
+            if (effect.tipo === "memoria")
+              queryClient.invalidateQueries({ queryKey: ["coach-memories"] });
+            if (effect.tipo === "propuesta")
+              queryClient.invalidateQueries({ queryKey: ["coach-proposals"] });
+            setPending((prev) =>
+              prev.map((b) =>
+                b.key === "a-pending"
+                  ? { ...b, effects: [...(b.effects ?? []), effect] }
+                  : b,
+              ),
+            );
+          },
           onTool: (label) =>
             setPending((prev) =>
               prev.map((b) =>
@@ -235,6 +270,20 @@ function AssistantChat() {
     }
   };
 
+  // ?modo=entrevista en una conversación nueva: el entrenador empieza a preguntar.
+  useEffect(() => {
+    if (
+      !interview ||
+      interviewStarted.current ||
+      conversationId ||
+      !active.length
+    )
+      return;
+    interviewStarted.current = true;
+    void send("Hagamos la entrevista inicial para que me conozcas.", true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interview, conversationId, active.length]);
+
   if (loadingAi) return <Skeleton className="h-64 w-full" />;
 
   if (!active.length) {
@@ -277,6 +326,21 @@ function AssistantChat() {
           <span className="hidden truncate text-sm font-medium lg:block">
             {conversation?.title ?? "Nueva conversación"}
           </span>
+          {interview && (
+            <span className="rounded-full bg-klyp-accent/10 px-2 py-0.5 text-xs font-medium text-klyp-accent">
+              Entrevista
+            </span>
+          )}
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="min-h-11 md:min-h-8"
+          >
+            <Link href="/asistente/semana">
+              <CalendarCheck aria-hidden /> Revisión semanal
+            </Link>
+          </Button>
           <label className="ml-auto flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
             <span className="sr-only sm:not-sr-only">Asistente</span>
             <select
@@ -316,6 +380,35 @@ function AssistantChat() {
                   objetivos) y te explico en qué me baso.
                 </p>
               </div>
+              {coachSettings && !coachSettings.interview_done && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInterview(true);
+                    interviewStarted.current = true;
+                    void send(
+                      "Hagamos la entrevista inicial para que me conozcas.",
+                      true,
+                    );
+                  }}
+                  className="flex min-h-11 max-w-md items-center gap-3 rounded-lg border border-klyp-accent/50 bg-klyp-accent/5 p-3 text-left text-sm hover:bg-klyp-accent/10"
+                >
+                  <UserRoundSearch
+                    className="size-5 shrink-0 text-klyp-accent"
+                    aria-hidden
+                  />
+                  <span>
+                    <span className="block font-medium">
+                      Empieza por la entrevista inicial (5 min)
+                    </span>
+                    <span className="block text-muted-foreground">
+                      Te hago unas preguntas (historial, lesiones,
+                      disponibilidad…) para entrenarte como un entrenador
+                      personal. Lo guardo en tu ficha y lo puedes editar.
+                    </span>
+                  </span>
+                </button>
+              )}
               <ul className="flex max-w-xl flex-wrap justify-center gap-2">
                 {SUGGESTIONS.map((s) => (
                   <li key={s}>
@@ -348,6 +441,7 @@ function AssistantChat() {
                       working={b.key === "a-pending" && streaming}
                     />
                     {b.content && <Markdown text={b.content} />}
+                    <CoachEffects effects={b.effects} />
                   </>
                 ) : (
                   <p className="whitespace-pre-wrap">{b.content}</p>

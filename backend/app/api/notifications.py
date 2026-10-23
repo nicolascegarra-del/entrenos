@@ -46,6 +46,7 @@ class PrefsIn(BaseModel):
     plan_changes: bool
     activity_reviews: bool = True
     tests: bool = True
+    weekly_review: bool = True
 
     @field_validator("timezone")
     @classmethod

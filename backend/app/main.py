@@ -12,6 +12,7 @@ from app.api import (
     ai,
     apple,
     auth,
+    coach,
     garmin,
     gear,
     goals,
@@ -103,6 +104,7 @@ app.include_router(sources.router, prefix="/api/v1")
 app.include_router(apple.router, prefix="/api/v1")
 app.include_router(performance.router, prefix="/api/v1")
 app.include_router(workouts.router, prefix="/api/v1")
+app.include_router(coach.router, prefix="/api/v1")
 app.include_router(reviews.router, prefix="/api/v1")
 
 

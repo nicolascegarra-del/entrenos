@@ -27,6 +27,7 @@ from app.models import (
     AuditLog,
     ChatConversation,
     ChatMessage,
+    CoachMemory,
     DailyMetric,
     Device,
     EmailVerification,
@@ -37,6 +38,7 @@ from app.models import (
     PerformanceTest,
     PlannedBlock,
     PlannedSession,
+    PlanProposal,
     RaceGoal,
     StrengthSet,
     SyncRun,
@@ -45,6 +47,7 @@ from app.models import (
     User,
     UserProfile,
     UserStatus,
+    WeeklyCheckin,
     WeightLog,
 )
 
@@ -232,6 +235,9 @@ def export_user_data(session: Session, user: User) -> dict:
         "daily_metrics": _dump(session.exec(select(DailyMetric).where(DailyMetric.user_id == uid)).all()),
         "athlete_zones": _dump(session.exec(select(AthleteZones).where(AthleteZones.user_id == uid)).all()),
         "performance_tests": _dump(session.exec(select(PerformanceTest).where(PerformanceTest.user_id == uid)).all()),
+        "coach_memory": _dump(session.exec(select(CoachMemory).where(CoachMemory.user_id == uid)).all()),
+        "weekly_checkins": _dump(session.exec(select(WeeklyCheckin).where(WeeklyCheckin.user_id == uid)).all()),
+        "plan_proposals": _dump(session.exec(select(PlanProposal).where(PlanProposal.user_id == uid)).all()),
         "planned_sessions": _dump(plans),
         "planned_blocks": _dump(
             session.exec(select(PlannedBlock).where(col(PlannedBlock.session_id).in_(plan_ids))).all()

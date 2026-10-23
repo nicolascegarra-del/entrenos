@@ -12,6 +12,7 @@ from app.models.ai import (
     ChatConversation,
     ChatMessage,
 )
+from app.models.coach import CoachMemory, CoachSettings, PlanProposal, WeeklyCheckin
 from app.models.gear import Gear
 from app.models.goal import RaceGoal
 from app.models.health import AthleteZones, DailyMetric
@@ -30,6 +31,10 @@ __all__ = [
     "ActivityReview",
     "AiReviewSettings",
     "AppleImport",
+    "CoachMemory",
+    "CoachSettings",
+    "PlanProposal",
+    "WeeklyCheckin",
     "DeletedActivity",
     "PerformanceTest",
     "CorosCredential",

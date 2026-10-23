@@ -54,6 +54,7 @@ KINDS = {
     "plan_change": "plan_changes",
     "activity_review": "activity_reviews",
     "test": "tests",
+    "weekly_review": "weekly_review",
 }
 
 

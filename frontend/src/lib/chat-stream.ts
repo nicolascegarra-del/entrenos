@@ -1,5 +1,5 @@
 import { authFetch, parseError } from "@/lib/api";
-import type { AiProviderId } from "@/types/api";
+import type { AiProviderId, CoachEffect } from "@/types/api";
 
 export interface SseEvent {
   event: string;
@@ -42,12 +42,16 @@ export interface ChatHandlers {
   onDelta: (text: string) => void;
   /** El asistente ha consultado un dato (etiqueta legible). */
   onTool?: (label: string) => void;
+  /** El entrenador ha guardado algo en tu ficha o ha propuesto un cambio del plan. */
+  onEffect?: (effect: CoachEffect) => void;
 }
 
 export interface ChatRequest {
   message: string;
   conversation_id?: number | null;
   provider?: AiProviderId | null;
+  /** «interview»: entrevista inicial del entrenador. */
+  mode?: "interview" | null;
 }
 
 /**
@@ -80,6 +84,8 @@ export async function streamChat(
       if (event === "meta") handlers.onMeta?.(data as never);
       else if (event === "delta") handlers.onDelta(String(data.text ?? ""));
       else if (event === "tool") handlers.onTool?.(String(data.label ?? ""));
+      else if (event === "effect")
+        handlers.onEffect?.(data as unknown as CoachEffect);
       else if (event === "error") throw new Error(String(data.message));
       else if (event === "done") finished = true;
     }

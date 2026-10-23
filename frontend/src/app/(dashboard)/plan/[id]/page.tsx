@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { RepsChart } from "@/components/plan/reps-chart";
 import { ScoreBadge, StatusBadge } from "@/components/plan/status-badge";
 import { ErrorState } from "@/components/states";
+import { SessionProposal } from "@/components/assistant/coach-nudges";
 import { SendToWatchCard } from "@/components/plan/send-to-watch";
 import { Button } from "@/components/ui/button";
 import {
@@ -348,6 +349,8 @@ export default function PlanDetailPage() {
           </div>
         </div>
       </header>
+
+      <SessionProposal planId={plan.id} />
 
       <SendToWatchCard plan={plan} />
 

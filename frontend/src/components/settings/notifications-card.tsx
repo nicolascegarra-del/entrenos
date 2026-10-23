@@ -63,6 +63,11 @@ const KINDS: { key: keyof NotificationPrefs; label: string; help: string }[] = [
     help: "Cuando un test planificado se analiza al sincronizarlo, para que lo revises.",
   },
   {
+    key: "weekly_review",
+    label: "Revisión semanal",
+    help: "El domingo por la tarde, tu entrenador IA te pregunta qué tal la semana.",
+  },
+  {
     key: "achievements",
     label: "Récords y logros",
     help: "Nuevas mejores marcas y retos conseguidos.",
