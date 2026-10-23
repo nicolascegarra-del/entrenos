@@ -33,7 +33,7 @@ export function buildNotices({
       title: "Garmin desconectado",
       message:
         "La conexión ha caducado: vuelve a conectarla para seguir sincronizando.",
-      href: "/ajustes",
+      href: "/ajustes/conexiones",
     });
   if (injury && injury.status !== "good") {
     const worst = injury.checks.filter((c) => c.status === injury.status);
@@ -60,7 +60,11 @@ export function setupSteps({
 }): SetupStep[] {
   const steps: SetupStep[] = [];
   if (garmin && garmin.connection.status === "none")
-    steps.push({ key: "watch", label: "Conecta tu reloj", href: "/ajustes" });
+    steps.push({
+      key: "watch",
+      label: "Conecta tu reloj",
+      href: "/ajustes/conexiones",
+    });
   if (goals && !goals.some((g) => g.days_left >= 0 && g.result_time_s == null))
     steps.push({
       key: "goal",

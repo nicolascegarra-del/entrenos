@@ -243,7 +243,7 @@ function AssistantChat() {
         <p className="max-w-sm text-sm text-muted-foreground">
           Añade tu clave de ChatGPT, Gemini o Claude en{" "}
           <Link
-            href="/ajustes#asistente"
+            href="/ajustes/asistente"
             className="font-medium text-klyp-accent underline"
           >
             Ajustes

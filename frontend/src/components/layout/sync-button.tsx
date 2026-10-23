@@ -27,7 +27,7 @@ export function SyncButton({ compact = false }: { compact?: boolean }) {
         className="min-h-11 gap-1.5 text-amber-300 md:min-h-8"
       >
         <Link
-          href="/ajustes"
+          href="/ajustes/conexiones"
           aria-label="Garmin desconectado: volver a conectar"
         >
           <TriangleAlert className="size-4" aria-hidden />

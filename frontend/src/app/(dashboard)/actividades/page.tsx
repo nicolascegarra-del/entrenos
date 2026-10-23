@@ -230,7 +230,7 @@ export default function ActividadesPage() {
             className="min-h-11 md:min-h-8"
           >
             <Link
-              href="/ajustes#otros-relojes"
+              href="/ajustes/conexiones#otros-relojes"
               title="Importar FIT, GPX o TCX de otros relojes"
             >
               <FileUp aria-hidden /> Importar
