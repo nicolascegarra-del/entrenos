@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowLeft,
   CircleCheck,
   CircleDashed,
   Loader2,
@@ -119,12 +118,6 @@ export default function EntrenamientoPage() {
 
   return (
     <section className="mx-auto max-w-3xl space-y-4">
-      <Link
-        href="/plan"
-        className="inline-flex min-h-11 items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" aria-hidden /> Calendario
-      </Link>
       {isPending ? (
         <Skeleton className="h-64" />
       ) : isError ? (

@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Clock, Plus, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import { PageHeader } from "@/components/layout/page-header";
 import { ScoreBadge } from "@/components/plan/status-badge";
 import { ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -101,39 +102,55 @@ export default function PlanPage() {
   );
   const rangeLabel = `${days[0].toLocaleDateString("es-ES", { day: "numeric", month: "short" })} – ${days[6].toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })}`;
 
+  const newSessionHref = `/plan/nueva?dia=${today >= from && today <= to ? today : from}`;
   return (
-    <section className="space-y-4">
+    <section className="space-y-4 pb-16 lg:pb-0">
+      <PageHeader
+        title="Calendario"
+        hideTitleOnMobile
+        actions={
+          <>
+            {!activePlan && (
+              <Button asChild variant="outline" className="min-h-11 md:min-h-9">
+                <Link href="/plan/generar">
+                  <Sparkles aria-hidden /> Crear plan automático
+                </Link>
+              </Button>
+            )}
+            <Button asChild className="hidden min-h-9 lg:inline-flex">
+              <Link href={newSessionHref}>
+                <Plus aria-hidden /> Nueva sesión
+              </Link>
+            </Button>
+          </>
+        }
+      />
       {activePlan?.current_week && (
         <Link
           href="/plan/entrenamiento"
-          className="block rounded-lg border border-klyp-accent/40 bg-klyp-pale/50 p-3 text-sm hover:bg-klyp-pale dark:bg-klyp-navy-light/30"
+          className="flex min-h-11 items-center gap-2 rounded-lg border border-klyp-accent/40 bg-klyp-pale/50 px-3 py-2 text-sm hover:bg-klyp-pale dark:bg-klyp-navy-light/30"
         >
-          <strong>{activePlan.goal_name ?? "Plan de entrenamiento"}</strong> ·
-          semana {activePlan.current_week} de {activePlan.total_weeks} ·{" "}
-          {activePlan.weeks.find((w) => w.is_current)?.phase_label}
-          {activePlan.weeks.find((w) => w.is_current)?.adjustment?.reason && (
-            <span className="block text-muted-foreground">
-              {activePlan.weeks.find((w) => w.is_current)?.adjustment?.reason}
-            </span>
-          )}
+          <Sparkles className="size-4 shrink-0 text-klyp-accent" aria-hidden />
+          <span className="min-w-0 flex-1 truncate">
+            <strong>{activePlan.goal_name ?? "Plan de entrenamiento"}</strong> ·
+            semana {activePlan.current_week} de {activePlan.total_weeks} ·{" "}
+            {activePlan.weeks.find((w) => w.is_current)?.phase_label}
+          </span>
+          <ChevronRight
+            className="size-4 shrink-0 text-muted-foreground"
+            aria-hidden
+          />
         </Link>
       )}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="font-heading text-2xl font-bold md:text-3xl">Plan</h1>
-        <Button asChild variant="outline" className="ml-auto min-h-11">
-          <Link href={activePlan ? "/plan/entrenamiento" : "/plan/generar"}>
-            <Sparkles aria-hidden />{" "}
-            {activePlan ? "Mi plan de entrenamiento" : "Crear plan automático"}
-          </Link>
-        </Button>
-        <Button asChild className="min-h-11">
-          <Link
-            href={`/plan/nueva?dia=${today >= from && today <= to ? today : from}`}
-          >
-            <Plus aria-hidden /> Nueva sesión
-          </Link>
-        </Button>
-      </div>
+      {/* Botón flotante en el móvil: la acción principal del calendario, a mano del pulgar. */}
+      <Button
+        asChild
+        className="fixed right-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 h-12 rounded-full px-5 shadow-md lg:hidden"
+      >
+        <Link href={newSessionHref}>
+          <Plus aria-hidden /> Sesión
+        </Link>
+      </Button>
 
       <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/60 p-1">
         <Button
