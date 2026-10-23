@@ -118,6 +118,11 @@ export interface PlannedSession extends PlannedSessionInput {
   garmin_sent_at?: string | null;
   /** Enviada, pero cambiada después: hay que volver a enviarla. */
   garmin_outdated?: boolean;
+  /** Envío a COROS (conexión oficial). */
+  coros_status?: "" | "sent" | "error";
+  coros_error?: string;
+  coros_sent_at?: string | null;
+  coros_outdated?: boolean;
   planned_duration_s: number;
   planned_distance_m: number | null;
 }
@@ -1046,6 +1051,12 @@ export interface SourcesStatus {
     account: string;
     status: "ok" | "expired" | "error";
     last_sync_at: string | null;
+    last_error: string;
+  } | null;
+  coros_official?: {
+    status: "ok" | "expired" | "error";
+    connected_at: string;
+    last_sync_at?: string | null;
     last_error: string;
   } | null;
   health_connect: {

@@ -1350,6 +1350,7 @@ export function useSaveTestPrefs() {
 export interface WorkoutSettings {
   auto: boolean;
   garmin_connected: boolean;
+  coros_connected: boolean;
   days: number;
 }
 
@@ -1400,5 +1401,30 @@ export function useSendUpcoming() {
       queryClient.invalidateQueries({ queryKey: ["plans"] });
       queryClient.invalidateQueries({ queryKey: ["plan"] });
     },
+  });
+}
+
+/** Enviar (o actualizar) una sesión en el calendario de COROS. */
+export function useCorosWorkout(planId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ coros_status: string; coros_error: string }>(
+        `/api/v1/plans/${planId}/coros`,
+        { method: "POST" },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["plan", planId] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
+  });
+}
+
+export function useSyncCorosOfficial() {
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ queued: boolean }>("/api/v1/sources/coros-official/sync", {
+        method: "POST",
+      }),
   });
 }

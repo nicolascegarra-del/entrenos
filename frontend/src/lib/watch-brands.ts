@@ -37,7 +37,7 @@ export function connectedBrands(
   if (garmin?.connected || garmin?.connection.status === "expired")
     out.push("garmin");
   if (sources?.apple_last_at || apple?.status === "done") out.push("apple");
-  if (sources?.coros) out.push("coros");
+  if (sources?.coros || sources?.coros_official) out.push("coros");
   if (sources?.health_connect?.last_used_at) out.push("android");
   return out;
 }

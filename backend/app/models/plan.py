@@ -48,6 +48,13 @@ class PlannedSession(SQLModel, table=True):
     garmin_error: str = Field(default="", max_length=255)
     garmin_hash: str = Field(default="", max_length=16)
     garmin_sent_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True)))
+    # Envío a COROS (MCP oficial): fecha e id del entreno en su calendario; no se puede borrar desde fuera.
+    coros_day: date | None = None
+    coros_id_in_plan: str = Field(default="", max_length=64)
+    coros_status: str = Field(default="", max_length=16)  # "" | sent | error
+    coros_error: str = Field(default="", max_length=255)
+    coros_hash: str = Field(default="", max_length=16)
+    coros_sent_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True)))
     created_at: datetime = created_at_field()
 
 

@@ -1,10 +1,11 @@
 "use client";
 
 import { Check, Watch } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 
 import { GarminWorkoutsCard } from "@/components/plan/send-to-watch";
 import { AppleWatch } from "@/components/settings/apple-watch";
+import { CorosOfficial } from "@/components/settings/coros-official";
 import { GarminCard } from "@/components/settings/garmin-card";
 import {
   Coros,
@@ -99,7 +100,14 @@ function BrandPanel({
     ) : brand === "apple" ? (
       <AppleWatch data={sources.data} />
     ) : brand === "coros" ? (
-      <Coros data={sources.data} />
+      <div className="space-y-3">
+        <Suspense>
+          <CorosOfficial data={sources.data} />
+        </Suspense>
+        {sources.data.coros_official?.status === "ok" && <GarminWorkoutsCard />}
+        {/* La conexión antigua (email y contraseña) solo se enseña a quien ya la tenía, para quitarla. */}
+        {sources.data.coros && <Coros data={sources.data} />}
+      </div>
     ) : (
       <HealthConnect data={sources.data} />
     );

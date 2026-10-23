@@ -2,17 +2,22 @@
 
 import base64
 import binascii
+import logging
 from datetime import datetime
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Header, HTTPException, Request, Response, status
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentUser, SessionDep
 from app.core.rate_limit import limiter
-from app.models import CorosCredential, IngestToken
-from app.services import apple_health, coros, health_connect
+from app.models import CorosCredential, CorosOAuth, IngestToken
+from app.services import apple_health, coros, coros_oauth, health_connect
 from app.services.file_import import FileImportError, after_import, parse_file, save_imported
 from app.services.mailer import link
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["otros relojes"])
 
@@ -42,6 +47,17 @@ class CorosOut(BaseModel):
     last_error: str
 
 
+class CorosOfficialOut(BaseModel):
+    status: str
+    connected_at: datetime
+    last_sync_at: datetime | None = None
+    last_error: str
+
+
+class ConnectIn(BaseModel):
+    origin: str = Field(min_length=8, max_length=200, description="Web desde la que se conecta (para volver a ella)")
+
+
 class IngestOut(BaseModel):
     hint: str
     created_at: datetime
@@ -50,6 +66,7 @@ class IngestOut(BaseModel):
 
 class SourcesOut(BaseModel):
     coros: CorosOut | None
+    coros_official: CorosOfficialOut | None = None
     health_connect: IngestOut | None
     ingest_url: str = Field(description="URL para la app de Health Connect")
     apple_shortcut_url: str = Field(description="URL para el Atajo de iOS (Apple Watch)")
@@ -59,8 +76,10 @@ class SourcesOut(BaseModel):
 def _sources(session: SessionDep, user_id: int) -> SourcesOut:
     cred = session.get(CorosCredential, user_id)
     token = session.get(IngestToken, user_id)
+    official = session.get(CorosOAuth, user_id)
     return SourcesOut(
         coros=CorosOut.model_validate(cred, from_attributes=True) if cred else None,
+        coros_official=CorosOfficialOut.model_validate(official, from_attributes=True) if official else None,
         health_connect=IngestOut.model_validate(token, from_attributes=True) if token else None,
         ingest_url=link("/api/v1/ingest/health-connect"),  # URL pública (Admin → Correo), como los emails
         apple_shortcut_url=link("/api/v1/ingest/apple-shortcuts"),
@@ -171,3 +190,91 @@ async def ingest_health_connect(
     if not isinstance(payload, dict):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Formato no reconocido.")
     return health_connect.ingest(session, user_id, payload)
+
+
+# ─── COROS oficial (OAuth del MCP de COROS): enviar entrenos al calendario ───
+
+
+def _allowed_origin(request: Request, origin: str) -> bool:
+    """
+    Solo se vuelve a la propia web: localhost/127.0.0.1 (desarrollo, también por http), la URL pública
+    (Admin → Correo) o, por https, el host que sirve la petición (p. ej. un túnel).
+    """
+    parsed = urlparse(origin)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.path not in ("", "/"):
+        return False
+    host = parsed.hostname
+    if host in ("localhost", "127.0.0.1") or host == urlparse(link("/")).hostname:
+        return True
+    served = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(":")[0]
+    return parsed.scheme == "https" and host == served
+
+
+@router.post(
+    "/sources/coros-official/connect",
+    summary="Empezar la conexión oficial con COROS (devuelve la URL de autorización)",
+    responses={400: {"description": "Origen no permitido"}, 502: {"description": "COROS no disponible"}},
+)
+@limiter.limit("10/minute")
+def coros_official_connect(request: Request, body: ConnectIn, session: SessionDep, user: CurrentUser) -> dict:
+    if not _allowed_origin(request, body.origin):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Origen no permitido.")
+    try:
+        return {"url": coros_oauth.start(session, user.id, body.origin)}
+    except coros_oauth.CorosOAuthError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    except Exception as exc:  # red, JSON inesperado…
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "COROS no está disponible ahora mismo.") from exc
+
+
+@router.get(
+    "/sources/coros-official/callback",
+    summary="Vuelta de la autorización de COROS (la abre el navegador)",
+    include_in_schema=False,
+)
+def coros_official_callback(session: SessionDep, state: str = "", code: str = "", error: str = "") -> RedirectResponse:
+    from app.models import OAuthState
+
+    pending = session.get(OAuthState, state) if state else None
+    origin = pending.redirect_uri.removesuffix(coros_oauth.CALLBACK_PATH) if pending else link("").rstrip("/")
+    target = f"{origin}/ajustes/conexiones"
+    if error or not code or pending is None:
+        if pending is not None:
+            session.delete(pending)
+            session.commit()
+        reason = "cancelada" if error == "access_denied" else "error"
+        return RedirectResponse(f"{target}?coros={reason}", status_code=status.HTTP_303_SEE_OTHER)
+    try:
+        coros_oauth.finish(session, state, code)
+    except coros_oauth.CorosOAuthError:
+        return RedirectResponse(f"{target}?coros=error", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception:
+        return RedirectResponse(f"{target}?coros=error", status_code=status.HTTP_303_SEE_OTHER)
+    from app.tasks.sources import coros_official_sync_task
+
+    try:
+        coros_official_sync_task.apply_async(args=[pending.user_id], argsrepr="(usuario)")
+    except Exception:  # noqa: BLE001 - se sincronizará en la siguiente pasada
+        logger.warning("No se pudo encolar la primera sincronización de COROS")
+    return RedirectResponse(f"{target}?coros=ok", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post(
+    "/sources/coros-official/sync",
+    summary="Traer ahora las actividades de COROS (conexión oficial)",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+@limiter.limit("6/minute")
+def coros_official_sync(request: Request, session: SessionDep, user: CurrentUser) -> dict:
+    if session.get(CorosOAuth, user.id) is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Conecta COROS primero.")
+    from app.tasks.sources import coros_official_sync_task
+
+    coros_official_sync_task.apply_async(args=[user.id], argsrepr="(usuario)")
+    return {"queued": True}
+
+
+@router.delete("/sources/coros-official", summary="Desconectar la conexión oficial de COROS", status_code=204)
+def coros_official_disconnect(session: SessionDep, user: CurrentUser) -> Response:
+    coros_oauth.disconnect(session, user.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

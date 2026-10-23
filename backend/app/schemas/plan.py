@@ -69,6 +69,10 @@ class SessionOut(BaseModel):
     garmin_error: str = ""
     garmin_sent_at: datetime | None = None
     garmin_outdated: bool = False  # enviada, pero la sesión ha cambiado después
+    coros_status: str = ""  # "" | sent | error
+    coros_error: str = ""
+    coros_sent_at: datetime | None = None
+    coros_outdated: bool = False
     planned_duration_s: float
     planned_distance_m: float | None
     blocks: list[BlockOut]

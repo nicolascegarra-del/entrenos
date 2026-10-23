@@ -41,6 +41,8 @@ celery_app.conf.update(
         "coros-sync": {"task": "coros.sync_all", "schedule": 3600},
         # Sesiones de los próximos 7 días a Garmin (quien tenga el envío automático activado).
         "garmin-workouts": {"task": "garmin.send_workouts_all", "schedule": 6 * 3600},
+        # COROS por la conexión oficial (límite de 50 .FIT al día): actividades de hoy y ayer.
+        "coros-official-sync": {"task": "coros.official_sync_all", "schedule": 6 * 3600},
     },
 )
 

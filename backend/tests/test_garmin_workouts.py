@@ -181,6 +181,7 @@ def test_api_enviar_estado_y_cambios(client, user, session, monkeypatch):
     fake = FakeGarmin()
     fake.persist = lambda: None
     monkeypatch.setattr(api, "_client", lambda user_id: fake)
+    monkeypatch.setattr(api, "_connected", lambda s, user_id: True)
     res = client.post(f"/api/v1/plans/{plan['id']}/garmin", headers=h).json()
     assert res["garmin_status"] == "sent" and res["garmin_sent_at"]
     detail = client.get(f"/api/v1/plans/{plan['id']}", headers=h).json()
@@ -212,7 +213,7 @@ def test_api_envio_automatico(client, user, session, monkeypatch):
     monkeypatch.setattr(tasks.send_workouts_task, "apply_async", lambda **kw: sent.append(kw["args"]))
     h = auth(user)
     assert client.get("/api/v1/workouts/settings", headers=h).json() == {
-        "auto": False, "garmin_connected": False, "days": 7}  # fmt: skip
+        "auto": False, "garmin_connected": False, "coros_connected": False, "days": 7}  # fmt: skip
     session.add(GarminCredential(user_id=user.id, tokens_enc="x"))
     session.commit()
     on = client.put("/api/v1/workouts/settings", json={"auto": True}, headers=h).json()

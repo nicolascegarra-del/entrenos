@@ -23,6 +23,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  useCorosWorkout,
   useGarminWorkout,
   useSaveWorkoutSettings,
   useSendUpcoming,
@@ -63,7 +64,7 @@ async function downloadFit(planId: number) {
   URL.revokeObjectURL(url);
 }
 
-/** Detalle de una sesión: enviarla a Garmin (o actualizarla / quitarla) y descargarla en .FIT. */
+/** Detalle de una sesión: enviarla a Garmin o COROS (o actualizarla) y descargarla en .FIT. */
 export function SendToWatchCard({ plan }: { plan: PlannedSession }) {
   const { data: settings } = useWorkoutSettings();
   const garmin = useGarminWorkout(plan.id);
@@ -117,6 +118,7 @@ export function SendToWatchCard({ plan }: { plan: PlannedSession }) {
             {plan.garmin_error || "No se pudo enviar."}
           </p>
         )}
+        {settings?.coros_connected && <CorosRow plan={plan} />}
         <div className="flex flex-wrap gap-2">
           {settings?.garmin_connected ? (
             <>
@@ -152,9 +154,10 @@ export function SendToWatchCard({ plan }: { plan: PlannedSession }) {
               )}
             </>
           ) : (
-            settings && (
+            settings &&
+            !settings.coros_connected && (
               <p className="text-sm text-muted-foreground">
-                Para enviarla a un Garmin,{" "}
+                Para enviarla a tu Garmin o COROS,{" "}
                 <Link
                   href="/ajustes/conexiones"
                   className="text-klyp-accent underline"
@@ -205,11 +208,76 @@ export function SendToWatchCard({ plan }: { plan: PlannedSession }) {
   );
 }
 
-/** Botón del calendario: enviar a Garmin las sesiones de hoy y los próximos 6 días. */
+/** Envío a COROS de una sesión: estado y botón (COROS no deja borrar ni mover desde fuera). */
+function CorosRow({ plan }: { plan: PlannedSession }) {
+  const coros = useCorosWorkout(plan.id);
+  const sent = plan.coros_status === "sent";
+  return (
+    <div className="space-y-2 rounded-lg border p-3">
+      <p className="text-sm font-medium">COROS</p>
+      {sent && !plan.coros_outdated && (
+        <p className="flex items-start gap-2 text-sm">
+          <CircleCheck
+            className="mt-0.5 size-4 shrink-0 text-emerald-600"
+            aria-hidden
+          />
+          En tu calendario de COROS
+          {plan.coros_sent_at
+            ? ` desde ${formatDateTime(plan.coros_sent_at)}`
+            : ""}
+          . El reloj la recibe al sincronizar con la app de COROS.
+        </p>
+      )}
+      {sent && plan.coros_outdated && (
+        <p className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-400">
+          <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+          Has cambiado la sesión después de enviarla: actualízala en COROS.
+        </p>
+      )}
+      {plan.coros_error && (
+        <p
+          className={
+            plan.coros_status === "error"
+              ? "flex items-start gap-2 text-sm text-destructive"
+              : "flex items-start gap-2 text-sm text-amber-700 dark:text-amber-400"
+          }
+        >
+          <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+          {plan.coros_error}
+        </p>
+      )}
+      <Button
+        className="min-h-11 md:min-h-9"
+        variant={sent && !plan.coros_outdated ? "outline" : "default"}
+        disabled={coros.isPending}
+        onClick={() =>
+          coros.mutate(undefined, {
+            onSuccess: (r) =>
+              r.coros_status === "sent"
+                ? toast.success("En tu calendario de COROS.")
+                : toast.error(r.coros_error || "COROS no aceptó el entreno."),
+            onError: (err) => toast.error(errorText(err)),
+          })
+        }
+      >
+        {coros.isPending ? (
+          <Loader2 className="animate-spin" />
+        ) : sent ? (
+          <RefreshCw aria-hidden />
+        ) : (
+          <Send aria-hidden />
+        )}
+        {sent ? "Actualizar en COROS" : "Enviar a COROS"}
+      </Button>
+    </div>
+  );
+}
+
+/** Botón del calendario: enviar a tus relojes (Garmin y COROS) las sesiones de hoy y los próximos 6 días. */
 export function SendUpcomingButton() {
   const { data: settings } = useWorkoutSettings();
   const send = useSendUpcoming();
-  if (!settings?.garmin_connected) return null;
+  if (!settings?.garmin_connected && !settings?.coros_connected) return null;
   return (
     <Button
       variant="outline"
@@ -230,8 +298,8 @@ export function SendUpcomingButton() {
             else
               toast.success(
                 r.sent
-                  ? `${r.sent} enviadas a Garmin${r.unchanged ? ` (${r.unchanged} ya estaban)` : ""}.`
-                  : "Ya estaban todas en Garmin.",
+                  ? `${r.sent} enviadas al reloj${r.unchanged ? ` (${r.unchanged} ya estaban)` : ""}.`
+                  : "Ya estaban todas en el reloj.",
               );
           },
           onError: (err) => toast.error(errorText(err)),
@@ -249,11 +317,17 @@ export function SendUpcomingButton() {
   );
 }
 
-/** Ajustes → Conexiones (Garmin): envío automático de las sesiones al reloj. */
+/** Ajustes → Conexiones (Garmin o COROS): envío automático de las sesiones a los relojes conectados. */
 export function GarminWorkoutsCard() {
   const { data } = useWorkoutSettings();
   const save = useSaveWorkoutSettings();
-  if (!data?.garmin_connected) return null;
+  if (!data?.garmin_connected && !data?.coros_connected) return null;
+  const where = [
+    data.garmin_connected && "Garmin Connect",
+    data.coros_connected && "COROS",
+  ]
+    .filter(Boolean)
+    .join(" y ");
   return (
     <Card className="shadow-sm">
       <CardHeader>
@@ -262,8 +336,8 @@ export function GarminWorkoutsCard() {
           sesiones al reloj
         </CardTitle>
         <CardDescription>
-          Tus sesiones de carrera y bici del plan aparecen en el calendario de
-          Garmin Connect y en tu reloj, con sus pasos y objetivos.
+          Tus sesiones de carrera y bici del plan aparecen en el calendario de{" "}
+          {where} y en tu reloj, con sus pasos y objetivos.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -290,8 +364,9 @@ export function GarminWorkoutsCard() {
               Enviar automáticamente los próximos {data.days} días
             </span>
             <span className="block text-muted-foreground">
-              Cada 6 horas y cada vez que guardas una sesión. Si la cambias o la
-              borras, también se cambia o se quita en Garmin.
+              Cada 6 horas y cada vez que guardas una sesión. Si la cambias, se
+              actualiza; si la borras, en Garmin se quita sola y en COROS hay
+              que quitarla desde su app.
             </span>
           </span>
         </label>

@@ -79,3 +79,33 @@ def apple_import_task(import_id: str) -> dict:
             session.add(row)
             session.commit()
         return result
+
+
+@celery_app.task(name="coros.official_sync_user")
+def coros_official_sync_task(user_id: int) -> int:
+    """Actividades de hoy y ayer por la conexión oficial de COROS."""
+    from app.services import coros_official
+    from app.services.coros_oauth import CorosOAuthError
+
+    with Session(engine) as session:
+        try:
+            return coros_official.sync(session, user_id)
+        except CorosOAuthError as exc:
+            logger.info("COROS oficial: no se pudo sincronizar (%s)", exc)
+            return 0
+
+
+@celery_app.task(name="coros.official_sync_all")
+def coros_official_sync_all_task() -> int:
+    """Cada 6 h (COROS limita a 50 ficheros al día): a quien tenga la conexión oficial activa."""
+    from app.models import CorosOAuth
+
+    with Session(engine) as session:
+        users = session.exec(
+            select(CorosOAuth.user_id)
+            .join(User, User.id == CorosOAuth.user_id)
+            .where(CorosOAuth.status == "ok", User.status == UserStatus.ACTIVE)
+        ).all()
+    for uid in users:
+        coros_official_sync_task.apply_async(args=[uid], argsrepr="(usuario)")
+    return len(users)

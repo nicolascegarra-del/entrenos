@@ -8,8 +8,9 @@ from pydantic import BaseModel
 
 from app.api.deps import CurrentUser, SessionDep
 from app.core.rate_limit import limiter
-from app.models import GarminCredential, GarminStatus, PlannedSession, UserSettings
-from app.services import garmin_workouts
+from app.models import CorosOAuth, GarminCredential, GarminStatus, PlannedSession, UserSettings
+from app.services import coros_workouts, garmin_workouts
+from app.services.coros_oauth import CorosMcp, CorosOAuthError
 from app.services.garmin_client import GarminConnectClient, GarminNotConnectedError
 from app.services.plan_service import blocks_of
 from app.services.workout_export import WorkoutExportError, fit_filename, fit_workout
@@ -27,6 +28,7 @@ class WorkoutSettings(BaseModel):
 
 class WorkoutSettingsOut(WorkoutSettings):
     garmin_connected: bool
+    coros_connected: bool = False
     days: int = garmin_workouts.UPCOMING_DAYS
 
 
@@ -34,6 +36,12 @@ class GarminState(BaseModel):
     garmin_status: str
     garmin_error: str
     garmin_sent_at: datetime | None
+
+
+class CorosState(BaseModel):
+    coros_status: str
+    coros_error: str
+    coros_sent_at: datetime | None
 
 
 def _owned(session: SessionDep, user_id: int, plan_id: int) -> PlannedSession:
@@ -57,10 +65,17 @@ def _connected(session: SessionDep, user_id: int) -> bool:
     return cred is not None and cred.status == GarminStatus.OK
 
 
+def _coros_connected(session: SessionDep, user_id: int) -> bool:
+    row = session.get(CorosOAuth, user_id)
+    return row is not None and row.status == "ok"
+
+
 def queue_send(session, user_id: int) -> None:
     """Si el envío automático está activado, manda en segundo plano las sesiones de los próximos 7 días."""
     settings = session.get(UserSettings, user_id)
-    if not (settings and settings.garmin_workouts_auto and _connected(session, user_id)):
+    if not (settings and settings.garmin_workouts_auto):
+        return
+    if not (_connected(session, user_id) or _coros_connected(session, user_id)):
         return
     from app.tasks.workouts import send_workouts_task
 
@@ -86,7 +101,9 @@ def queue_delete(user_id: int, workout_id: int | None) -> None:
 def get_workout_settings(session: SessionDep, user: CurrentUser) -> WorkoutSettingsOut:
     settings = session.get(UserSettings, user.id)
     return WorkoutSettingsOut(
-        auto=bool(settings and settings.garmin_workouts_auto), garmin_connected=_connected(session, user.id)
+        auto=bool(settings and settings.garmin_workouts_auto),
+        garmin_connected=_connected(session, user.id),
+        coros_connected=_coros_connected(session, user.id),
     )
 
 
@@ -130,10 +147,36 @@ def remove_from_garmin(plan_id: int, session: SessionDep, user: CurrentUser) -> 
 )
 @limiter.limit("6/minute")
 def send_upcoming(request: Request, session: SessionDep, user: CurrentUser) -> dict:
-    client = _client(user.id)
-    counts = garmin_workouts.send_upcoming(session, user.id, client)
-    client.persist()
-    return counts
+    """Envía a todos los relojes conectados (Garmin y COROS) y suma los resultados."""
+    garmin, coros = _connected(session, user.id), _coros_connected(session, user.id)
+    if not garmin and not coros:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Conecta Garmin o COROS en Ajustes → Conexiones.")
+    total = {"sent": 0, "unchanged": 0, "error": 0}
+    if garmin:
+        client = _client(user.id)
+        for k, v in garmin_workouts.send_upcoming(session, user.id, client).items():
+            total[k] += v
+        client.persist()
+    if coros:
+        for k, v in coros_workouts.send_upcoming(session, user.id, CorosMcp(session, user.id)).items():
+            total[k] += v
+    return total
+
+
+@router.post(
+    "/plans/{plan_id}/coros",
+    summary="Enviar la sesión al calendario de COROS (conexión oficial)",
+    responses={**_NOT_FOUND, 409: {"description": "COROS no conectado"}},
+)
+@limiter.limit("20/minute")
+def send_to_coros(request: Request, plan_id: int, session: SessionDep, user: CurrentUser) -> CorosState:
+    planned = _owned(session, user.id, plan_id)
+    try:
+        mcp = CorosMcp(session, user.id)
+    except CorosOAuthError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    coros_workouts.send(session, planned, mcp)
+    return CorosState.model_validate(planned, from_attributes=True)
 
 
 @router.get(

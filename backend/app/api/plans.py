@@ -45,6 +45,10 @@ def _to_out(session: Session, planned: PlannedSession) -> SessionOut:
         garmin_error=planned.garmin_error,
         garmin_sent_at=planned.garmin_sent_at,
         garmin_outdated=_garmin_outdated(planned, blocks),
+        coros_status=planned.coros_status,
+        coros_error=planned.coros_error,
+        coros_sent_at=planned.coros_sent_at,
+        coros_outdated=_coros_outdated(planned, blocks),
         planned_duration_s=estimated_duration_s(steps),
         planned_distance_m=sum(distances) if distances else None,
         blocks=[BlockOut.model_validate(b, from_attributes=True) for b in blocks],
@@ -68,6 +72,18 @@ def _garmin_outdated(planned: PlannedSession, blocks: list[PlannedBlock]) -> boo
 
     try:
         return content_hash(planned, garmin_workout(planned, blocks)) != planned.garmin_hash
+    except WorkoutExportError:
+        return True
+
+
+def _coros_outdated(planned: PlannedSession, blocks: list[PlannedBlock]) -> bool:
+    if planned.coros_status != "sent":
+        return False
+    from app.services.coros_workouts import coros_course
+    from app.services.workout_export import WorkoutExportError, content_hash
+
+    try:
+        return content_hash(planned, {"coros": coros_course(planned, blocks)}) != planned.coros_hash
     except WorkoutExportError:
         return True
 

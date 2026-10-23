@@ -18,7 +18,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlmodel import Session, col, select
 
-from app.models import Activity, ActivityStream
+from app.models import Activity, ActivityStream, Lap
 from app.services.routes import haversine
 
 MAX_FILE_BYTES = 25_000_000
@@ -61,6 +61,9 @@ class ImportedActivity:
     name: str = ""
     timezone: str | None = None  # offset local «+02:00», si la fuente lo sabe
     streams: dict[str, list[float | None]] = field(default_factory=dict)
+    # Como Garmin: métricas con claves del catálogo (avg_power, aerobic_te…) y vueltas (`Lap`).
+    metrics: dict[str, float] = field(default_factory=dict)
+    laps: list[dict] = field(default_factory=list)
 
 
 def sport_name(raw: str | None) -> str:
@@ -135,6 +138,8 @@ def parse_fit(data: bytes) -> ImportedActivity:
         raise FileImportError("El fichero FIT está dañado o no es un FIT válido.") from exc
     session_msg = next(iter(fit.get_messages("session")), None)
     s = {f.name: f.value for f in session_msg} if session_msg else {}
+    sport = sport_name(s.get("sport") if isinstance(s.get("sport"), str) else None)
+    running = "running" in sport or sport in ("walking", "hiking")
     points = []
     for rec in fit.get_messages("record"):
         v = {f.name: f.value for f in rec}
@@ -146,10 +151,9 @@ def parse_fit(data: bytes) -> ImportedActivity:
             "lon": lon * SEMICIRCLE if lon is not None else None,
             "ele": v.get("enhanced_altitude", v.get("altitude")),
             "hr": v.get("heart_rate"),
-            "cad": v.get("cadence"),
+            "cad": _cadence(v.get("cadence"), v.get("fractional_cadence"), running),
             "dist": v.get("distance"),
         })  # fmt: skip
-    sport = sport_name(s.get("sport") if isinstance(s.get("sport"), str) else None)
     if len([p for p in points if p["time"]]) < 2:
         # Sin registros (p. ej. fuerza): solo el resumen de la sesión.
         start = s.get("start_time")
@@ -165,6 +169,8 @@ def parse_fit(data: bytes) -> ImportedActivity:
             max_hr=s.get("max_heart_rate"),
             elevation_gain_m=s.get("total_ascent"),
             calories=s.get("total_calories"),
+            metrics=_fit_metrics(s, running),
+            laps=_fit_laps(fit, start.replace(tzinfo=UTC), running),
         )
     act = _summary_from_points(points, sport)
     # El resumen del reloj manda sobre lo calculado (pausas, desnivel filtrado, calorías).
@@ -173,7 +179,74 @@ def parse_fit(data: bytes) -> ImportedActivity:
                       ("elevation_gain_m", "total_ascent"), ("calories", "total_calories")):  # fmt: skip
         if s.get(key) is not None:
             setattr(act, attr, float(s[key]))
+    act.metrics = _fit_metrics(s, running)
+    act.laps = _fit_laps(fit, act.start_time, running)
     return act
+
+
+def _cadence(value: float | None, fraction: float | None, running: bool) -> float | None:
+    """En FIT la cadencia de carrera va por pierna (zancadas/min): la app usa pasos/min, como Garmin."""
+    if value is None:
+        return None
+    return round((value + (fraction or 0)) * 2, 1) if running else value
+
+
+def _first(d: dict, *keys: str) -> float | None:
+    return next((float(d[k]) for k in keys if isinstance(d.get(k), int | float)), None)
+
+
+def _fit_metrics(s: dict, running: bool) -> dict[str, float]:
+    """Métricas de la sesión FIT con las claves del catálogo (las mismas que trae Garmin)."""
+    out: dict[str, float] = {}
+    cad = _first(s, "avg_running_cadence", "avg_cadence")
+    if cad is not None:
+        out["avg_cadence"] = _cadence(cad, s.get("avg_fractional_cadence"), running) or cad
+    for key, fields in (("avg_power", ("avg_power",)), ("normalized_power", ("normalized_power",)),
+                        ("aerobic_te", ("total_training_effect",)),
+                        ("anaerobic_te", ("total_anaerobic_training_effect",)),
+                        ("training_load", ("training_load_peak", "training_stress_score")),
+                        ("steps", ("total_strides",))):  # fmt: skip
+        if (value := _first(s, *fields)) is not None:
+            out[key] = value
+    if running and "steps" in out:
+        out["steps"] *= 2  # total_strides cuenta zancadas (dos pasos)
+    if (step := _first(s, "avg_step_length")) is not None:
+        out["avg_stride_length"] = round(step / 10, 1)  # mm → cm, como Garmin
+    if (max_speed := _first(s, "enhanced_max_speed", "max_speed")) is not None:
+        out["max_speed"] = max_speed
+    return out
+
+
+def _fit_laps(fit, start: datetime, running: bool) -> list[dict]:
+    """Vueltas FIT → filas `Lap` (mismos campos y métricas que las de Garmin)."""
+    laps = []
+    for index, msg in enumerate(fit.get_messages("lap")):
+        v = {f.name: f.value for f in msg}
+        lap_start = v.get("start_time")
+        if isinstance(lap_start, datetime) and lap_start.tzinfo is None:
+            lap_start = lap_start.replace(tzinfo=UTC)
+        metrics: dict[str, float] = {}
+        cad = _first(v, "avg_running_cadence", "avg_cadence")
+        if cad is not None:
+            metrics["avg_cadence"] = _cadence(cad, v.get("avg_fractional_cadence"), running) or cad
+        for key, fields in (("avg_power", ("avg_power",)), ("normalized_power", ("normalized_power",)),
+                            ("elevation_gain_m", ("total_ascent",)), ("elevation_loss_m", ("total_descent",)),
+                            ("max_speed", ("enhanced_max_speed", "max_speed"))):  # fmt: skip
+            if (value := _first(v, *fields)) is not None:
+                metrics[key] = value
+        if (step := _first(v, "avg_step_length")) is not None:
+            metrics["avg_stride_length"] = round(step / 10, 1)
+        laps.append({
+            "index": index,
+            "start_offset_s": max((lap_start - start).total_seconds(), 0.0) if isinstance(lap_start, datetime) else 0.0,
+            "duration_s": _first(v, "total_timer_time", "total_elapsed_time") or 0.0,
+            "distance_m": _first(v, "total_distance"),
+            "avg_hr": _first(v, "avg_heart_rate"),
+            "max_hr": _first(v, "max_heart_rate"),
+            "avg_speed": _first(v, "enhanced_avg_speed", "avg_speed"),
+            "metrics": metrics,
+        })  # fmt: skip
+    return laps
 
 
 # ─── GPX y TCX ───────────────────────────────────────────────────────────────
@@ -331,8 +404,11 @@ def save_imported(session: Session, user_id: int, act: ImportedActivity, source:
         avg_hr=act.avg_hr, max_hr=act.max_hr, elevation_gain_m=act.elevation_gain_m, calories=act.calories,
         source=source, external_id=external_id,
     )  # fmt: skip
+    activity.metrics = {**(activity.metrics or {}), **act.metrics}
     session.add(activity)
     session.flush()
+    for lap in act.laps:
+        session.add(Lap(activity_id=activity.id, **lap))
     for channel, values in act.streams.items():
         if values and not all(v is None or (isinstance(v, float) and math.isnan(v)) for v in values):
             session.add(ActivityStream(activity_id=activity.id, channel=channel, values=values))

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Column, DateTime, Text
+from sqlalchemy import BigInteger, Column, DateTime, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
@@ -56,3 +56,51 @@ class AppleImport(SQLModel, table=True):
     error: str = Field(default="", max_length=255)
     created_at: datetime = created_at_field()
     updated_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True)))
+
+
+class OAuthClient(SQLModel, table=True):
+    """Cliente OAuth de la app registrado (registro dinámico) en un proveedor, uno por dirección de vuelta."""
+
+    __tablename__ = "oauth_client"
+    __table_args__ = (UniqueConstraint("provider", "redirect_uri"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    provider: str = Field(max_length=32)  # coros
+    issuer: str = Field(max_length=255)
+    redirect_uri: str = Field(max_length=500)
+    client_id: str = Field(max_length=255)
+    created_at: datetime = created_at_field()
+
+
+class OAuthState(SQLModel, table=True):
+    """Autorización en curso: `state` de un solo uso con su PKCE (caduca a los 15 min)."""
+
+    __tablename__ = "oauth_state"
+
+    state: str = Field(primary_key=True, max_length=64)
+    user_id: int = Field(foreign_key="user.id", index=True, ondelete="CASCADE")
+    provider: str = Field(max_length=32)
+    code_verifier: str = Field(max_length=128)
+    redirect_uri: str = Field(max_length=500)
+    created_at: datetime = created_at_field()
+
+
+class CorosOAuth(SQLModel, table=True):
+    """
+    Conexión oficial con COROS (su servidor MCP, por OAuth): sirve para enviar entrenos al calendario.
+    Solo se guardan los tokens cifrados; nunca la contraseña.
+    """
+
+    __tablename__ = "coros_oauth"
+
+    user_id: int = Field(foreign_key="user.id", primary_key=True, ondelete="CASCADE")
+    client_id: str = Field(max_length=255)
+    issuer: str = Field(max_length=255)
+    mcp_url: str = Field(max_length=255)
+    access_token_enc: str = Field(sa_column=Column(Text, nullable=False))
+    refresh_token_enc: str = Field(default="", sa_column=Column(Text, nullable=False, server_default=""))
+    expires_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True)))
+    status: str = Field(default="ok", max_length=16)  # ok | expired | error
+    last_error: str = Field(default="", max_length=255)
+    last_sync_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True)))
+    connected_at: datetime = created_at_field()

@@ -136,7 +136,10 @@ export function Coros({ data }: { data: Sources }) {
   const [password, setPassword] = useState("");
   const c = data.coros;
   return (
-    <Section icon={Watch} title="COROS">
+    <Section
+      icon={Watch}
+      title="Conexión antigua de COROS (email y contraseña)"
+    >
       {c ? (
         <>
           <p className="text-sm">

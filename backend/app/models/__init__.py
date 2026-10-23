@@ -20,7 +20,7 @@ from app.models.notification import NotificationLog, NotificationPrefs, PushSubs
 from app.models.performance import PerformanceTest
 from app.models.plan import BlockKind, MatchMode, PlannedBlock, PlannedSession
 from app.models.settings import SYNC_INTERVALS, SyncMode, UserSettings
-from app.models.sources import AppleImport, CorosCredential, IngestToken
+from app.models.sources import AppleImport, CorosCredential, CorosOAuth, IngestToken, OAuthClient, OAuthState
 from app.models.strength import ActivityFeedback, StrengthSet
 from app.models.sync import SyncRun, SyncStatus
 from app.models.training import TrainingPlan, TrainingPlanWeek
@@ -32,6 +32,9 @@ __all__ = [
     "AppleImport",
     "PerformanceTest",
     "CorosCredential",
+    "CorosOAuth",
+    "OAuthClient",
+    "OAuthState",
     "IngestToken",
     "Achievement",
     "AiProvider",

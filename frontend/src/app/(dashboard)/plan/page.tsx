@@ -55,10 +55,12 @@ function PlannedCard({ plan }: { plan: PlannedSession }) {
           Plan automático
         </p>
       )}
-      {plan.garmin_status === "sent" && (
+      {(plan.garmin_status === "sent" || plan.coros_status === "sent") && (
         <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
           <Watch className="size-3" aria-hidden />
-          {plan.garmin_outdated ? "En el reloj (con cambios)" : "En el reloj"}
+          {plan.garmin_outdated || plan.coros_outdated
+            ? "En el reloj (con cambios)"
+            : "En el reloj"}
         </p>
       )}
       <p className="mt-1 text-xs text-muted-foreground tabular-nums">
