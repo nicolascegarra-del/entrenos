@@ -51,12 +51,12 @@ export const TOURS: Tour[] = [
       {
         route: "/",
         title: "Te enseño la app",
-        body: "En dos minutos te cuento dónde está cada cosa. Puedes salir cuando quieras y repetirlo desde Más → Ayuda.",
+        body: "En dos minutos te cuento dónde está cada cosa. Puedes salir cuando quieras y repetirlo desde tu cuenta → Tours por la app.",
       },
       {
         target: "nav",
-        title: "Cuatro secciones",
-        body: "Hoy, Entrenos, Plan y Progreso. Todo lo importante está a uno o dos toques.",
+        title: "Cinco secciones",
+        body: "Hoy, Entrenos, tu Entrenador (en el centro), Plan y Progreso. Todo lo importante está a uno o dos toques.",
       },
       {
         target: "sync",
@@ -68,6 +68,18 @@ export const TOURS: Tour[] = [
         target: "today-card",
         title: "Hoy",
         body: "Cómo llegas (frescura y carga) y qué te toca hoy según tu plan.",
+      },
+      {
+        target: "ask-coach",
+        title: "Pregúntale a tu entrenador",
+        body: "Escribe aquí o toca una de las preguntas sugeridas: te contesta con todos tus datos.",
+        optional: true,
+      },
+      {
+        route: "/asistente",
+        target: "tab-entrenador",
+        title: "Tu entrenador",
+        body: "El chat con tu entrenador IA: le preguntas lo que quieras, te hace la revisión semanal y te propone cambios en el plan. Un punto te avisa cuando tiene algo para ti.",
       },
       {
         route: "/actividades",
@@ -93,9 +105,9 @@ export const TOURS: Tour[] = [
         body: "Tu forma física, rendimiento (ritmos, zonas, marcas) y salud (FC en reposo, HRV, sueño), además de tus logros.",
       },
       {
-        target: "more",
-        title: "Más",
-        body: "El Asistente IA (tu entrenador), Ajustes, Ayuda y el modo claro u oscuro.",
+        target: "account",
+        title: "Tu cuenta",
+        body: "Ajustes (reloj, perfil, avisos, IA), los tours, el glosario, el modo claro u oscuro y cerrar sesión.",
       },
       {
         target: "tour-help",
@@ -117,6 +129,12 @@ export const TOURS: Tour[] = [
         target: "today-card",
         title: "Cómo llegas y qué toca",
         body: "Tu frescura y carga reciente, y la sesión de hoy si tienes plan. Pulsa la sesión para ver sus bloques.",
+      },
+      {
+        target: "ask-coach",
+        title: "Pregunta rápida",
+        body: "Pregúntale a tu entrenador sin salir de Hoy; las sugerencias cambian según tu día.",
+        optional: true,
       },
       {
         target: "coach-nudges",
@@ -283,7 +301,7 @@ export const TOURS: Tour[] = [
   },
   {
     key: "asistente",
-    title: "Asistente IA",
+    title: "Entrenador IA",
     summary: "Tu entrenador personal: chat, ficha y revisión semanal.",
     minutes: 1,
     route: "/asistente",

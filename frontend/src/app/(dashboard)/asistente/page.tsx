@@ -284,6 +284,23 @@ function AssistantChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interview, conversationId, active.length]);
 
+  // ?q=…&auto=1 (desde Hoy, una actividad, una sesión o Progreso): se envía sola en una conversación nueva.
+  const autoSent = useRef(false);
+  useEffect(() => {
+    const q = params.get("q");
+    if (
+      autoSent.current ||
+      params.get("auto") !== "1" ||
+      !q ||
+      conversationId ||
+      !active.length
+    )
+      return;
+    autoSent.current = true;
+    void send(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, active.length]);
+
   if (loadingAi) return <Skeleton className="h-64 w-full" />;
 
   if (!active.length) {
@@ -310,7 +327,7 @@ function AssistantChat() {
       </aside>
 
       {/* Alto disponible: pantalla menos cabecera, título y barra inferior (móvil). */}
-      <div className="flex h-[calc(100dvh-12rem-env(safe-area-inset-bottom))] min-h-80 flex-col rounded-lg border bg-card shadow-sm lg:h-[calc(100dvh-9rem)]">
+      <div className="flex h-[calc(100dvh-9.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-h-80 flex-col md:h-[calc(100dvh-11rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] rounded-lg border bg-card shadow-sm lg:h-[calc(100dvh-9rem)]">
         <div className="flex items-center gap-2 border-b p-2">
           <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
             <SheetTrigger asChild>
@@ -519,9 +536,9 @@ function AssistantChat() {
 export default function AsistentePage() {
   return (
     <section className="space-y-3 md:space-y-4">
-      <h1 className="flex items-center gap-2 font-heading text-2xl font-bold md:text-3xl">
+      <h1 className="flex items-center gap-2 font-heading text-2xl font-bold max-lg:sr-only md:text-3xl">
         <Sparkles className="size-6 text-klyp-accent" aria-hidden />
-        Asistente IA
+        Tu entrenador
       </h1>
       <Suspense fallback={<Skeleton className="h-64 w-full" />}>
         <AssistantChat />

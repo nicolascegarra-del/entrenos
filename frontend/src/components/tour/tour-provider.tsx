@@ -73,18 +73,25 @@ function reveal(el: HTMLElement, behavior: ScrollBehavior): number {
   return top;
 }
 
+/** Tour a medias guardado; solo se reanuda en la misma pantalla en la que se quedó (p. ej. al recargar). */
 function readActive(): { key: TourKey; index: number } | null {
   try {
     const raw = JSON.parse(sessionStorage.getItem(ACTIVE_KEY) ?? "null");
-    return raw && tourByKey(raw.key) ? raw : null;
+    return raw && tourByKey(raw.key) && raw.path === window.location.pathname
+      ? { key: raw.key, index: raw.index }
+      : null;
   } catch {
     return null;
   }
 }
 
-function saveActive(value: { key: TourKey; index: number } | null) {
+function saveActive(
+  value: { key: TourKey; index: number } | null,
+  path: string,
+) {
   try {
-    if (value) sessionStorage.setItem(ACTIVE_KEY, JSON.stringify(value));
+    if (value)
+      sessionStorage.setItem(ACTIVE_KEY, JSON.stringify({ ...value, path }));
     else sessionStorage.removeItem(ACTIVE_KEY);
   } catch {
     // Sin almacenamiento: el tour sigue mientras no se recargue la página.
@@ -107,7 +114,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   const step = tour && state ? tour.steps[state.index] : undefined;
 
   useEffect(() => setState(readActive()), []);
-  useEffect(() => saveActive(state), [state]);
+  useEffect(() => saveActive(state, pathname), [state, pathname]);
 
   const stop = useCallback(() => {
     setState(null);

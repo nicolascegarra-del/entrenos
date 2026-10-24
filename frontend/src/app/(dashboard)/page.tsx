@@ -15,6 +15,7 @@ import {
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { AskCoachCard } from "@/components/assistant/ask-coach-card";
 import { CoachNudges } from "@/components/assistant/coach-nudges";
 import { InfoTerm } from "@/components/glossary/info-term";
 import { PageHeader } from "@/components/layout/page-header";
@@ -335,6 +336,7 @@ export default function HoyPage() {
       <div data-tour="today-card">
         <TodayCard summary={data} goals={goals} today={today} />
       </div>
+      <AskCoachCard summary={data} today={today} />
       <Notices />
       <LatestReviewLine />
       <CoachNudges />

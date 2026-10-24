@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { AskAboutSession } from "@/components/activity/ask-ai";
 import { RepsChart } from "@/components/plan/reps-chart";
 import { ScoreBadge, StatusBadge } from "@/components/plan/status-badge";
 import { ErrorState } from "@/components/states";
@@ -323,7 +324,8 @@ export default function PlanDetailPage() {
               {sportInfo(plan.sport).label}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <AskAboutSession id={plan.id} day={plan.day} title={plan.title} />
             <Button asChild variant="outline" className="min-h-11">
               <Link href={`/plan/${plan.id}/editar`}>
                 <Pencil aria-hidden /> Editar

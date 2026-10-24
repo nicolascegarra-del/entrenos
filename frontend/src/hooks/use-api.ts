@@ -1563,6 +1563,15 @@ export function useProposals() {
   });
 }
 
+/** ¿El entrenador tiene algo pendiente (revisión semanal o propuesta)? Para el punto de aviso del menú. */
+export function useCoachBadge(): boolean {
+  const { data: ai } = useAiProviders();
+  const hasAi = !!ai?.providers.some((p) => p.configured && p.enabled);
+  const { data: checkin } = useCheckin();
+  const { data: proposals } = useProposals();
+  return hasAi && (checkin?.status === "pending" || !!proposals?.length);
+}
+
 export function useDecideProposal() {
   const queryClient = useQueryClient();
   return useMutation({

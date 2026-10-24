@@ -48,7 +48,7 @@ export function TourInvite() {
           </span>
           <span className="text-muted-foreground">
             Un paseo rápido por cada sección. Lo puedes repetir cuando quieras
-            desde Más → Ayuda.
+            desde tu cuenta → Tours por la app.
           </span>
         </p>
         <div className="flex flex-wrap gap-2">

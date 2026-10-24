@@ -4,7 +4,7 @@ import {
   atSubSectionRoot,
   currentLocation,
   isUnder,
-  moreFor,
+  accountFor,
   screenTitle,
   SECTIONS,
 } from "./nav";
@@ -49,20 +49,30 @@ describe("currentLocation", () => {
 });
 
 describe("menú", () => {
-  it("4 pestañas abajo más «Más»", () => {
-    expect(SECTIONS).toHaveLength(4);
+  it("5 pestañas abajo, con el entrenador en el centro", () => {
+    expect(SECTIONS.map((s) => s.key)).toEqual([
+      "hoy",
+      "entrenos",
+      "entrenador",
+      "plan",
+      "progreso",
+    ]);
+    expect(currentLocation("/asistente/semana").section?.key).toBe(
+      "entrenador",
+    );
   });
 
   it("Admin solo para administradores", () => {
     const has = (admin: boolean) =>
-      moreFor(admin).some((g) => g.items.some((i) => i.href === "/admin"));
+      accountFor(admin).some((g) => g.items.some((i) => i.href === "/admin"));
     expect(has(false)).toBe(false);
     expect(has(true)).toBe(true);
   });
 
   it("título de la cabecera", () => {
     expect(screenTitle("/progresion/rendimiento")).toBe("Progreso");
-    expect(screenTitle("/asistente")).toBe("Asistente IA");
+    expect(screenTitle("/asistente")).toBe("Entrenador");
+    expect(screenTitle("/ayuda")).toBe("Tours por la app");
     expect(screenTitle("/ajustes")).toBe("Ajustes");
   });
 });

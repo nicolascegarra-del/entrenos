@@ -3,12 +3,14 @@
 import { ShieldAlert, Trophy } from "lucide-react";
 import Link from "next/link";
 
+import { AskAboutProgress } from "@/components/activity/ask-ai";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   PeriodPicker,
   PeriodProvider,
   usePeriod,
 } from "@/components/progress/period";
+import { PERIODS } from "@/components/progress/sections";
 import { EmptyState } from "@/components/states";
 import { useActivities, useInsights } from "@/hooks/use-api";
 
@@ -38,9 +40,16 @@ function Shell({ children }: { children: React.ReactNode }) {
         title="Progreso"
         hideTitleOnMobile
         actions={
-          <div data-tour="period">
-            <PeriodPicker />
-          </div>
+          <>
+            <div data-tour="period">
+              <PeriodPicker />
+            </div>
+            <AskAboutProgress
+              period={
+                PERIODS.find((p) => p.days === days)?.label ?? `${days} días`
+              }
+            />
+          </>
         }
       />
       {children}

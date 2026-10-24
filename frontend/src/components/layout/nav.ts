@@ -20,7 +20,7 @@ export interface SubSection {
 
 /** Pestaña principal: barra inferior en el móvil y grupo del sidebar en escritorio. */
 export interface Section {
-  key: "hoy" | "entrenos" | "plan" | "progreso";
+  key: "hoy" | "entrenos" | "entrenador" | "plan" | "progreso";
   href: string;
   label: string;
   icon: LucideIcon;
@@ -34,7 +34,10 @@ export interface MoreLink {
   admin?: boolean;
 }
 
-/** Las 4 pestañas de la app y sus subsecciones. Fuente única para barra inferior, sidebar y pestañas. */
+/**
+ * Las 5 pestañas de la app y sus subsecciones. Fuente única para barra inferior, sidebar y pestañas.
+ * El entrenador va en el centro de la barra del móvil.
+ */
 export const SECTIONS: Section[] = [
   { key: "hoy", href: "/", label: "Hoy", icon: LayoutDashboard, children: [] },
   {
@@ -47,6 +50,13 @@ export const SECTIONS: Section[] = [
       { href: "/recorridos", label: "Recorridos", paths: ["/comparar"] },
       { href: "/material", label: "Material" },
     ],
+  },
+  {
+    key: "entrenador",
+    href: "/asistente",
+    label: "Entrenador",
+    icon: Sparkles,
+    children: [],
   },
   {
     key: "plan",
@@ -77,12 +87,8 @@ export const SECTIONS: Section[] = [
   },
 ];
 
-/** Panel «Más» (móvil) y parte baja del sidebar, por grupos. */
-export const MORE_GROUPS: { title: string | null; items: MoreLink[] }[] = [
-  {
-    title: null,
-    items: [{ href: "/asistente", label: "Asistente IA", icon: Sparkles }],
-  },
+/** Menú de cuenta (avatar de la cabecera en el móvil, parte baja del sidebar en el PC), por grupos. */
+export const ACCOUNT_GROUPS: { title: string; items: MoreLink[] }[] = [
   {
     title: "Cuenta",
     items: [
@@ -137,9 +143,9 @@ export function currentLocation(pathname: string): {
 export const atSubSectionRoot = (pathname: string) =>
   SECTIONS.some((s) => s.children.some((c) => c.href === pathname));
 
-/** Grupos del «Más» visibles según el rol (Admin solo para administradores). */
-export const moreFor = (isAdmin: boolean) =>
-  MORE_GROUPS.map((g) => ({
+/** Grupos del menú de cuenta visibles según el rol (Admin solo para administradores). */
+export const accountFor = (isAdmin: boolean) =>
+  ACCOUNT_GROUPS.map((g) => ({
     ...g,
     items: g.items.filter((i) => !i.admin || isAdmin),
   })).filter((g) => g.items.length);
@@ -148,7 +154,7 @@ export const moreFor = (isAdmin: boolean) =>
 export function screenTitle(pathname: string): string {
   const { section } = currentLocation(pathname);
   if (section) return section.label;
-  const more = MORE_GROUPS.flatMap((g) => g.items).find((i) =>
+  const more = ACCOUNT_GROUPS.flatMap((g) => g.items).find((i) =>
     isUnder(i.href, pathname),
   );
   if (more) return more.label;
