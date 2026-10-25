@@ -125,9 +125,77 @@ export interface PlannedSession extends PlannedSessionInput {
   coros_outdated?: boolean;
   planned_duration_s: number;
   planned_distance_m: number | null;
+  /** Ruta del mapa asociada a la sesión. */
+  planned_route_id?: number | null;
+  route?: RouteSummary | null;
 }
 
 export type StepStatus = "ok" | "near" | "off";
+
+// ─── Rutas planificadas (Plan → Rutas) ───────────────────────────────────────
+
+export interface RouteSummary {
+  id: number;
+  nombre: string;
+  modo: string;
+  distancia_km: number;
+  desnivel_positivo_m: number;
+  desnivel_negativo_m: number;
+}
+
+export interface RouteShare {
+  tipo: string;
+  distancia_m: number;
+  pct: number;
+}
+
+/** Ruta calculada (sin guardar): traza [lat, lon, alt] y perfil [distancia_m, alt]. */
+export interface RoutePlan {
+  mode: string;
+  geometry: (number | null)[][];
+  distance_m: number;
+  ascent_m: number;
+  descent_m: number;
+  profile: number[][];
+  surfaces: RouteShare[];
+  waytypes: RouteShare[];
+  max_altitude_m: number | null;
+  min_altitude_m: number | null;
+  estimated_s: number;
+  estimate_basis: string;
+}
+
+export interface PlannedRouteBrief {
+  id: number;
+  name: string;
+  mode: string;
+  distance_m: number;
+  ascent_m: number;
+  descent_m: number;
+  estimated_s: number | null;
+  preview: number[][];
+  created_at: string;
+}
+
+export interface PlannedRouteDetail extends PlannedRouteBrief {
+  waypoints: number[][];
+  geometry: (number | null)[][];
+  profile: number[][];
+  surfaces: RouteShare[];
+  waytypes: RouteShare[];
+  sessions: { id: number; day: string; title: string }[];
+}
+
+export interface PlannedRoutePage {
+  items: PlannedRouteBrief[];
+  total: number;
+}
+
+export interface GeoResult {
+  label: string;
+  lat: number;
+  lon: number;
+}
 
 export interface ComplianceStep {
   label: string;

@@ -7,7 +7,7 @@ import { Suspense } from "react";
 import { toast } from "sonner";
 
 import { SessionForm } from "@/components/plan/session-form";
-import { useSavePlan } from "@/hooks/use-api";
+import { useSavePlan, useSetSessionRoute } from "@/hooks/use-api";
 import { ApiError } from "@/lib/api";
 import { toIsoDay } from "@/lib/plan";
 
@@ -16,6 +16,9 @@ function NewSession() {
   const params = useSearchParams();
   const day = params.get("dia") ?? toIsoDay(new Date());
   const save = useSavePlan();
+  const setRoute = useSetSessionRoute();
+  // Desde una ruta: «crea una sesión nueva con esta ruta».
+  const routeId = Number(params.get("ruta")) || null;
   return (
     <SessionForm
       defaultDay={day}
@@ -24,6 +27,14 @@ function NewSession() {
       onSubmit={async (body) => {
         try {
           const plan = await save.mutateAsync(body);
+          if (routeId)
+            await setRoute
+              .mutateAsync({ planId: plan.id, routeId })
+              .catch(() =>
+                toast.error(
+                  "La sesión se guardó, pero no se pudo añadir la ruta.",
+                ),
+              );
           toast.success(
             plan.activity
               ? "Sesión guardada y comparada con tu actividad"

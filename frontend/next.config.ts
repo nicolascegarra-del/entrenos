@@ -17,7 +17,7 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isProduction ? "" : " 'unsafe-eval'"} ${TURNSTILE}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://*.tile.openstreetmap.org",
+  "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.tile.opentopomap.org",
   "font-src 'self' data:",
   `connect-src 'self' ${TURNSTILE}`,
   `frame-src ${TURNSTILE}`,
@@ -35,7 +35,7 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), payment=()",
+    value: "camera=(), microphone=(), geolocation=(self), payment=()",
   },
   // Los navegadores ignoran HSTS si la página no llega por HTTPS (p. ej. en local).
   {

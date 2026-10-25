@@ -12,6 +12,7 @@ import { ScoreBadge, StatusBadge } from "@/components/plan/status-badge";
 import { ErrorState } from "@/components/states";
 import { SessionProposal } from "@/components/assistant/coach-nudges";
 import { SendToWatchCard } from "@/components/plan/send-to-watch";
+import { SessionRouteCard } from "@/components/routes/session-route-card";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -354,6 +355,16 @@ export default function PlanDetailPage() {
 
       <SessionProposal planId={plan.id} />
 
+      {plan.planned_route_id ? (
+        <SessionRouteCard planId={plan.id} routeId={plan.planned_route_id} />
+      ) : (
+        <Link
+          href="/plan/rutas"
+          className="flex min-h-11 items-center gap-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground hover:bg-muted/60"
+        >
+          Añade una ruta del mapa a esta sesión (Plan → Rutas)
+        </Link>
+      )}
       <SendToWatchCard plan={plan} />
 
       <div className="grid gap-4 md:gap-6 lg:grid-cols-[1fr_22rem]">

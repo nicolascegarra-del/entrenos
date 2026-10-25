@@ -70,6 +70,7 @@ export const SECTIONS: Section[] = [
         label: "Mi plan",
         paths: ["/plan/generar"],
       },
+      { href: "/plan/rutas", label: "Rutas" },
       { href: "/objetivos", label: "Objetivos" },
     ],
   },

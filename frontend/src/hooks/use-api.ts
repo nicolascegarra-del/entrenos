@@ -7,6 +7,10 @@ import {
 
 import { apiFetch } from "@/lib/api";
 import type {
+  GeoResult,
+  PlannedRouteDetail,
+  PlannedRoutePage,
+  RoutePlan,
   ActivityReview,
   LatestReview,
   ReviewSettings,
@@ -1585,4 +1589,100 @@ export function useDecideProposal() {
         queryClient.invalidateQueries({ queryKey: [key] });
     },
   });
+}
+
+// ─── Rutas planificadas ──────────────────────────────────────────────────────
+
+export interface RoutePointsInput {
+  mode: string;
+  points: { lat: number; lon: number }[];
+}
+
+/** Calcular una ruta sin guardarla (el editor la recalcula al mover los puntos). */
+export function usePlanRoute() {
+  return useMutation({
+    mutationFn: (body: RoutePointsInput) =>
+      apiFetch<RoutePlan>("/api/v1/planned-routes/plan", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+  });
+}
+
+export function usePlannedRoutes() {
+  return useQuery({
+    queryKey: ["planned-routes"],
+    queryFn: () =>
+      apiFetch<PlannedRoutePage>("/api/v1/planned-routes?limit=100"),
+  });
+}
+
+export function usePlannedRoute(id: number | null) {
+  return useQuery({
+    queryKey: ["planned-route", id],
+    enabled: id != null,
+    queryFn: () => apiFetch<PlannedRouteDetail>(`/api/v1/planned-routes/${id}`),
+  });
+}
+
+export function useSaveRoute() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...body
+    }: RoutePointsInput & { id?: number; name: string }) =>
+      apiFetch<PlannedRouteDetail>(
+        id ? `/api/v1/planned-routes/${id}` : "/api/v1/planned-routes",
+        { method: id ? "PUT" : "POST", body: JSON.stringify(body) },
+      ),
+    onSuccess: (route) => {
+      queryClient.setQueryData(["planned-route", route.id], route);
+      void queryClient.invalidateQueries({ queryKey: ["planned-routes"] });
+    },
+  });
+}
+
+export function useDeleteRoute() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiFetch<void>(`/api/v1/planned-routes/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["planned-routes"] });
+      void queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
+  });
+}
+
+/** Asociar (o quitar) la ruta de una sesión del plan. */
+export function useSetSessionRoute() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      planId,
+      routeId,
+    }: {
+      planId: number;
+      routeId: number | null;
+    }) =>
+      apiFetch<{ planned_route_id: number | null }>(
+        `/api/v1/plans/${planId}/route`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ planned_route_id: routeId }),
+        },
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["plans"] });
+      void queryClient.invalidateQueries({ queryKey: ["plan"] });
+      void queryClient.invalidateQueries({ queryKey: ["planned-route"] });
+    },
+  });
+}
+
+export function geocodePlace(q: string) {
+  return apiFetch<GeoResult[]>(
+    `/api/v1/planned-routes/geocode?q=${encodeURIComponent(q)}`,
+  );
 }
