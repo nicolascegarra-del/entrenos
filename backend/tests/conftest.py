@@ -53,7 +53,11 @@ def _schema():
 
 @pytest.fixture(autouse=True)
 def _clean_tables():
+    from app.services import modules
+
+    modules.invalidate_cache()  # la caché de módulos (Redis) no debe sobrevivir entre tests
     yield
+    modules.invalidate_cache()
     with engine.begin() as conn:
         for table in reversed(SQLModel.metadata.sorted_tables):
             conn.execute(table.delete())

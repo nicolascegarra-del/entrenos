@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/table";
 import {
   useDeletePlan,
+  useModuleOn,
   usePlan,
   usePlanCandidates,
   useSetMatch,
@@ -272,6 +273,7 @@ export default function PlanDetailPage() {
   const router = useRouter();
   const { data: plan, isPending, isError, error, refetch } = usePlan(id);
   const remove = useDeletePlan();
+  const rutas = useModuleOn("rutas");
 
   if (isPending) {
     return (
@@ -355,7 +357,7 @@ export default function PlanDetailPage() {
 
       <SessionProposal planId={plan.id} />
 
-      {plan.planned_route_id ? (
+      {!rutas ? null : plan.planned_route_id ? (
         <SessionRouteCard planId={plan.id} routeId={plan.planned_route_id} />
       ) : (
         <Link

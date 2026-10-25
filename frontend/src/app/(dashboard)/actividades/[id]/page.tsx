@@ -33,7 +33,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useActivity, useCatalog, useStreams } from "@/hooks/use-api";
+import {
+  useActivity,
+  useCatalog,
+  useModuleOn,
+  useStreams,
+} from "@/hooks/use-api";
 import { ApiError } from "@/lib/api";
 import { usesShoes } from "@/lib/gear";
 import {
@@ -177,6 +182,7 @@ export default function ActivityDetailPage() {
     refetch,
   } = useActivity(id);
   const { data: catalog = [] } = useCatalog();
+  const ia = useModuleOn("ia");
   const [lactateOpen, setLactateOpen] = useState(false);
   const channels = activity
     ? [...chartChannels(activity.channels), "lat", "lon"]
@@ -247,9 +253,11 @@ export default function ActivityDetailPage() {
         }
         actions={
           <>
-            <div data-tour="ask-ai" className="empty:hidden">
-              <AskAi activity={activity} />
-            </div>
+            {ia && (
+              <div data-tour="ask-ai" className="empty:hidden">
+                <AskAi activity={activity} />
+              </div>
+            )}
             {
               <Popover>
                 <PopoverTrigger asChild>
@@ -327,9 +335,11 @@ export default function ActivityDetailPage() {
         </Card>
       )}
 
-      <div data-tour="ai-review" className="empty:hidden">
-        <ReviewCard activity={activity} />
-      </div>
+      {ia && (
+        <div data-tour="ai-review" className="empty:hidden">
+          <ReviewCard activity={activity} />
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2 md:gap-6">
         {(streamsPending || route.length > 1) && (

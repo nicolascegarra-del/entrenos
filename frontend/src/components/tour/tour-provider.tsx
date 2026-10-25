@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { TourOverlay } from "@/components/tour/tour-overlay";
+import { useModules } from "@/hooks/use-api";
 import { apiFetch } from "@/lib/api";
 import {
   FIRST_ACTIVITY,
@@ -110,7 +111,10 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   );
   const [target, setTarget] = useState<HTMLElement | null>(null);
   const [ready, setReady] = useState(false);
-  const tour: Tour | undefined = state ? tourByKey(state.key) : undefined;
+  const { data: modules } = useModules();
+  const tour: Tour | undefined = state
+    ? tourByKey(state.key, modules)
+    : undefined;
   const step = tour && state ? tour.steps[state.index] : undefined;
 
   useEffect(() => setState(readActive()), []);

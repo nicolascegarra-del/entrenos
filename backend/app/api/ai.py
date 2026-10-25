@@ -12,12 +12,12 @@ from collections.abc import Iterator
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlmodel import Session, col, func, select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, SessionDep, require_module
 from app.api.goals import list_goals
 from app.api.progress import summary
 from app.core.config import get_settings
@@ -36,7 +36,7 @@ from app.services.profile import age_on, get_profile
 from app.services.zones import latest_zones
 
 logger = logging.getLogger(__name__)
-router = APIRouter(tags=["asistente IA"])
+router = APIRouter(tags=["asistente IA"], dependencies=[Depends(require_module("ia"))])
 
 MODEL_PATTERN = r"^[A-Za-z0-9._:/-]{1,100}$"
 HISTORY_MESSAGES = 20  # turnos previos que se reenvían al modelo

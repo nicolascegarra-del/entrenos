@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Annotated
 
 import jwt
@@ -8,6 +9,7 @@ from sqlmodel import Session
 from app.core.db import get_session
 from app.core.security import decode_token_claims
 from app.models import User, UserStatus
+from app.services import modules
 
 SessionDep = Annotated[Session, Depends(get_session)]
 _bearer = HTTPBearer(auto_error=False)
@@ -32,3 +34,21 @@ def get_current_user(
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+def require_module(name: str) -> Callable[..., None]:
+    """
+    Dependencia que corta con 404 (`MODULE_DISABLED`) si el administrador apagó el módulo.
+
+    Exige sesión antes, para que un anónimo reciba 401 y no sepa qué está activado.
+    """
+
+    def check(session: SessionDep, _: CurrentUser) -> None:
+        if not modules.enabled(session, name):
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                f"El módulo «{modules.LABELS[name]}» está desactivado por el administrador.",
+                headers={"X-Error-Code": "MODULE_DISABLED"},
+            )
+
+    return check

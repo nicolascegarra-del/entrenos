@@ -25,6 +25,7 @@ import {
 import {
   useCorosWorkout,
   useGarminWorkout,
+  useModuleOn,
   useSaveWorkoutSettings,
   useSendUpcoming,
   useWorkoutSettings,
@@ -68,9 +69,11 @@ async function downloadFit(planId: number) {
 export function SendToWatchCard({ plan }: { plan: PlannedSession }) {
   const { data: settings } = useWorkoutSettings();
   const garmin = useGarminWorkout(plan.id);
+  // Con el envío al reloj apagado solo queda la descarga del .FIT (settings no se pide).
+  const reloj = useModuleOn("reloj");
   const [downloading, setDownloading] = useState(false);
   if (!canSendToWatch(plan.sport)) return null;
-  const sent = plan.garmin_status === "sent";
+  const sent = reloj && plan.garmin_status === "sent";
   const send = () =>
     garmin.mutate(false, {
       onSuccess: (r) =>
@@ -112,7 +115,7 @@ export function SendToWatchCard({ plan }: { plan: PlannedSession }) {
             Has cambiado la sesión después de enviarla: actualízala en Garmin.
           </p>
         )}
-        {plan.garmin_status === "error" && (
+        {reloj && plan.garmin_status === "error" && (
           <p className="flex items-start gap-2 text-sm text-destructive">
             <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
             {plan.garmin_error || "No se pudo enviar."}

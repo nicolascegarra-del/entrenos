@@ -3,13 +3,13 @@
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, SessionDep, require_module
 from app.core.rate_limit import limiter
 from app.models import CorosOAuth, GarminCredential, GarminStatus, PlannedSession, UserSettings
-from app.services import coros_workouts, garmin_workouts
+from app.services import coros_workouts, garmin_workouts, modules
 from app.services.coros_oauth import CorosMcp, CorosOAuthError
 from app.services.garmin_client import GarminConnectClient, GarminNotConnectedError
 from app.services.plan_service import blocks_of
@@ -18,6 +18,8 @@ from app.services.workout_export import WorkoutExportError, fit_filename, fit_wo
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["plan"])
+# Solo el envío al reloj depende del módulo; descargar el .FIT sigue disponible.
+_RELOJ = [Depends(require_module("reloj"))]
 
 _NOT_FOUND = {404: {"description": "La sesión no existe o no es tuya."}}
 
@@ -75,6 +77,8 @@ def queue_send(session, user_id: int) -> None:
     settings = session.get(UserSettings, user_id)
     if not (settings and settings.garmin_workouts_auto):
         return
+    if not modules.enabled(session, "reloj"):
+        return
     if not (_connected(session, user_id) or _coros_connected(session, user_id)):
         return
     from app.tasks.workouts import send_workouts_task
@@ -97,7 +101,7 @@ def queue_delete(user_id: int, workout_id: int | None) -> None:
         logger.warning("No se pudo encolar el borrado de un entreno en Garmin")
 
 
-@router.get("/workouts/settings", summary="Envío de sesiones a Garmin: automático o no")
+@router.get("/workouts/settings", dependencies=_RELOJ, summary="Envío de sesiones a Garmin: automático o no")
 def get_workout_settings(session: SessionDep, user: CurrentUser) -> WorkoutSettingsOut:
     settings = session.get(UserSettings, user.id)
     return WorkoutSettingsOut(
@@ -107,7 +111,7 @@ def get_workout_settings(session: SessionDep, user: CurrentUser) -> WorkoutSetti
     )
 
 
-@router.put("/workouts/settings", summary="Activar o desactivar el envío automático a Garmin")
+@router.put("/workouts/settings", dependencies=_RELOJ, summary="Activar o desactivar el envío automático a Garmin")
 def put_workout_settings(body: WorkoutSettings, session: SessionDep, user: CurrentUser) -> WorkoutSettingsOut:
     settings = session.get(UserSettings, user.id) or UserSettings(user_id=user.id)
     settings.garmin_workouts_auto = body.auto
@@ -120,6 +124,7 @@ def put_workout_settings(body: WorkoutSettings, session: SessionDep, user: Curre
 
 @router.post(
     "/plans/{plan_id}/garmin",
+    dependencies=_RELOJ,
     summary="Enviar la sesión a Garmin Connect (se programa en su día y llega al reloj al sincronizar)",
     responses={**_NOT_FOUND, 409: {"description": "Garmin no conectado"}},
 )
@@ -132,7 +137,9 @@ def send_to_garmin(request: Request, plan_id: int, session: SessionDep, user: Cu
     return GarminState.model_validate(planned, from_attributes=True)
 
 
-@router.delete("/plans/{plan_id}/garmin", summary="Quitar la sesión de Garmin Connect", responses=_NOT_FOUND)
+@router.delete(
+    "/plans/{plan_id}/garmin", dependencies=_RELOJ, summary="Quitar la sesión de Garmin Connect", responses=_NOT_FOUND
+)
 def remove_from_garmin(plan_id: int, session: SessionDep, user: CurrentUser) -> GarminState:
     planned = _owned(session, user.id, plan_id)
     if planned.garmin_workout_id:
@@ -142,6 +149,7 @@ def remove_from_garmin(plan_id: int, session: SessionDep, user: CurrentUser) -> 
 
 @router.post(
     "/workouts/send-upcoming",
+    dependencies=_RELOJ,
     summary="Enviar a Garmin las sesiones de hoy y los próximos 6 días",
     responses={409: {"description": "Garmin no conectado"}},
 )
@@ -165,6 +173,7 @@ def send_upcoming(request: Request, session: SessionDep, user: CurrentUser) -> d
 
 @router.post(
     "/plans/{plan_id}/coros",
+    dependencies=_RELOJ,
     summary="Enviar la sesión al calendario de COROS (conexión oficial)",
     responses={**_NOT_FOUND, 409: {"description": "COROS no conectado"}},
 )

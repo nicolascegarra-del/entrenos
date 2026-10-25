@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, col, func, select
 
 from app.api.deps import SessionDep
+from app.api.modules import ModulesIn, ModulesOut
 from app.api.users import AdminUser
 from app.core.config import get_settings
 from app.core.crypto import encrypt_secret
@@ -37,7 +38,7 @@ from app.models import (
     UserStatus,
 )
 from app.schemas.auth import EMAIL_PATTERN
-from app.services import accounts, mailer
+from app.services import accounts, mailer, modules
 from app.services.limits import basic_limits, save_basic_limits
 from app.services.signup_guard import captcha_enabled, extra_domains, parse_domains
 from app.tasks.heartbeat import HEARTBEAT_KEY
@@ -512,6 +513,19 @@ def put_app_settings(body: SettingsIn, session: SessionDep, admin: AdminUser) ->
                            **{k: f"{a} → {b}" for k, (a, b) in changed.items()})  # fmt: skip
     session.commit()
     return _settings_out(session)
+
+
+@router.put(
+    "/modules",
+    summary="Activar o desactivar módulos de la app (solo los enviados)",
+    description=(
+        "Cambia para todos los usuarios qué módulos están activos (`entrenadores`, `ia`, `reloj`, `rutas`, "
+        "`nutricion`). Desactivar solo oculta: no borra datos. Cada cambio queda en la auditoría."
+    ),
+)
+def put_modules(body: ModulesIn, session: SessionDep, admin: AdminUser) -> ModulesOut:
+    changes = body.model_dump(exclude_none=True)
+    return ModulesOut(**modules.set_modules(session, changes, admin.id))
 
 
 @router.get("/audit", summary="Registro de acciones de administración (más recientes primero)")

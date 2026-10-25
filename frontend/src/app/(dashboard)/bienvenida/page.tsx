@@ -24,6 +24,7 @@ import {
   useAiProviders,
   useFinishOnboarding,
   useGarminStatus,
+  useModuleOn,
   useProfile,
   useSources,
 } from "@/hooks/use-api";
@@ -120,6 +121,7 @@ function Summary() {
   const profile = useProfile();
   const watch = garmin.data?.connected ? "Garmin" : otherWatch(sources.data);
   const ai = useAiProviders();
+  const iaOn = useModuleOn("ia");
   const profileDone =
     !!profile.data?.birth_date &&
     !!profile.data?.sex &&
@@ -140,13 +142,15 @@ function Summary() {
           pending="Fecha de nacimiento, sexo y peso afinan zonas, percentiles y previsiones."
           step="perfil"
         />
-        <CheckRow
-          done={ai.data?.providers.some((p) => p.configured && p.enabled)}
-          label="Asistente IA"
-          pending="Para preguntar sobre tus entrenamientos."
-          step="ia"
-          optional
-        />
+        {iaOn && (
+          <CheckRow
+            done={ai.data?.providers.some((p) => p.configured && p.enabled)}
+            label="Asistente IA"
+            pending="Para preguntar sobre tus entrenamientos."
+            step="ia"
+            optional
+          />
+        )}
       </ul>
       {watch && (
         <p className="text-sm text-muted-foreground">
@@ -164,6 +168,7 @@ function Wizard() {
   const current = stepIndex(params.get("paso"));
   const step = ONBOARDING_STEPS[current].key;
   const finish = useFinishOnboarding();
+  const iaOn = useModuleOn("ia");
   const last = current === ONBOARDING_STEPS.length - 1;
 
   const go = (i: number) =>
@@ -246,8 +251,14 @@ function Wizard() {
               (opcional)
             </span>
           </h1>
-          <Intro text="Si quieres preguntar sobre tus entrenamientos, conecta tu cuenta de ChatGPT, Gemini o Claude con una clave de API. Si no, salta este paso." />
-          <AiProvidersCard />
+          {iaOn ? (
+            <>
+              <Intro text="Si quieres preguntar sobre tus entrenamientos, conecta tu cuenta de ChatGPT, Gemini o Claude con una clave de API. Si no, salta este paso." />
+              <AiProvidersCard />
+            </>
+          ) : (
+            <Intro text="El administrador ha desactivado el entrenador IA en esta app. Salta este paso." />
+          )}
         </section>
       )}
 

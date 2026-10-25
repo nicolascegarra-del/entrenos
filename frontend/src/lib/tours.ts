@@ -6,6 +6,8 @@
  * ninguna, el bocadillo sale centrado, o el paso se salta si es `optional`.
  */
 
+import { filterByModule, type ModuleKey, type Modules } from "./modules";
+
 export type TourKey =
   | "general"
   | "hoy"
@@ -26,6 +28,8 @@ export interface TourStep {
   body: string;
   /** Si el elemento no está (p. ej. no hay propuestas), se salta el paso en vez de centrarlo. */
   optional?: boolean;
+  /** Solo si este módulo está activo. */
+  module?: ModuleKey;
 }
 
 export interface Tour {
@@ -36,6 +40,8 @@ export interface Tour {
   /** Pantalla del tour (para el «?» de su cabecera). */
   route: string;
   steps: TourStep[];
+  /** Solo si este módulo está activo. */
+  module?: ModuleKey;
 }
 
 export const FIRST_ACTIVITY = "actividad";
@@ -71,6 +77,7 @@ export const TOURS: Tour[] = [
       },
       {
         target: "ask-coach",
+        module: "ia",
         title: "Pregúntale a tu entrenador",
         body: "Escribe aquí o toca una de las preguntas sugeridas: te contesta con todos tus datos.",
         optional: true,
@@ -78,6 +85,7 @@ export const TOURS: Tour[] = [
       {
         route: "/asistente",
         target: "tab-entrenador",
+        module: "ia",
         title: "Tu entrenador",
         body: "El chat con tu entrenador IA: le preguntas lo que quieras, te hace la revisión semanal y te propone cambios en el plan. Un punto te avisa cuando tiene algo para ti.",
       },
@@ -132,12 +140,14 @@ export const TOURS: Tour[] = [
       },
       {
         target: "ask-coach",
+        module: "ia",
         title: "Pregunta rápida",
         body: "Pregúntale a tu entrenador sin salir de Hoy; las sugerencias cambian según tu día.",
         optional: true,
       },
       {
         target: "coach-nudges",
+        module: "ia",
         title: "Tu entrenador",
         body: "Aquí te avisa de la revisión semanal o de cambios que te propone en el plan.",
         optional: true,
@@ -201,6 +211,7 @@ export const TOURS: Tour[] = [
       },
       {
         target: "ai-review",
+        module: "ia",
         title: "Análisis de la IA",
         body: "Tu entrenador te dice cómo fue, qué te aporta y qué mejorar.",
         optional: true,
@@ -218,6 +229,7 @@ export const TOURS: Tour[] = [
       },
       {
         target: "ask-ai",
+        module: "ia",
         title: "Pregúntale a la IA",
         body: "Abre el chat con esta actividad ya preparada para preguntar lo que quieras.",
         optional: true,
@@ -244,6 +256,7 @@ export const TOURS: Tour[] = [
       },
       {
         target: "send-watch",
+        module: "reloj",
         title: "Al reloj",
         body: "Envía las sesiones de los próximos 7 días a tu Garmin o COROS para seguirlas en el reloj.",
         optional: true,
@@ -301,6 +314,7 @@ export const TOURS: Tour[] = [
   },
   {
     key: "asistente",
+    module: "ia",
     title: "Entrenador IA",
     summary: "Tu entrenador personal: chat, ficha y revisión semanal.",
     minutes: 1,
@@ -350,13 +364,26 @@ export const TOURS: Tour[] = [
   },
 ];
 
-export const tourByKey = (key: string): Tour | undefined =>
-  TOURS.find((t) => t.key === key);
+/** Tours y pasos según los módulos activos (sin datos = como estaban). */
+export const toursFor = (modules?: Modules): Tour[] =>
+  filterByModule(TOURS, modules).map((t) => ({
+    ...t,
+    steps: filterByModule(t.steps, modules),
+  }));
+
+export const tourByKey = (key: string, modules?: Modules): Tour | undefined =>
+  toursFor(modules).find((t) => t.key === key);
 
 /** Tour de la pantalla actual (para el «?» de la cabecera); el general no va en ninguna. */
-export function tourForPath(pathname: string): Tour | undefined {
-  if (/^\/actividades\/\d+$/.test(pathname)) return tourByKey("actividad");
-  return TOURS.find((t) => t.key !== "general" && t.route === pathname);
+export function tourForPath(
+  pathname: string,
+  modules?: Modules,
+): Tour | undefined {
+  if (/^\/actividades\/\d+$/.test(pathname))
+    return tourByKey("actividad", modules);
+  return toursFor(modules).find(
+    (t) => t.key !== "general" && t.route === pathname,
+  );
 }
 
 const SEEN_KEY = "tours-vistos";

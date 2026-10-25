@@ -75,7 +75,7 @@ export function missingProfile(profile?: Profile): string[] {
 /**
  * Lo que falta por configurar para sacarle partido a la app (tarjeta «Completa tu configuración»).
  * Primero el reloj: con sus datos la entrevista propone lo detectado (FC máx., umbral, perfil) y solo pregunta
- * lo que falta. Sin IA, el perfil y los umbrales se rellenan a mano.
+ * lo que falta. Sin IA (o con el módulo del entrenador IA apagado), el perfil y los umbrales se rellenan a mano.
  */
 export function setupSteps({
   garmin,
@@ -84,8 +84,9 @@ export function setupSteps({
   sources,
   profile,
   coach,
-  hasAi,
+  hasAi: hasAiInput,
   hasActivities,
+  iaModule = true,
 }: {
   sources?: SourcesStatus;
   garmin?: GarminStatus;
@@ -96,7 +97,10 @@ export function setupSteps({
   /** undefined = aún cargando. */
   hasAi?: boolean;
   hasActivities?: boolean;
+  /** Módulo «Entrenador IA» activo (lo decide el administrador). Apagado = como si no hubiera IA. */
+  iaModule?: boolean;
 }): SetupStep[] {
+  const hasAi = iaModule ? hasAiInput : false;
   const steps: SetupStep[] = [];
   const noWatch =
     !!garmin &&

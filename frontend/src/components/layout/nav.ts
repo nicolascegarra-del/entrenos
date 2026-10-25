@@ -11,11 +11,15 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { filterByModule, type ModuleKey, type Modules } from "@/lib/modules";
+
 /** Subsección de una pestaña (pestañas superiores). `paths` = rutas que también le pertenecen. */
 export interface SubSection {
   href: string;
   label: string;
   paths?: string[];
+  /** Solo se ve si este módulo está activo. */
+  module?: ModuleKey;
 }
 
 /** Pestaña principal: barra inferior en el móvil y grupo del sidebar en escritorio. */
@@ -25,6 +29,8 @@ export interface Section {
   label: string;
   icon: LucideIcon;
   children: SubSection[];
+  /** Solo se ve si este módulo está activo. */
+  module?: ModuleKey;
 }
 
 export interface MoreLink {
@@ -57,6 +63,7 @@ export const SECTIONS: Section[] = [
     label: "Entrenador",
     icon: Sparkles,
     children: [],
+    module: "ia",
   },
   {
     key: "plan",
@@ -70,7 +77,7 @@ export const SECTIONS: Section[] = [
         label: "Mi plan",
         paths: ["/plan/generar"],
       },
-      { href: "/plan/rutas", label: "Rutas" },
+      { href: "/plan/rutas", label: "Rutas", module: "rutas" },
       { href: "/objetivos", label: "Objetivos" },
     ],
   },
@@ -143,6 +150,13 @@ export function currentLocation(pathname: string): {
 /** ¿Estás exactamente en la portada de una subsección (no en un detalle)? Ahí se ven las pestañas. */
 export const atSubSectionRoot = (pathname: string) =>
   SECTIONS.some((s) => s.children.some((c) => c.href === pathname));
+
+/** Pestañas y subsecciones visibles según los módulos activos (cargando = como estaban). */
+export const visibleSections = (modules: Modules | undefined): Section[] =>
+  filterByModule(SECTIONS, modules).map((s) => ({
+    ...s,
+    children: filterByModule(s.children, modules),
+  }));
 
 /** Grupos del menú de cuenta visibles según el rol (Admin solo para administradores). */
 export const accountFor = (isAdmin: boolean) =>

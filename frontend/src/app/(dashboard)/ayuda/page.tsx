@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { useTour } from "@/components/tour/tour-provider";
-import { seenTours, TOURS } from "@/lib/tours";
+import { useModules } from "@/hooks/use-api";
+import { seenTours, toursFor } from "@/lib/tours";
 
 /** Ayuda: tours guiados (el general y uno por pantalla) y el glosario. */
 export default function AyudaPage() {
@@ -21,7 +22,8 @@ export default function AyudaPage() {
     }
   }, []);
 
-  const [general, ...screens] = TOURS;
+  const { data: modules } = useModules();
+  const [general, ...screens] = toursFor(modules);
   return (
     <section className="mx-auto max-w-3xl space-y-4 md:space-y-6">
       <PageHeader

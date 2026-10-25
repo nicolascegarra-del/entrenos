@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { EmailTab } from "@/components/admin/email-tab";
 import { InvitationsTab } from "@/components/admin/invitations-tab";
+import { ModulesTab } from "@/components/admin/modules-tab";
 import { RegistrationTab } from "@/components/admin/registration-tab";
 import { AuditTab, SystemTab } from "@/components/admin/settings-tabs";
 import { UsersTab } from "@/components/admin/users-tab";
@@ -18,6 +19,7 @@ const TABS = [
   { key: "invitations", label: "Invitaciones", Panel: InvitationsTab },
   { key: "registration", label: "Registro", Panel: RegistrationTab },
   { key: "email", label: "Correo", Panel: EmailTab },
+  { key: "modules", label: "Módulos", Panel: ModulesTab },
   { key: "system", label: "Sistema", Panel: SystemTab },
   { key: "audit", label: "Actividad", Panel: AuditTab },
 ] as const;

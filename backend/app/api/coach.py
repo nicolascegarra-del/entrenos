@@ -3,17 +3,17 @@
 import logging
 from datetime import date, datetime
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 from sqlmodel import select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, SessionDep, require_module
 from app.models import CoachMemory, PlannedSession, PlanProposal, WeeklyCheckin
 from app.services import coach, weekly_review
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/coach", tags=["entrenador IA"])
+router = APIRouter(prefix="/coach", tags=["entrenador IA"], dependencies=[Depends(require_module("ia"))])
 
 
 class CoachSettingsOut(BaseModel):

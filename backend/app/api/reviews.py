@@ -2,18 +2,18 @@
 
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field, field_validator
 from sqlmodel import col, select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, SessionDep, require_module
 from app.core.rate_limit import limiter
 from app.models import Activity, ActivityReview
 from app.models.ai import REVIEW_SPORTS
 from app.services import activity_review as svc
 from app.services.plan_steps import local_day
 
-router = APIRouter(tags=["análisis de entrenos"])
+router = APIRouter(tags=["análisis de entrenos"], dependencies=[Depends(require_module("ia"))])
 _NOT_FOUND = {404: {"description": "No encontrada"}}
 
 

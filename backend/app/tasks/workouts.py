@@ -6,7 +6,7 @@ from sqlmodel import Session, col, or_, select
 
 from app.core.db import engine
 from app.models import CorosOAuth, GarminCredential, GarminStatus, User, UserSettings, UserStatus
-from app.services import coros_workouts, garmin_workouts
+from app.services import coros_workouts, garmin_workouts, modules
 from app.services.coros_oauth import CorosMcp, CorosOAuthError
 from app.services.garmin_client import GarminConnectClient, GarminNotConnectedError
 from app.tasks.celery_app import celery_app
@@ -14,10 +14,17 @@ from app.tasks.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
+def _reloj_on() -> bool:
+    with Session(engine) as session:
+        return modules.enabled(session, "reloj")
+
+
 @celery_app.task(name="garmin.send_workouts")
 def send_workouts_task(user_id: int) -> dict:
     """Envía (o actualiza) las sesiones de los próximos 7 días a Garmin y a COROS (los que estén conectados)."""
     out: dict = {}
+    if not _reloj_on():
+        return out
     try:
         client = GarminConnectClient(user_id)
     except GarminNotConnectedError:
@@ -38,6 +45,8 @@ def send_workouts_task(user_id: int) -> dict:
 @celery_app.task(name="garmin.delete_workout")
 def delete_workout_task(user_id: int, workout_id: int) -> None:
     """Borra de Garmin el entreno de una sesión que ya no existe."""
+    if not _reloj_on():
+        return
     try:
         GarminConnectClient(user_id).delete_workout(workout_id)
     except Exception as exc:  # noqa: BLE001 - si no se puede (o ya no existe), no pasa nada
@@ -48,6 +57,8 @@ def delete_workout_task(user_id: int, workout_id: int) -> None:
 def send_workouts_all_task() -> int:
     """Cada 6 h: a quien tenga activado el envío automático y Garmin o COROS conectado."""
     with Session(engine) as session:
+        if not modules.enabled(session, "reloj"):
+            return 0
         garmin = select(GarminCredential.user_id).where(GarminCredential.status == GarminStatus.OK)
         coros = select(CorosOAuth.user_id).where(CorosOAuth.status == "ok")
         users = session.exec(

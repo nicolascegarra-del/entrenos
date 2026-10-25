@@ -2,16 +2,17 @@
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlmodel import col, func, select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, SessionDep, require_module
 from app.core.rate_limit import limiter
 from app.models import PlannedRoute, PlannedSession
 from app.services import route_planner as rp
 
-router = APIRouter(prefix="/planned-routes", tags=["rutas"])
+_RUTAS = [Depends(require_module("rutas"))]
+router = APIRouter(prefix="/planned-routes", tags=["rutas"], dependencies=_RUTAS)
 
 _NOT_FOUND = {404: {"description": "La ruta no existe o no es tuya."}}
 Mode = str
@@ -211,7 +212,7 @@ def route_gpx(route_id: int, session: SessionDep, user: CurrentUser) -> Response
     )
 
 
-session_router = APIRouter(prefix="/plans", tags=["plan"])
+session_router = APIRouter(prefix="/plans", tags=["plan"], dependencies=_RUTAS)
 
 
 @session_router.put(

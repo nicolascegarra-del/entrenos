@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
+import { moduleOn, type ModuleKey, type Modules } from "@/lib/modules";
 import type {
   GeoResult,
   PlannedRouteDetail,
@@ -567,8 +568,10 @@ export function useSetWeeklyGoal() {
 // ─── Análisis de entrenos ────────────────────────────────────────────────────
 
 export function useActivityReview(activityId: number) {
+  const on = useModuleOn("ia");
   return useQuery({
     queryKey: ["review", activityId],
+    enabled: on,
     queryFn: () =>
       apiFetch<ActivityReview | null>(
         `/api/v1/activities/${activityId}/review`,
@@ -591,15 +594,19 @@ export function useRequestReview(activityId: number) {
 }
 
 export function useLatestReview() {
+  const on = useModuleOn("ia");
   return useQuery({
     queryKey: ["review", "latest"],
+    enabled: on,
     queryFn: () => apiFetch<LatestReview | null>("/api/v1/ai/reviews/latest"),
   });
 }
 
 export function useReviewSettings() {
+  const on = useModuleOn("ia");
   return useQuery({
     queryKey: ["review-settings"],
+    enabled: on,
     queryFn: () => apiFetch<ReviewSettings>("/api/v1/ai/review-settings"),
   });
 }
@@ -1033,6 +1040,38 @@ export function useSaveAdminSettings() {
   });
 }
 
+// ─── Módulos de la app ───────────────────────────────────────────────────────
+
+/** Módulos activos (los cambia el administrador). Se refrescan cada minuto como mucho. */
+export function useModules() {
+  return useQuery({
+    queryKey: ["app-modules"],
+    staleTime: 60_000,
+    queryFn: () => apiFetch<Modules>("/api/v1/app/modules"),
+  });
+}
+
+/** ¿Está activo el módulo? Mientras carga, como estaba (sin parpadeos). */
+export function useModuleOn(key: ModuleKey): boolean {
+  const { data } = useModules();
+  return moduleOn(data, key);
+}
+
+export function useSaveModules() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Partial<Modules>) =>
+      apiFetch<Modules>("/api/v1/admin/modules", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: async (data) => {
+      queryClient.setQueryData(["app-modules"], data);
+      await queryClient.invalidateQueries({ queryKey: ["admin-audit"] });
+    },
+  });
+}
+
 export function useAdminAudit() {
   return useQuery({
     queryKey: ["admin-audit"],
@@ -1100,8 +1139,10 @@ export function useAuthOptions() {
 // ─── Asistente IA ────────────────────────────────────────────────────────────
 
 export function useAiProviders() {
+  const on = useModuleOn("ia");
   return useQuery({
     queryKey: ["ai-providers"],
+    enabled: on,
     queryFn: () => apiFetch<AiProviders>("/api/v1/ai/providers"),
   });
 }
@@ -1149,16 +1190,19 @@ export function useTestAiProvider(provider: AiProviderId) {
 }
 
 export function useConversations() {
+  const on = useModuleOn("ia");
   return useQuery({
     queryKey: ["conversations"],
+    enabled: on,
     queryFn: () => apiFetch<ConversationBrief[]>("/api/v1/chat/conversations"),
   });
 }
 
 export function useConversation(id: number | null) {
+  const on = useModuleOn("ia");
   return useQuery({
     queryKey: ["conversation", id],
-    enabled: id != null,
+    enabled: id != null && on,
     queryFn: () => apiFetch<Conversation>(`/api/v1/chat/conversations/${id}`),
   });
 }
@@ -1364,8 +1408,10 @@ export interface WorkoutSettings {
 }
 
 export function useWorkoutSettings() {
+  const on = useModuleOn("reloj");
   return useQuery({
     queryKey: ["workout-settings"],
+    enabled: on,
     queryFn: () => apiFetch<WorkoutSettings>("/api/v1/workouts/settings"),
   });
 }
@@ -1473,8 +1519,10 @@ export function useDeleteActivities() {
 // ─── Entrenador IA ───────────────────────────────────────────────────────────
 
 export function useCoachSettings() {
+  const on = useModuleOn("ia");
   return useQuery({
     queryKey: ["coach-settings"],
+    enabled: on,
     queryFn: () => apiFetch<CoachSettings>("/api/v1/coach/settings"),
   });
 }
@@ -1495,8 +1543,10 @@ export function useSaveCoachSettings() {
 }
 
 export function useCoachMemories() {
+  const on = useModuleOn("ia");
   return useQuery({
     queryKey: ["coach-memories"],
+    enabled: on,
     queryFn: () => apiFetch<CoachMemory[]>("/api/v1/coach/memories"),
   });
 }
@@ -1531,8 +1581,10 @@ export function useSaveCoachMemory() {
 }
 
 export function useCheckin() {
+  const on = useModuleOn("ia");
   return useQuery({
     queryKey: ["coach-checkin"],
+    enabled: on,
     queryFn: () => apiFetch<WeeklyCheckin | null>("/api/v1/coach/checkin"),
     refetchInterval: (query) =>
       query.state.data?.status === "processing" ? 2500 : false,
@@ -1561,19 +1613,22 @@ export function useAnswerCheckin() {
 }
 
 export function useProposals() {
+  const on = useModuleOn("ia");
   return useQuery({
     queryKey: ["coach-proposals"],
+    enabled: on,
     queryFn: () => apiFetch<PlanProposal[]>("/api/v1/coach/proposals"),
   });
 }
 
 /** ¿El entrenador tiene algo pendiente (revisión semanal o propuesta)? Para el punto de aviso del menú. */
 export function useCoachBadge(): boolean {
+  const ia = useModuleOn("ia");
   const { data: ai } = useAiProviders();
   const hasAi = !!ai?.providers.some((p) => p.configured && p.enabled);
   const { data: checkin } = useCheckin();
   const { data: proposals } = useProposals();
-  return hasAi && (checkin?.status === "pending" || !!proposals?.length);
+  return ia && hasAi && (checkin?.status === "pending" || !!proposals?.length);
 }
 
 export function useDecideProposal() {
@@ -1610,17 +1665,20 @@ export function usePlanRoute() {
 }
 
 export function usePlannedRoutes() {
+  const on = useModuleOn("rutas");
   return useQuery({
     queryKey: ["planned-routes"],
+    enabled: on,
     queryFn: () =>
       apiFetch<PlannedRoutePage>("/api/v1/planned-routes?limit=100"),
   });
 }
 
 export function usePlannedRoute(id: number | null) {
+  const on = useModuleOn("rutas");
   return useQuery({
     queryKey: ["planned-route", id],
-    enabled: id != null,
+    enabled: id != null && on,
     queryFn: () => apiFetch<PlannedRouteDetail>(`/api/v1/planned-routes/${id}`),
   });
 }

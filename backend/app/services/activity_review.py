@@ -16,7 +16,7 @@ from sqlmodel import Session, col, func, select
 
 from app.core.crypto import decrypt_secret
 from app.models import Activity, ActivityReview, AiProvider, AiProviderConfig, AiReviewSettings
-from app.services import ai_tools, coach, notifications
+from app.services import ai_tools, coach, modules, notifications
 from app.services.llm import PROVIDERS, LLMError, stream_chat
 from app.services.plan_steps import local_day, sport_family
 
@@ -75,6 +75,8 @@ def review_family(sport: str) -> str:
 def skip_reason(session: Session, activity: Activity, now: datetime | None = None) -> str | None:
     """Por qué no se analizaría automáticamente esta actividad (None = se analiza)."""
     now = now or datetime.now(UTC)
+    if not modules.enabled(session, "ia"):
+        return "módulo desactivado"
     settings = get_settings(session, activity.user_id)
     if not settings.enabled:
         return "desactivado"

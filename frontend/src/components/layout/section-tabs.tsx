@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { atSubSectionRoot, currentLocation } from "@/components/layout/nav";
+import { useModules } from "@/hooks/use-api";
+import { filterByModule } from "@/lib/modules";
 import { cn } from "@/lib/utils";
 
 /**
@@ -14,7 +16,9 @@ import { cn } from "@/lib/utils";
 export function SectionTabs() {
   const pathname = usePathname();
   const { section, sub } = currentLocation(pathname);
-  if (!section || section.children.length < 2 || !atSubSectionRoot(pathname))
+  const { data: modules } = useModules();
+  const children = section ? filterByModule(section.children, modules) : [];
+  if (!section || children.length < 2 || !atSubSectionRoot(pathname))
     return null;
   return (
     <nav
@@ -23,7 +27,7 @@ export function SectionTabs() {
       className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 -mx-3 mb-3 border-b bg-background/95 px-3 backdrop-blur md:-mx-6 md:px-6 lg:hidden"
     >
       <ul className="flex gap-1 overflow-x-auto [scrollbar-width:none]">
-        {section.children.map((c) => {
+        {children.map((c) => {
           const active = c.href === sub?.href;
           return (
             <li key={c.href} className="min-w-max flex-1">

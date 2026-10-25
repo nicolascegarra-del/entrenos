@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 import { useTour } from "@/components/tour/tour-provider";
 import { Button } from "@/components/ui/button";
+import { useModules } from "@/hooks/use-api";
 import { tourForPath } from "@/lib/tours";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +16,8 @@ import { cn } from "@/lib/utils";
 export function TourButton({ className }: { className?: string }) {
   const pathname = usePathname();
   const { start } = useTour();
-  const tour = tourForPath(pathname);
+  const { data: modules } = useModules();
+  const tour = tourForPath(pathname, modules);
   if (!tour) return null;
   return (
     <Button

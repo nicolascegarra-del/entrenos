@@ -16,6 +16,7 @@ from app.api import (
     garmin,
     gear,
     goals,
+    modules,
     notifications,
     performance,
     planned_routes,
@@ -109,6 +110,7 @@ app.include_router(performance.router, prefix="/api/v1")
 app.include_router(workouts.router, prefix="/api/v1")
 app.include_router(coach.router, prefix="/api/v1")
 app.include_router(reviews.router, prefix="/api/v1")
+app.include_router(modules.router, prefix="/api/v1")
 
 
 @app.get("/health", summary="Estado del servicio", tags=["infra"])

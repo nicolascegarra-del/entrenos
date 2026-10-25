@@ -36,6 +36,7 @@ import {
   useGoals,
   useInjuryRisk,
   useLatestReview,
+  useModuleOn,
   useProfile,
   useSummary,
   useSources,
@@ -153,6 +154,7 @@ function SetupCard({ hasActivities }: { hasActivities: boolean }) {
   const { data: profile } = useProfile();
   const { data: coach } = useCoachSettings();
   const { data: ai } = useAiProviders();
+  const ia = useModuleOn("ia");
   const hasAi = ai
     ? ai.providers.some((p) => p.configured && p.enabled)
     : undefined;
@@ -173,6 +175,7 @@ function SetupCard({ hasActivities }: { hasActivities: boolean }) {
     coach,
     hasAi,
     hasActivities,
+    iaModule: ia,
   });
   // La ficha del atleta (entrevista o perfil) no se puede ocultar: sin ella las métricas salen estimadas.
   const shown = hidden ? steps.filter((s) => FICHA_STEPS.has(s.key)) : steps;
@@ -304,6 +307,7 @@ function StreakStrip() {
 export default function HoyPage() {
   const { data, isPending, isError, refetch } = useSummary();
   const { data: goals } = useGoals();
+  const ia = useModuleOn("ia");
   const today = toIsoDay(new Date());
 
   if (isPending) {
@@ -368,10 +372,10 @@ export default function HoyPage() {
       <div data-tour="today-card">
         <TodayCard summary={data} goals={goals} today={today} />
       </div>
-      <AskCoachCard summary={data} today={today} />
+      {ia && <AskCoachCard summary={data} today={today} />}
       <Notices />
-      <LatestReviewLine />
-      <CoachNudges />
+      {ia && <LatestReviewLine />}
+      {ia && <CoachNudges />}
       <SetupCard hasActivities={data.recent.length > 0} />
 
       <div className="space-y-2" data-tour="week-kpis">

@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, Moon, Sun } from "lucide-react";
+import { EyeOff, LogOut, Moon, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -12,12 +12,13 @@ import {
   currentLocation,
   isUnder,
   screenTitle,
-  SECTIONS,
   type Section,
+  visibleSections,
 } from "@/components/layout/nav";
 import { SectionTabs } from "@/components/layout/section-tabs";
 import { SyncButton } from "@/components/layout/sync-button";
 import { TourButton } from "@/components/tour/tour-button";
+import { EmptyState } from "@/components/states";
 import { TourProvider } from "@/components/tour/tour-provider";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,8 +27,14 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { useCoachBadge, useGarminStatus, useMe } from "@/hooks/use-api";
+import {
+  useCoachBadge,
+  useGarminStatus,
+  useMe,
+  useModules,
+} from "@/hooks/use-api";
 import { logout } from "@/lib/api";
+import { disabledModuleFor, moduleLabel } from "@/lib/modules";
 import { cn } from "@/lib/utils";
 
 const linkClass = (active: boolean) =>
@@ -171,9 +178,10 @@ function SidebarNav() {
   const pathname = usePathname();
   const { section: current, sub } = currentLocation(pathname);
   const coachBadge = useCoachBadge();
+  const { data: modules } = useModules();
   return (
     <nav className="flex flex-col gap-1" aria-label="Principal" data-tour="nav">
-      {SECTIONS.map((section) => {
+      {visibleSections(modules).map((section) => {
         const Icon = section.icon;
         const active = current?.key === section.key;
         return (
@@ -307,13 +315,14 @@ function CoachTab({ section, active }: { section: Section; active: boolean }) {
 function BottomNav() {
   const pathname = usePathname();
   const { section } = currentLocation(pathname);
+  const { data: modules } = useModules();
   return (
     <nav
       aria-label="Principal"
       data-tour="nav"
       className="fixed inset-x-0 bottom-0 z-30 flex border-t border-sidebar-border bg-sidebar pb-[env(safe-area-inset-bottom)] lg:hidden"
     >
-      {SECTIONS.map((s) => {
+      {visibleSections(modules).map((s) => {
         const active = section?.key === s.key;
         if (s.key === "entrenador")
           return <CoachTab key={s.key} section={s} active={active} />;
@@ -335,6 +344,25 @@ function BottomNav() {
         );
       })}
     </nav>
+  );
+}
+
+/** Pantalla de un módulo que el administrador ha apagado (p. ej. al entrar por un enlace guardado). */
+function ModuleGuard({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const { data: modules } = useModules();
+  const off = disabledModuleFor(pathname, modules);
+  if (!off) return <>{children}</>;
+  return (
+    <EmptyState icon={EyeOff} title={`${moduleLabel(off)} no está disponible`}>
+      <p className="max-w-sm text-sm text-muted-foreground">
+        El administrador ha desactivado esta parte de la app. Tus datos siguen
+        guardados.
+      </p>
+      <Button asChild className="min-h-11 md:min-h-9">
+        <Link href="/">Ir a Hoy</Link>
+      </Button>
+    </EmptyState>
   );
 }
 
@@ -376,7 +404,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Hueco inferior para que la barra de pestañas no tape el contenido. */}
         <main className="mx-auto w-full max-w-6xl p-3 pb-[calc(5rem+env(safe-area-inset-bottom))] md:p-6 md:pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-6">
           <SectionTabs />
-          {children}
+          <ModuleGuard>{children}</ModuleGuard>
         </main>
 
         <BottomNav />
