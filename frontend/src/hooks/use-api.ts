@@ -978,7 +978,13 @@ export function useAdminUserAction() {
         body: body === undefined ? undefined : JSON.stringify(body),
       }),
     onSuccess: async () => {
-      for (const key of ["admin-users", "admin-system", "admin-audit"]) {
+      // app-modules: si el administrador se cambia sus propios módulos, se ve al momento.
+      for (const key of [
+        "admin-users",
+        "admin-system",
+        "admin-audit",
+        "app-modules",
+      ]) {
         await queryClient.invalidateQueries({ queryKey: [key] });
       }
     },
@@ -1042,7 +1048,7 @@ export function useSaveAdminSettings() {
 
 // ─── Módulos de la app ───────────────────────────────────────────────────────
 
-/** Módulos activos (los cambia el administrador). Se refrescan cada minuto como mucho. */
+/** Módulos activos para tu cuenta (los decide el administrador). Se refrescan cada minuto como mucho. */
 export function useModules() {
   return useQuery({
     queryKey: ["app-modules"],
@@ -1057,6 +1063,14 @@ export function useModuleOn(key: ModuleKey): boolean {
   return moduleOn(data, key);
 }
 
+/** Valor general de los módulos (Admin → Módulos), sin lo fijado para tu cuenta. */
+export function useAdminModules() {
+  return useQuery({
+    queryKey: ["admin-modules"],
+    queryFn: () => apiFetch<Modules>("/api/v1/admin/modules"),
+  });
+}
+
 export function useSaveModules() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -1066,8 +1080,11 @@ export function useSaveModules() {
         body: JSON.stringify(body),
       }),
     onSuccess: async (data) => {
-      queryClient.setQueryData(["app-modules"], data);
-      await queryClient.invalidateQueries({ queryKey: ["admin-audit"] });
+      queryClient.setQueryData(["admin-modules"], data);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["app-modules"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin-audit"] }),
+      ]);
     },
   });
 }

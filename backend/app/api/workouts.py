@@ -77,7 +77,7 @@ def queue_send(session, user_id: int) -> None:
     settings = session.get(UserSettings, user_id)
     if not (settings and settings.garmin_workouts_auto):
         return
-    if not modules.enabled(session, "reloj"):
+    if not modules.enabled(session, "reloj", user_id):
         return
     if not (_connected(session, user_id) or _coros_connected(session, user_id)):
         return

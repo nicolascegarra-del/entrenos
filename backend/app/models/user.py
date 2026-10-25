@@ -1,7 +1,8 @@
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import Column, DateTime, String
+from sqlalchemy import Column, DateTime, String, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
 from app.models.base import created_at_field
@@ -39,4 +40,8 @@ class User(SQLModel, table=True):
     onboarded_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True)))
     # Aviso por inactividad enviado (cuentas Básicas); entrar lo borra. Ver accounts.housekeeping.
     inactivity_warned_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True)))
+    # Módulos que el administrador fija para esta cuenta ({"ia": false}); lo que no está, sigue el valor general.
+    module_overrides: dict = Field(
+        default_factory=dict, sa_column=Column(JSONB, nullable=False, server_default=text("'{}'"))
+    )
     created_at: datetime = created_at_field()

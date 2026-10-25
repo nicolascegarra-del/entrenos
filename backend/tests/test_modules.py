@@ -151,19 +151,104 @@ def test_api_cuando_reloj_apagado_entonces_fit_sigue_y_otros_modulos_tambien(cli
 # ─── Tareas en segundo plano ─────────────────────────────────────────────────
 
 
-def test_tareas_ia_cuando_apagado_entonces_no_hacen_nada(session, monkeypatch):
+def _review_and_checkin(session, user):
+    from datetime import UTC, date, datetime
+
+    from app.models import Activity, ActivityReview, WeeklyCheckin
+
+    activity = Activity(user_id=user.id, sport="running", start_time=datetime.now(UTC), duration_s=3600)
+    session.add(activity)
+    session.commit()
+    review = ActivityReview(activity_id=activity.id, user_id=user.id)
+    checkin = WeeklyCheckin(user_id=user.id, week_start=date(2026, 10, 19))
+    session.add_all([review, checkin])
+    session.commit()
+    return review.id, checkin.id
+
+
+def test_tareas_ia_cuando_apagado_entonces_no_hacen_nada(session, user, monkeypatch):
     from app.tasks import ai as ai_tasks
     from app.tasks import coach as coach_tasks
 
+    review_id, checkin_id = _review_and_checkin(session, user)
     called: list = []
     monkeypatch.setattr(ai_tasks, "generate", lambda *a: called.append("review"))
-    monkeypatch.setattr(coach_tasks.weekly_review, "due_tick", lambda *a: called.append("tick"))
     monkeypatch.setattr(coach_tasks.weekly_review, "generate", lambda *a: called.append("summary"))
     _off(session, "ia")
-    assert ai_tasks.review_activity_task(1) == "módulo desactivado"
-    assert coach_tasks.weekly_tick_task() == 0
-    assert coach_tasks.weekly_summary_task(1) == "módulo desactivado"
+    assert ai_tasks.review_activity_task(review_id) == "módulo desactivado"
+    assert coach_tasks.weekly_summary_task(checkin_id) == "módulo desactivado"
     assert called == []
+
+
+def test_revision_semanal_cuando_ia_apagada_para_la_cuenta_entonces_no_se_abre(session, user, monkeypatch):
+    from datetime import UTC, datetime
+
+    from app.models import AiProviderConfig
+    from app.services import weekly_review
+
+    session.add(AiProviderConfig(user_id=user.id, provider="gemini", key_enc="x", key_last4="1234", model="m"))
+    session.commit()
+    opened: list = []
+    monkeypatch.setattr(weekly_review, "open_week", lambda *a, **k: opened.append(a[1]))
+    modules.set_user_modules(session, user, {"ia": False}, None)
+    sunday = datetime(2026, 10, 25, 20, tzinfo=UTC)
+    assert weekly_review.due_tick(session, sunday) == 0
+    modules.set_user_modules(session, user, {"ia": None}, None)
+    assert weekly_review.due_tick(session, sunday) == 1 and opened == [user.id]
+
+
+# ─── Módulos por cuenta ──────────────────────────────────────────────────────
+
+
+def test_modulos_cuando_la_cuenta_tiene_valor_propio_entonces_manda_sobre_el_general(session, user):
+    _off(session, "ia")
+    modules.set_user_modules(session, user, {"ia": True, "rutas": False}, None)
+    mine = modules.for_user(session, user.id)
+    assert mine["ia"] is True and mine["rutas"] is False and mine["reloj"] is True
+    assert modules.all_modules(session)["ia"] is False  # el general no cambia
+    modules.set_user_modules(session, user, {"ia": None}, None)  # vuelve al general
+    assert not modules.enabled(session, "ia", user.id)
+
+
+def test_modulos_cuando_nombre_desconocido_en_la_cuenta_entonces_error(session, user):
+    with pytest.raises(ValueError, match="desconocido"):
+        modules.set_user_modules(session, user, {"teletransporte": True}, None)
+
+
+def test_api_cuando_ia_apagada_solo_para_una_cuenta_entonces_solo_ella_recibe_404(client, user, admin, session):
+    modules.set_user_modules(session, user, {"ia": False}, admin)
+    r = client.get("/api/v1/ai/providers", headers=auth(user))
+    assert r.status_code == 404 and r.json()["error"]["code"] == "MODULE_DISABLED"
+    assert client.get("/api/v1/ai/providers", headers=auth(admin)).status_code == 200
+    assert client.get("/api/v1/app/modules", headers=auth(user)).json()["ia"] is False
+    assert client.get("/api/v1/app/modules", headers=auth(admin)).json()["ia"] is True
+
+
+def test_admin_cuando_fija_modulos_de_una_cuenta_entonces_guarda_lista_y_audita(client, user, admin, session):
+    r = client.patch(f"/api/v1/admin/users/{user.id}", headers=auth(admin),
+                     json={"modules": {"entrenadores": True, "reloj": False}})  # fmt: skip
+    assert r.status_code == 200 and r.json()["modules"] == {"entrenadores": True, "reloj": False}
+    r = client.patch(f"/api/v1/admin/users/{user.id}", headers=auth(admin), json={"modules": {"reloj": None}})
+    assert r.json()["modules"] == {"entrenadores": True}
+    rows = session.exec(select(AuditLog).where(AuditLog.action == "user.modules")).all()
+    assert len(rows) == 2
+    bad = client.patch(f"/api/v1/admin/users/{user.id}", headers=auth(admin), json={"modules": {"x": True}})
+    assert bad.status_code == 422
+    assert client.patch(f"/api/v1/admin/users/{user.id}", headers=auth(user),
+                        json={"modules": {"ia": True}}).status_code == 403  # fmt: skip
+
+
+def test_admin_cuando_pide_el_valor_general_entonces_no_le_afecta_el_suyo(client, admin, session):
+    modules.set_user_modules(session, admin, {"rutas": False}, admin)
+    assert client.get("/api/v1/admin/modules", headers=auth(admin)).json()["rutas"] is True
+
+
+def test_tareas_reloj_cuando_apagado_solo_para_una_cuenta_entonces_las_demas_siguen(session, user, monkeypatch):
+    from app.tasks import workouts as tasks
+
+    modules.set_user_modules(session, user, {"reloj": False}, None)
+    monkeypatch.setattr(tasks, "GarminConnectClient", lambda *a: (_ for _ in ()).throw(AssertionError))
+    assert tasks.send_workouts_task(user.id) == {}
 
 
 def test_analisis_automatico_cuando_ia_apagada_entonces_no_se_encola(session, user):

@@ -11,15 +11,16 @@ from app.tasks.celery_app import celery_app
 def weekly_tick_task() -> int:
     """Cada hora: el domingo desde las 18:00 locales se abre la revisión y se avisa."""
     with Session(engine) as session:
-        if not modules.enabled(session, "ia"):
-            return 0
         return weekly_review.due_tick(session)
 
 
 @celery_app.task(name="coach.weekly_summary")
 def weekly_summary_task(checkin_id: int) -> str:
     with Session(engine) as session:
-        if not modules.enabled(session, "ia"):
+        from app.models import WeeklyCheckin
+
+        checkin = session.get(WeeklyCheckin, checkin_id)
+        if checkin is not None and not modules.enabled(session, "ia", checkin.user_id):
             return "módulo desactivado"
         row = weekly_review.generate(session, checkin_id)
         return row.status if row else "missing"

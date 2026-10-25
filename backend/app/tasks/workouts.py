@@ -14,16 +14,16 @@ from app.tasks.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
-def _reloj_on() -> bool:
+def _reloj_on(user_id: int) -> bool:
     with Session(engine) as session:
-        return modules.enabled(session, "reloj")
+        return modules.enabled(session, "reloj", user_id)
 
 
 @celery_app.task(name="garmin.send_workouts")
 def send_workouts_task(user_id: int) -> dict:
     """Envía (o actualiza) las sesiones de los próximos 7 días a Garmin y a COROS (los que estén conectados)."""
     out: dict = {}
-    if not _reloj_on():
+    if not _reloj_on(user_id):
         return out
     try:
         client = GarminConnectClient(user_id)
@@ -45,7 +45,7 @@ def send_workouts_task(user_id: int) -> dict:
 @celery_app.task(name="garmin.delete_workout")
 def delete_workout_task(user_id: int, workout_id: int) -> None:
     """Borra de Garmin el entreno de una sesión que ya no existe."""
-    if not _reloj_on():
+    if not _reloj_on(user_id):
         return
     try:
         GarminConnectClient(user_id).delete_workout(workout_id)
@@ -57,8 +57,6 @@ def delete_workout_task(user_id: int, workout_id: int) -> None:
 def send_workouts_all_task() -> int:
     """Cada 6 h: a quien tenga activado el envío automático y Garmin o COROS conectado."""
     with Session(engine) as session:
-        if not modules.enabled(session, "reloj"):
-            return 0
         garmin = select(GarminCredential.user_id).where(GarminCredential.status == GarminStatus.OK)
         coros = select(CorosOAuth.user_id).where(CorosOAuth.status == "ok")
         users = session.exec(
@@ -70,6 +68,7 @@ def send_workouts_all_task() -> int:
                 or_(col(UserSettings.user_id).in_(garmin), col(UserSettings.user_id).in_(coros)),
             )
         ).all()
+        users = [uid for uid in users if modules.enabled(session, "reloj", uid)]
     for uid in users:
         send_workouts_task.apply_async(args=[uid], argsrepr="(usuario)")
     return len(users)

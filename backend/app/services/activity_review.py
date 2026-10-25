@@ -75,7 +75,7 @@ def review_family(sport: str) -> str:
 def skip_reason(session: Session, activity: Activity, now: datetime | None = None) -> str | None:
     """Por qué no se analizaría automáticamente esta actividad (None = se analiza)."""
     now = now or datetime.now(UTC)
-    if not modules.enabled(session, "ia"):
+    if not modules.enabled(session, "ia", activity.user_id):
         return "módulo desactivado"
     settings = get_settings(session, activity.user_id)
     if not settings.enabled:

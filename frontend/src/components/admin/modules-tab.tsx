@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { ErrorState } from "@/components/states";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useModules, useSaveModules } from "@/hooks/use-api";
+import { useAdminModules, useSaveModules } from "@/hooks/use-api";
 import { ApiError } from "@/lib/api";
 import { MODULE_INFO, type ModuleKey } from "@/lib/modules";
 import { cn } from "@/lib/utils";
@@ -55,9 +55,9 @@ function Switch({
   );
 }
 
-/** Admin → Módulos: activar o desactivar partes de la app para todos (sin borrar datos). */
+/** Admin → Módulos: valor general de cada parte de la app (sin borrar datos). */
 export function ModulesTab() {
-  const { data, isPending, isError, refetch } = useModules();
+  const { data, isPending, isError, refetch } = useAdminModules();
   const save = useSaveModules();
 
   if (isPending) return <Skeleton className="h-64" />;
@@ -87,10 +87,10 @@ export function ModulesTab() {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Activa o desactiva partes de la app para todos los usuarios. Desactivar
-        solo las oculta: no se borra ningún dato y vuelven tal cual al
-        activarlas. Los cambios tardan como mucho un minuto en llegar a quien ya
-        tenga la app abierta.
+        Valor general de cada parte de la app: lo tienen todas las cuentas salvo
+        las que tengan uno propio (Usuarios → Módulos). Desactivar solo oculta:
+        no se borra ningún dato y vuelve tal cual al activarlo. Los cambios
+        tardan como mucho un minuto en llegar a quien ya tenga la app abierta.
       </p>
       <ul className="divide-y rounded-lg border">
         {MODULE_INFO.map(({ key, label, hint }) => (

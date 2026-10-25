@@ -5,6 +5,7 @@ import {
   Ban,
   CircleCheck,
   KeyRound,
+  LayoutGrid,
   Lock,
   LogOut,
   Search,
@@ -24,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  useAdminModules,
   useAdminSettings,
   useAdminUserAction,
   useAdminUsers,
@@ -31,6 +33,16 @@ import {
 } from "@/hooks/use-api";
 import { ApiError } from "@/lib/api";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
+import {
+  choiceValue,
+  effectiveModule,
+  MODULE_INFO,
+  type ModuleChoice,
+  moduleChoice,
+  type ModuleKey,
+  overridesSummary,
+} from "@/lib/modules";
+import { cn } from "@/lib/utils";
 import type { AdminUserRow, LinkOut } from "@/types/api";
 
 const errorText = (e: unknown) =>
@@ -79,6 +91,75 @@ function ActionButton({
   );
 }
 
+const CHOICES: { value: ModuleChoice; label: string }[] = [
+  { value: "general", label: "General" },
+  { value: "on", label: "Sí" },
+  { value: "off", label: "No" },
+];
+
+/** Módulos de una cuenta: seguir el valor general o fijar activado / desactivado. */
+function UserModules({
+  u,
+  disabled,
+  onChange,
+}: {
+  u: AdminUserRow;
+  disabled: boolean;
+  onChange: (key: ModuleKey, choice: ModuleChoice) => void;
+}) {
+  const { data: general } = useAdminModules();
+  return (
+    <ul className="divide-y rounded-md border bg-muted/30">
+      {MODULE_INFO.map(({ key, label }) => {
+        const current = moduleChoice(u.modules, key);
+        const on = effectiveModule(general, u.modules, key);
+        return (
+          <li
+            key={key}
+            className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
+          >
+            <div className="min-w-0">
+              <p id={`um-${u.id}-${key}`} className="text-sm font-medium">
+                {label}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {on ? "Activo" : "Apagado"}
+                {current === "general" &&
+                  general &&
+                  ` · valor general (${general[key] ? "sí" : "no"})`}
+              </p>
+            </div>
+            <div
+              role="radiogroup"
+              aria-labelledby={`um-${u.id}-${key}`}
+              className="inline-flex rounded-md border bg-background p-0.5"
+            >
+              {CHOICES.map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={current === c.value}
+                  disabled={disabled}
+                  onClick={() => current !== c.value && onChange(key, c.value)}
+                  className={cn(
+                    "min-h-11 min-w-11 rounded px-2.5 text-xs font-medium transition-colors disabled:opacity-60 md:min-h-8",
+                    current === c.value
+                      ? "bg-klyp-navy text-white dark:bg-klyp-accent"
+                      : "text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function UserCard({
   u,
   isMe,
@@ -90,6 +171,8 @@ function UserCard({
 }) {
   const action = useAdminUserAction();
   const [link, setLink] = useState<LinkOut | null>(null);
+  const [showModules, setShowModules] = useState(false);
+  const summary = overridesSummary(u.modules);
 
   const run = (
     path: string,
@@ -162,6 +245,7 @@ function UserCard({
             <Lock aria-hidden /> Bloqueado
           </Badge>
         )}
+        {summary && <Badge variant="outline">{summary}</Badge>}
       </div>
       <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid-cols-3 lg:grid-cols-6">
         <li>
@@ -288,6 +372,12 @@ function UserCard({
             >
               {u.tier === "basic" ? "Pasar a Completa" : "Pasar a Básica"}
             </ActionButton>
+            <ActionButton
+              icon={LayoutGrid}
+              onClick={() => setShowModules((v) => !v)}
+            >
+              {showModules ? "Ocultar módulos" : "Módulos"}
+            </ActionButton>
             {u.status === "active" && (
               <ActionButton icon={KeyRound} onClick={resetLink}>
                 Enlace de contraseña
@@ -319,6 +409,28 @@ function UserCard({
           </>
         )}
       </div>
+      {showModules && u.status !== "pending" && (
+        <UserModules
+          u={u}
+          disabled={action.isPending}
+          onChange={(key, choice) =>
+            run(
+              `${u.id}`,
+              `${MODULE_INFO.find((m) => m.key === key)?.label}: ${
+                choice === "general"
+                  ? "vuelve al valor general"
+                  : choice === "on"
+                    ? "activado para esta cuenta"
+                    : "desactivado para esta cuenta"
+              }.`,
+              {
+                method: "PATCH",
+                body: { modules: { [key]: choiceValue(choice) } },
+              },
+            )
+          }
+        />
+      )}
       {link && (
         <CopyLink
           link={link.link}

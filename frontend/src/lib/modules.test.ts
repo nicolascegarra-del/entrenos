@@ -4,11 +4,15 @@ import { SECTIONS, visibleSections } from "@/components/layout/nav";
 import type { CoachSettings, Profile } from "@/types/api";
 
 import {
+  choiceValue,
   disabledModuleFor,
+  effectiveModule,
   filterByModule,
   LOADING_MODULES,
   MODULE_INFO,
+  moduleChoice,
   moduleOn,
+  overridesSummary,
   type Modules,
 } from "./modules";
 import { setupSteps } from "./notices";
@@ -141,5 +145,29 @@ describe("setupSteps con el módulo de IA", () => {
         (s) => s.key,
       ),
     ).toEqual(["interview"]);
+  });
+});
+
+describe("módulos por cuenta", () => {
+  const general: Modules = { ...LOADING_MODULES, ia: false };
+
+  it("lo propio de la cuenta manda sobre el valor general", () => {
+    expect(effectiveModule(general, { ia: true }, "ia")).toBe(true);
+    expect(effectiveModule(general, {}, "ia")).toBe(false);
+    expect(effectiveModule(general, { rutas: false }, "rutas")).toBe(false);
+  });
+
+  it("traduce entre la elección y lo que se manda a la API", () => {
+    expect(moduleChoice({}, "ia")).toBe("general");
+    expect(moduleChoice({ ia: false }, "ia")).toBe("off");
+    expect(choiceValue("general")).toBeNull();
+    expect(choiceValue("on")).toBe(true);
+  });
+
+  it("resume lo fijado para la tarjeta del usuario", () => {
+    expect(overridesSummary({})).toBe("");
+    expect(
+      overridesSummary({ ia: false, rutas: false, entrenadores: true }),
+    ).toBe("Entrenadores activado · Entrenador IA y Rutas desactivados");
   });
 });

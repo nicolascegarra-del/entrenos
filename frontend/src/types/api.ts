@@ -577,6 +577,8 @@ export interface AdminUserRow {
   activities: number;
   ai_questions_30d: number;
   ai_tokens_30d: number;
+  /** Módulos fijados para esta cuenta (lo que no aparece sigue el valor general). */
+  modules: Partial<Record<import("@/lib/modules").ModuleKey, boolean>>;
 }
 
 export interface UsersPage {

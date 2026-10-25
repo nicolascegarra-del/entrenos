@@ -74,6 +74,8 @@ class AdminUserRow(BaseModel):
     activities: int
     ai_questions_30d: int
     ai_tokens_30d: int
+    # Módulos fijados para esta cuenta (lo que no aparece sigue el valor general).
+    modules: dict[str, bool] = {}
 
 
 class UsersPage(BaseModel):
@@ -85,6 +87,8 @@ class UserPatch(BaseModel):
     is_admin: bool | None = None
     status: Literal["active", "disabled"] | None = None
     tier: AccountTier | None = None
+    # Módulos de esta cuenta: true/false los fija; null la devuelve al valor general.
+    modules: dict[str, bool | None] | None = None
 
 
 class ResetLinkIn(BaseModel):
@@ -238,6 +242,7 @@ def _rows(session: Session, users: list[User]) -> list[AdminUserRow]:
             activities=activities.get(u.id, 0),
             ai_questions_30d=usage.get(u.id, (0, 0))[0],
             ai_tokens_30d=int(usage.get(u.id, (0, 0))[1]),
+            modules=modules.clean_overrides(u.module_overrides),
         )  # fmt: skip
         for u in users
     ]
@@ -309,6 +314,11 @@ def patch_user(user_id: int, body: UserPatch, session: SessionDep, admin: AdminU
     if body.tier is not None and body.tier != user.tier:
         user.tier = body.tier
         accounts.audit(session, admin, f"user.tier_{body.tier}", user)
+    if body.modules:
+        try:
+            modules.set_user_modules(session, user, body.modules, admin)
+        except ValueError as exc:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     if body.status is not None and body.status != user.status:
         user.status = UserStatus(body.status)
         if user.status == UserStatus.DISABLED:
@@ -515,12 +525,22 @@ def put_app_settings(body: SettingsIn, session: SessionDep, admin: AdminUser) ->
     return _settings_out(session)
 
 
+@router.get(
+    "/modules",
+    summary="Valor general de los módulos",
+    description="Lo que tiene cada módulo para todas las cuentas que no tengan un valor propio.",
+)
+def get_admin_modules(session: SessionDep, _: AdminUser) -> ModulesOut:
+    return ModulesOut(**modules.all_modules(session))
+
+
 @router.put(
     "/modules",
     summary="Activar o desactivar módulos de la app (solo los enviados)",
     description=(
-        "Cambia para todos los usuarios qué módulos están activos (`entrenadores`, `ia`, `reloj`, `rutas`, "
-        "`nutricion`). Desactivar solo oculta: no borra datos. Cada cambio queda en la auditoría."
+        "Cambia el valor general de los módulos (`entrenadores`, `ia`, `reloj`, `rutas`, `nutricion`); las cuentas "
+        "con un valor propio (PATCH /admin/users/{id} con `modules`) lo mantienen. Desactivar solo oculta: no "
+        "borra datos. Cada cambio queda en la auditoría."
     ),
 )
 def put_modules(body: ModulesIn, session: SessionDep, admin: AdminUser) -> ModulesOut:

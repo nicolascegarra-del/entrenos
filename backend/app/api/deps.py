@@ -38,13 +38,13 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 def require_module(name: str) -> Callable[..., None]:
     """
-    Dependencia que corta con 404 (`MODULE_DISABLED`) si el administrador apagó el módulo.
+    Dependencia que corta con 404 (`MODULE_DISABLED`) si el módulo está apagado para esta cuenta.
 
     Exige sesión antes, para que un anónimo reciba 401 y no sepa qué está activado.
     """
 
-    def check(session: SessionDep, _: CurrentUser) -> None:
-        if not modules.enabled(session, name):
+    def check(session: SessionDep, user: CurrentUser) -> None:
+        if not modules.enabled(session, name, user):
             raise HTTPException(
                 status.HTTP_404_NOT_FOUND,
                 f"El módulo «{modules.LABELS[name]}» está desactivado por el administrador.",

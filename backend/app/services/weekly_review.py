@@ -92,7 +92,11 @@ def due_tick(session: Session, now: datetime | None = None) -> int:
         .distinct()
     ).all()
     opened = 0
+    from app.services import modules
+
     for uid in users:
+        if not modules.enabled(session, "ia", uid):
+            continue
         s = session.get(CoachSettings, uid)
         if s is not None and not s.weekly_review:
             continue

@@ -1,5 +1,6 @@
 /**
- * Módulos de la app que el administrador activa o desactiva para todos (Admin → Módulos).
+ * Módulos de la app que el administrador activa o desactiva: un valor general (Admin → Módulos)
+ * y, si quiere, otro propio para cada cuenta (Admin → Usuarios → Módulos), que manda sobre el general.
  * Desactivar solo oculta la interfaz (y su API responde 404): nunca borra datos.
  */
 
@@ -81,6 +82,53 @@ export function disabledModuleFor(
     (p) => pathname === p.base || pathname.startsWith(`${p.base}/`),
   );
   return hit && !moduleOn(modules, hit.module) ? hit.module : null;
+}
+
+/** Valor de un módulo para una cuenta: "general" (sigue el valor de todos), "on" u "off". */
+export type ModuleChoice = "general" | "on" | "off";
+
+export function moduleChoice(
+  overrides: Partial<Modules> | undefined,
+  key: ModuleKey,
+): ModuleChoice {
+  const v = overrides?.[key];
+  return v === undefined ? "general" : v ? "on" : "off";
+}
+
+/** Lo que se manda a la API al elegir: null devuelve la cuenta al valor general. */
+export const choiceValue = (choice: ModuleChoice): boolean | null =>
+  choice === "general" ? null : choice === "on";
+
+/** ¿Lo tiene activo esta cuenta? Lo propio manda; si no, el valor general. */
+export function effectiveModule(
+  general: Modules | undefined,
+  overrides: Partial<Modules> | undefined,
+  key: ModuleKey,
+): boolean {
+  const own = overrides?.[key];
+  return own ?? moduleOn(general, key);
+}
+
+/** Resumen corto para la tarjeta del usuario: «IA y Rutas desactivados», «Entrenadores activado»… */
+export function overridesSummary(
+  overrides: Partial<Modules> | undefined,
+): string {
+  const on = MODULE_INFO.filter((m) => overrides?.[m.key] === true).map(
+    (m) => m.label,
+  );
+  const off = MODULE_INFO.filter((m) => overrides?.[m.key] === false).map(
+    (m) => m.label,
+  );
+  const join = (xs: string[]) =>
+    xs.length > 1
+      ? `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`
+      : xs[0];
+  const parts = [
+    on.length && `${join(on)} ${on.length > 1 ? "activados" : "activado"}`,
+    off.length &&
+      `${join(off)} ${off.length > 1 ? "desactivados" : "desactivado"}`,
+  ].filter(Boolean);
+  return parts.join(" · ");
 }
 
 export const moduleLabel = (key: ModuleKey) =>

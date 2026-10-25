@@ -1,5 +1,6 @@
 """
-Módulos de la app que el administrador activa o desactiva para todos.
+Módulos de la app que el administrador activa o desactiva: un valor general para todos y, si quiere,
+otro distinto para cada cuenta (`User.module_overrides`, que manda sobre el general).
 
 Se guardan en `AppSetting` (clave `modules`, JSON con solo los valores conocidos) y se
 cachean ~30 s en Redis para no ir a la BD en cada petición; guardar invalida la caché.
@@ -88,9 +89,57 @@ def all_modules(session: Session) -> dict[str, bool]:
     return values
 
 
-def enabled(session: Session, name: str) -> bool:
-    """¿Está activado el módulo `name`? Un nombre desconocido cuenta como desactivado."""
-    return all_modules(session).get(name, False)
+def clean_overrides(raw: object) -> dict[str, bool]:
+    """Solo los módulos conocidos con valor booleano (lo demás se ignora)."""
+    if not isinstance(raw, dict):
+        return {}
+    return {k: bool(v) for k, v in raw.items() if k in DEFAULTS and v is not None}
+
+
+def for_user(session: Session, user: User | int | None) -> dict[str, bool]:
+    """Módulos de una cuenta: el valor general con lo que el administrador haya fijado para ella encima."""
+    values = all_modules(session)
+    if user is None:
+        return values
+    row = session.get(User, user) if isinstance(user, int) else user
+    if row is not None:
+        values = {**values, **clean_overrides(row.module_overrides)}
+    return values
+
+
+def enabled(session: Session, name: str, user: User | int | None = None) -> bool:
+    """
+    ¿Está activado el módulo `name`? Con `user`, para esa cuenta; sin él, el valor general.
+    Un nombre desconocido cuenta como desactivado.
+    """
+    return for_user(session, user).get(name, False)
+
+
+def set_user_modules(session: Session, user: User, changes: dict[str, bool | None], admin: User | None) -> dict:
+    """
+    Fija (True/False) o devuelve al valor general (None) módulos de una cuenta y lo anota en la auditoría.
+
+    Raises:
+        ValueError: Si algún nombre de módulo no existe.
+    """
+    unknown = sorted(set(changes) - set(DEFAULTS))
+    if unknown:
+        raise ValueError(f"Módulo desconocido: {', '.join(unknown)}.")
+    current = clean_overrides(user.module_overrides)
+    after = dict(current)
+    for k, v in changes.items():
+        if v is None:
+            after.pop(k, None)
+        else:
+            after[k] = bool(v)
+    if after != current:
+        user.module_overrides = after
+        session.add(user)
+        diff = {k: ("general" if k not in after else "activado" if after[k] else "desactivado")
+                for k in DEFAULTS if current.get(k) != after.get(k)}  # fmt: skip
+        accounts.audit(session, admin, "user.modules", user, **diff)
+        session.commit()
+    return after
 
 
 def invalidate_cache() -> None:

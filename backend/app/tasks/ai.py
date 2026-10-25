@@ -14,7 +14,10 @@ logger = logging.getLogger(__name__)
 def review_activity_task(review_id: int) -> str:
     """Escribe el análisis de un entreno con la IA del usuario."""
     with Session(engine) as session:
-        if not modules.enabled(session, "ia"):
+        from app.models import ActivityReview
+
+        row = session.get(ActivityReview, review_id)
+        if row is not None and not modules.enabled(session, "ia", row.user_id):
             return "módulo desactivado"
         review = generate(session, review_id)
     return review.status if review else "no existe"
