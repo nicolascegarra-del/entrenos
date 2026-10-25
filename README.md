@@ -1,4 +1,4 @@
-# APP ENTRENOS
+# KTrain
 
 App personal para sincronizar entrenamientos de Garmin, ver la progresión en gráficas y comparar las sesiones planificadas con lo que registró el reloj (plan vs real).
 

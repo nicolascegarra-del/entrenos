@@ -614,7 +614,7 @@ class EmailSettingsIn(BaseModel):
     security: Literal["starttls", "ssl", "none"] = "starttls"
     user: str = Field(default="", max_length=255)
     password: str | None = Field(default=None, max_length=500, description="None = conservar; '' = borrar")
-    sender: str = Field(default="", max_length=255, description='p. ej. "APP ENTRENOS <no-reply@dominio.com>"')
+    sender: str = Field(default="", max_length=255, description='p. ej. "KTrain <no-reply@dominio.com>"')
     public_url: str = Field(max_length=255, pattern=r"^https?://[^\s/]+(/.*)?$")
 
 
@@ -694,8 +694,8 @@ def test_email(request: Request, body: EmailTestIn, session: SessionDep, admin: 
     to = body.to or admin.email
     test = Email(
         to=to,
-        subject="Prueba de correo de APP ENTRENOS",
-        text="Si lees esto, el envío de emails de APP ENTRENOS funciona.",
+        subject="Prueba de correo de KTrain",
+        text="Si lees esto, el envío de emails de KTrain funciona.",
         html=mailer.test_html(),
     )
     try:

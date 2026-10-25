@@ -62,7 +62,7 @@ def _planned(sport: str = "running", day: date = TOMORROW) -> PlannedSession:
 def test_formato_de_coros():
     c = coros_workouts.coros_course(_planned(), _blocks())
     assert c["sportType"] == 1 and c["courseName"] == "Series 6 × 1000"
-    assert c["courseDescription"].startswith("Series 6 × 1000.") and "APP ENTRENOS" in c["courseDescription"]
+    assert c["courseDescription"].startswith("Series 6 × 1000.") and "KTrain" in c["courseDescription"]
     warm, group, cool = c["sections"]
     assert warm == {"sectionType": 1, "targetType": 2, "targetValue": 900, "intensityType": 1,
                     "intensityValueStart": 125, "intensityValueEnd": 140}  # fmt: skip

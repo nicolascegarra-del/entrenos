@@ -32,7 +32,7 @@ def _html(title: str, paragraphs: list[str], button: tuple[str, str] | None = No
     return (
         f'<div style="font-family:Inter,Arial,sans-serif;background:#E8EDF5;padding:24px">'
         f'<div style="max-width:520px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden">'
-        f'<div style="background:{NAVY};color:#fff;padding:16px 24px;font-weight:600">APP ENTRENOS</div>'
+        f'<div style="background:{NAVY};color:#fff;padding:16px 24px;font-weight:600">KTrain</div>'
         f'<div style="padding:24px;color:#374151;font-size:15px;line-height:1.5">'
         f'<h1 style="margin:0 0 16px;font-size:20px;color:{NAVY}">{escape(title)}</h1>{body}</div></div></div>'
     )
@@ -58,13 +58,13 @@ def send_invitation(to: str, token: str, expires_at: datetime) -> bool:
     if not email_enabled():
         return False
     url = link(f"/registro?token={token}")
-    title = "Te han invitado a APP ENTRENOS"
+    title = "Te han invitado a KTrain"
     text = (
         f"{title}.\n\nCrea tu usuario con este enlace (válido hasta el {_fmt(expires_at)}):\n{url}\n\n"
         "Si no esperabas esta invitación, ignora este email."
     )
     paragraphs = [
-        "Te han invitado a APP ENTRENOS para ver y analizar tus entrenamientos de Garmin.",
+        "Te han invitado a KTrain, tu entrenador personal con IA para cualquier reloj.",
         f"Crea tu usuario con el botón (el enlace caduca el {_fmt(expires_at)}).",
     ]
     _queue(Email(to, title, text, _html(title, paragraphs, ("Crear mi usuario", url),
@@ -78,11 +78,11 @@ def send_password_reset(to: str, token: str, minutes: int) -> bool:
     url = link(f"/restablecer?token={token}")
     title = "Restablece tu contraseña"
     text = (
-        f"Has pedido restablecer tu contraseña de APP ENTRENOS.\n\nUsa este enlace en los próximos {minutes} "
+        f"Has pedido restablecer tu contraseña de KTrain.\n\nUsa este enlace en los próximos {minutes} "
         f"minutos:\n{url}\n\nSi no lo has pedido tú, ignora este email: tu contraseña no cambia."
     )
     paragraphs = [
-        "Has pedido restablecer tu contraseña de APP ENTRENOS.",
+        "Has pedido restablecer tu contraseña de KTrain.",
         f"Pulsa el botón en los próximos {minutes} minutos para elegir una nueva.",
     ]
     footer = "Si no lo has pedido tú, ignora este email: tu contraseña no cambia."
@@ -96,8 +96,8 @@ def send_approval_request(admins: list[str], applicant: str) -> None:
         return
     url = link("/admin")
     title = "Nueva solicitud de registro"
-    text = f"{applicant} ha pedido una cuenta en APP ENTRENOS.\n\nApruébala o recházala en Admin:\n{url}"
-    html = _html(title, [f"{applicant} ha pedido una cuenta en APP ENTRENOS."], ("Revisar en Admin", url))
+    text = f"{applicant} ha pedido una cuenta en KTrain.\n\nApruébala o recházala en Admin:\n{url}"
+    html = _html(title, [f"{applicant} ha pedido una cuenta en KTrain."], ("Revisar en Admin", url))
     for admin in admins:
         _queue(Email(admin, title, text, html))
 
@@ -107,7 +107,7 @@ def send_account_approved(to: str) -> None:
         return
     url = link("/login")
     title = "Tu cuenta está lista"
-    text = f"Un administrador ha aprobado tu cuenta de APP ENTRENOS. Ya puedes entrar:\n{url}"
+    text = f"Un administrador ha aprobado tu cuenta de KTrain. Ya puedes entrar:\n{url}"
     _queue(Email(to, title, text, _html(title, ["Un administrador ha aprobado tu cuenta."], ("Entrar", url))))
 
 
@@ -117,10 +117,10 @@ def send_email_verification(to: str, token: str, hours: int) -> bool:
     url = link(f"/verificar?token={token}")
     title = "Confirma tu email"
     text = (
-        f"Gracias por registrarte en APP ENTRENOS.\n\nConfirma tu email con este enlace (válido {hours} h):\n{url}"
+        f"Gracias por registrarte en KTrain.\n\nConfirma tu email con este enlace (válido {hours} h):\n{url}"
         "\n\nSi no has creado tú la cuenta, ignora este email y se borrará sola."
     )
-    paragraphs = ["Gracias por registrarte en APP ENTRENOS.", f"Confirma tu email con el botón (válido {hours} h)."]
+    paragraphs = ["Gracias por registrarte en KTrain.", f"Confirma tu email con el botón (válido {hours} h)."]
     footer = "Si no has creado tú la cuenta, ignora este email y se borrará sola."
     _queue(Email(to, title, text, _html(title, paragraphs, ("Confirmar mi email", url), footer)))
     return True
@@ -132,11 +132,11 @@ def send_inactivity_warning(to: str, days: int) -> None:
     url = link("/login")
     title = "Tu cuenta se borrará por inactividad"
     text = (
-        f"Hace tiempo que no entras en APP ENTRENOS. Si no inicias sesión en los próximos {days} días, tu cuenta "
+        f"Hace tiempo que no entras en KTrain. Si no inicias sesión en los próximos {days} días, tu cuenta "
         f"y sus datos se borrarán.\n\nPara conservarla, solo tienes que entrar:\n{url}"
     )
     paragraphs = [
-        "Hace tiempo que no entras en APP ENTRENOS.",
+        "Hace tiempo que no entras en KTrain.",
         f"Si no inicias sesión en los próximos {days} días, tu cuenta y sus datos se borrarán. "
         "Para conservarla, solo tienes que entrar.",
     ]
@@ -145,4 +145,4 @@ def send_inactivity_warning(to: str, days: int) -> None:
 
 def test_html() -> str:
     """HTML del email de prueba de Admin → Correo."""
-    return _html("Prueba de correo", ["Si lees esto, el envío de emails de APP ENTRENOS funciona."])
+    return _html("Prueba de correo", ["Si lees esto, el envío de emails de KTrain funciona."])

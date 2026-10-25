@@ -111,7 +111,7 @@ def _domain(url: str) -> str:
 
 def _build(email: Email, config: EmailConfig) -> EmailMessage:
     message = EmailMessage()
-    message["From"] = config.sender or f"APP ENTRENOS <no-reply@{_domain(config.public_url)}>"
+    message["From"] = config.sender or f"KTrain <no-reply@{_domain(config.public_url)}>"
     message["To"] = email.to
     message["Subject"] = email.subject
     message["Message-ID"] = make_msgid(domain=_domain(config.public_url))

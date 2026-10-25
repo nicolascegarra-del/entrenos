@@ -11,14 +11,14 @@ import { Providers } from "@/components/providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "APP ENTRENOS",
+  title: "KTrain",
   description:
-    "Tus entrenamientos de Garmin: progresión, planificación y análisis plan vs real.",
-  applicationName: "APP ENTRENOS",
+    "Tu entrenador personal con IA para cualquier reloj: planes, métricas avanzadas y entrenos al reloj.",
+  applicationName: "KTrain",
   // iOS: pantalla completa al abrirla desde la pantalla de inicio.
   appleWebApp: {
     capable: true,
-    title: "Entrenos",
+    title: "KTrain",
     statusBarStyle: "black-translucent",
   },
   icons: {

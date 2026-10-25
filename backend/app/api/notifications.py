@@ -153,4 +153,4 @@ def update_prefs(body: PrefsIn, session: SessionDep, user: CurrentUser) -> Confi
 def send_test(request: Request, session: SessionDep, user: CurrentUser) -> dict:
     if not svc.subscriptions(session, user.id):
         raise HTTPException(status.HTTP_409_CONFLICT, "Activa primero las notificaciones en este dispositivo.")
-    return svc.push(session, user.id, "APP ENTRENOS", "¡Las notificaciones funcionan! 🎉", "/ajustes", tag="test")
+    return svc.push(session, user.id, "KTrain", "¡Las notificaciones funcionan! 🎉", "/ajustes", tag="test")

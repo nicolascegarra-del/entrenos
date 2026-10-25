@@ -1,4 +1,4 @@
-/* Service worker de APP ENTRENOS: recibe las notificaciones push y abre la página del aviso. */
+/* Service worker de KTrain: recibe las notificaciones push y abre la página del aviso. */
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
@@ -10,7 +10,7 @@ self.addEventListener("push", (event) => {
   } catch {
     data = { body: event.data ? event.data.text() : "" };
   }
-  const title = data.title || "APP ENTRENOS";
+  const title = data.title || "KTrain";
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || "",

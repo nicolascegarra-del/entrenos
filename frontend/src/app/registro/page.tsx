@@ -63,7 +63,7 @@ function InvitationForm({ token }: { token: string }) {
   return (
     <AuthShell
       title="Crea tu cuenta"
-      description={email ? `Te han invitado como ${email}` : "APP ENTRENOS"}
+      description={email ? `Te han invitado como ${email}` : "KTrain"}
     >
       {invalid ? (
         <FormError>{invalid} Pide un enlace nuevo a quien te invitó.</FormError>
@@ -132,7 +132,7 @@ function SignupForm() {
       description={
         approval
           ? "Confirma tu email y un administrador revisará tu solicitud"
-          : "Para ver y analizar tus entrenamientos de Garmin"
+          : "Tu entrenador personal con IA para cualquier reloj"
       }
     >
       {isPending ? (

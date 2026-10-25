@@ -39,7 +39,7 @@ SCOPE = "openid mcp.tools offline_access"
 CALLBACK_PATH = "/api/v1/sources/coros-official/callback"
 STATE_TTL = timedelta(minutes=15)
 TIMEOUT = 30.0
-CLIENT_NAME = "APP ENTRENOS"
+CLIENT_NAME = "KTrain"
 
 
 class CorosOAuthError(Exception):

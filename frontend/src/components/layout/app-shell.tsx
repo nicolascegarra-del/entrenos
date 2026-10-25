@@ -1,11 +1,12 @@
 "use client";
 
-import { Activity, LogOut, Moon, Sun } from "lucide-react";
+import { LogOut, Moon, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useState } from "react";
 
+import { Logo, LogoMark } from "@/components/brand/logo";
 import {
   accountFor,
   currentLocation,
@@ -226,12 +227,7 @@ function SidebarNav() {
 }
 
 function Brand() {
-  return (
-    <div className="flex items-center gap-2 px-3 font-heading text-lg font-semibold text-sidebar-foreground">
-      <Activity className="size-6 text-klyp-accent" aria-hidden />
-      APP ENTRENOS
-    </div>
-  );
+  return <Logo className="px-3 text-xl text-sidebar-foreground" onDark />;
 }
 
 function SessionActions() {
@@ -367,10 +363,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Cabecera móvil: dónde estás, ayuda, sincronizar y tu cuenta, siempre a mano. */}
         <header className="sticky top-0 z-20 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center justify-between gap-2 bg-sidebar px-3 pt-[env(safe-area-inset-top)] text-sidebar-foreground lg:hidden">
           <div className="flex min-w-0 items-center gap-2 font-heading text-lg font-semibold">
-            <Activity
-              className="size-5 shrink-0 text-klyp-accent"
-              aria-hidden
-            />
+            <LogoMark className="size-6" />
             <span className="truncate">{screenTitle(pathname)}</span>
           </div>
           <div className="flex shrink-0 items-center">

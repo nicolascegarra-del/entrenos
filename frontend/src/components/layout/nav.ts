@@ -159,5 +159,5 @@ export function screenTitle(pathname: string): string {
   );
   if (more) return more.label;
   if (isUnder("/bienvenida", pathname)) return "Bienvenida";
-  return "APP ENTRENOS";
+  return "KTrain";
 }

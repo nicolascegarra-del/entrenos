@@ -24,7 +24,7 @@ from app.models import PlannedBlock, PlannedSession
 from app.services.plan_steps import estimated_duration_s, expand_steps, sport_family
 
 SUPPORTED = ("running", "cycling")
-APP_NAME = "APP ENTRENOS"
+APP_NAME = "KTrain"
 
 
 class WorkoutExportError(ValueError):

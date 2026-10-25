@@ -184,7 +184,7 @@ function Wizard() {
       {step === "bienvenida" && (
         <section className="space-y-4">
           <h1 className="font-heading text-2xl font-bold md:text-3xl">
-            Te damos la bienvenida a APP ENTRENOS
+            Te damos la bienvenida a KTrain
           </h1>
           <Intro text="En tres pasos dejamos tu cuenta lista. Cualquier paso se puede saltar y completar más tarde en Ajustes." />
           <ul className="space-y-2">

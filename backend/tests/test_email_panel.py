@@ -17,7 +17,7 @@ SMTP = {
     "security": "starttls",
     "user": "yo@gmail.com",
     "password": "clave-de-aplicacion-1234",
-    "sender": "APP ENTRENOS <yo@gmail.com>",
+    "sender": "KTrain <yo@gmail.com>",
     "public_url": "https://entrenos.example.com/",
 }
 
@@ -113,7 +113,7 @@ def test_email_de_prueba_ok_usa_los_datos_del_panel(client, admin, fake_smtp):
     res = client.post("/api/v1/admin/email/test", json={}, headers=auth(admin))
     assert res.status_code == 200 and "admin@example.com" in res.json()["message"]
     assert ("login", "yo@gmail.com", "clave-de-aplicacion-1234") in fake_smtp.sent
-    assert ("send", "admin@example.com", "APP ENTRENOS <yo@gmail.com>", "smtp.gmail.com", 587) in fake_smtp.sent
+    assert ("send", "admin@example.com", "KTrain <yo@gmail.com>", "smtp.gmail.com", 587) in fake_smtp.sent
 
 
 def test_email_de_prueba_con_credenciales_malas_explica_el_motivo(client, admin, fake_smtp):

@@ -3,7 +3,7 @@ import { BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { GLOSSARY, type GlossaryEntry } from "@/lib/glossary";
 
-export const metadata = { title: "Glosario · APP ENTRENOS" };
+export const metadata = { title: "Glosario · KTrain" };
 
 /** Todas las métricas de la app explicadas en lenguaje llano. */
 export default function GlosarioPage() {

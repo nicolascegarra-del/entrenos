@@ -3,10 +3,10 @@ import type { MetadataRoute } from "next";
 /** Manifiesto PWA: permite «Añadir a pantalla de inicio» y abrir la app sin barra del navegador. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "APP ENTRENOS",
-    short_name: "Entrenos",
+    name: "KTrain",
+    short_name: "KTrain",
     description:
-      "Tus entrenamientos de Garmin: progresión, planificación y análisis plan vs real.",
+      "Tu entrenador personal con IA para cualquier reloj: planes, métricas avanzadas y entrenos al reloj.",
     lang: "es-ES",
     start_url: "/",
     scope: "/",

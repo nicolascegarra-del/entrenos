@@ -236,7 +236,7 @@ function EmailForm({ data }: { data: EmailSettings }) {
             id="smtp-sender"
             value={form.sender}
             onChange={(e) => set("sender", e.target.value)}
-            placeholder="APP ENTRENOS <no-reply@tudominio.com>"
+            placeholder="KTrain <no-reply@tudominio.com>"
             className="h-11 md:h-9"
           />
           <p className="text-xs text-muted-foreground">

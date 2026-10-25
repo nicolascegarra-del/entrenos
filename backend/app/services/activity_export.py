@@ -88,7 +88,7 @@ def to_gpx(activity: Activity, ch: dict[str, list]) -> bytes:
         )
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
-        '<gpx version="1.1" creator="APP ENTRENOS" xmlns="http://www.topografix.com/GPX/1/1" '
+        '<gpx version="1.1" creator="KTrain" xmlns="http://www.topografix.com/GPX/1/1" '
         'xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1">'
         f"<metadata><name>{escape(activity.name or 'Actividad')}</name>"
         f"<time>{_iso(activity.start_time)}</time></metadata>"
@@ -166,7 +166,7 @@ def to_tcx(session: Session, activity: Activity, ch: dict[str, list]) -> bytes:
         f'<Activities><Activity Sport="{_tcx_sport(activity.sport)}"><Id>{_iso(activity.start_time)}</Id>'
         f"{''.join(out)}<Notes>{escape(activity.name or '')}</Notes></Activity></Activities>"
         '<Author xsi:type="Application_t" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
-        "<Name>APP ENTRENOS</Name></Author></TrainingCenterDatabase>"
+        "<Name>KTrain</Name></Author></TrainingCenterDatabase>"
     ).encode()
 
 
