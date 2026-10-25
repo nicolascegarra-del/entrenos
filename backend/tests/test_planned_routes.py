@@ -53,12 +53,14 @@ class FakeRedis:
 
 @pytest.fixture
 def ors(monkeypatch):
+    """Motor openrouteservice (opcional, con clave) simulado."""
     calls: list[tuple[str, dict]] = []
 
     def fake_post(path: str, body: dict) -> dict:
         calls.append((path, body))
         return ors_response()
 
+    monkeypatch.setattr(rp.get_settings(), "route_engine", "ors")
     monkeypatch.setattr(rp, "_ors_post", fake_post)
     cache = FakeRedis()
     monkeypatch.setattr(rp, "_redis", lambda: cache)
@@ -108,6 +110,7 @@ def test_limite_de_puntos_y_errores(client, user, ors, monkeypatch):
 
 def test_sin_clave_explica_que_falta(session: Session, user: User, monkeypatch):
     monkeypatch.setattr(rp, "_redis", lambda: None)
+    monkeypatch.setattr(rp.get_settings(), "route_engine", "ors")
     monkeypatch.setattr(rp.get_settings(), "ors_api_key", "")
     with pytest.raises(rp.RouteError, match="falta la clave"):
         rp.plan(session, user.id, [rp.Waypoint(**p) for p in POINTS], "asfalto")
@@ -166,3 +169,65 @@ def test_las_rutas_son_de_cada_uno(client, user, session: Session, ors):
     session.commit()
     assert client.put(f"/api/v1/plans/{mine.id}/route", json={"planned_route_id": route["id"]},
                       headers=h).status_code == 404  # fmt: skip
+
+
+def brouter_response() -> dict:
+    """GeoJSON de BRouter: 3 puntos que suben 30 m y bajan 10, con las etiquetas OSM de cada tramo."""
+    return {
+        "features": [
+            {
+                "geometry": {"coordinates": [[-0.98, 37.60, 100.0], [-0.975, 37.605, 130.0], [-0.97, 37.61, 120.0]]},
+                "properties": {
+                    "track-length": "1500",
+                    "filtered ascend": "30",
+                    "messages": [
+                        ["Longitude", "Latitude", "Elevation", "Distance", "WayTags"],
+                        ["-980000", "37600000", "100", "700", "highway=residential surface=asphalt"],
+                        ["-975000", "37605000", "130", "500", "highway=path surface=dirt"],
+                        ["-970000", "37610000", "120", "300", "highway=track"],
+                    ],
+                },
+            }
+        ]
+    }
+
+
+def test_brouter_sin_clave_es_el_motor_por_defecto(session: Session, user: User, monkeypatch):
+    calls: list[tuple] = []
+
+    def fake_get(points, mode):
+        calls.append((points, mode))
+        return brouter_response()
+
+    monkeypatch.setattr(rp.get_settings(), "route_engine", "brouter")
+    monkeypatch.setattr(rp.get_settings(), "ors_api_key", "")
+    monkeypatch.setattr(rp, "_redis", lambda: None)
+    monkeypatch.setattr(rp, "_brouter_get", fake_get)
+    r = rp.plan(session, user.id, [rp.Waypoint(**p) for p in POINTS], "trail")
+    assert calls[0][1] == "trail" and rp.BROUTER_PROFILES["trail"] == "hiking-mountain"
+    assert (r["distance_m"], r["ascent_m"], r["descent_m"]) == (1500, 30, 10)
+    assert r["geometry"][1] == [37.605, -0.975, 130.0] and r["max_altitude_m"] == 130
+    assert {x["tipo"]: x["distancia_m"] for x in r["surfaces"]} == {"Asfalto o pavimento": 700,
+                                                                    "Tierra, grava o pista": 800}  # fmt: skip
+    assert {x["tipo"] for x in r["waytypes"]} == {"Carretera o calle", "Sendero o camino", "Pista"}
+
+
+@pytest.mark.parametrize(
+    ("status", "text", "message"),
+    [
+        (400, "position not mapped in existing datafile", "lejos de cualquier camino"),
+        (503, "busy", "saturado"),
+        (500, "no track found", "No se ha encontrado un camino"),
+    ],
+)
+def test_errores_de_brouter(monkeypatch, status: int, text: str, message: str):
+    import httpx
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["profile"] == "shortest" and "lonlats" in request.url.params
+        return httpx.Response(status, text=text)
+
+    real = httpx.Client
+    monkeypatch.setattr(rp.httpx, "Client", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+    with pytest.raises(rp.RouteError, match=message):
+        rp._brouter_get([rp.Waypoint(**p) for p in POINTS], "asfalto")

@@ -52,8 +52,10 @@ class Settings(BaseSettings):
     turnstile_site_key: str = ""
     turnstile_secret_key: str = ""
 
-    # Planificador de rutas: clave gratuita de openrouteservice.org (sin ella, la sección lo explica).
-    ors_api_key: str = ""
+    # Planificador de rutas: BRouter (sin clave; servidor público o uno propio) u openrouteservice.
+    route_engine: str = "brouter"  # brouter | ors
+    brouter_url: str = "https://brouter.de/brouter"
+    ors_api_key: str = ""  # solo con route_engine=ors (clave gratuita de openrouteservice.org)
 
     # Carpeta de las copias de seguridad (solo lectura) para mostrar la última en Admin → Sistema.
     backup_dir: str = "/backups"

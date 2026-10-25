@@ -2,10 +2,12 @@
 Planificador de rutas (como el de COROS): marcas inicio, fin y puntos de paso en el mapa y la ruta va por
 carreteras o senderos, con sus km, desnivel, perfil de altura, superficies y un tiempo estimado.
 
-- **Motor**: openrouteservice (ORS, datos de OpenStreetMap). Perfiles a pie, senderismo y bici, y devuelve la
-  altitud de cada punto. Clave gratuita en openrouteservice.org (`ORS_API_KEY`); la llamada va siempre desde el
-  backend para no exponerla.
-- **Caché** en Redis por puntos y modo (7 días): mover la vista o deshacer no gasta cuota.
+- **Motor**: BRouter (datos de OpenStreetMap, sin clave). Perfiles de senderismo, a pie y bici, con la
+  altitud de cada punto y las etiquetas de cada vía (superficie y tipo). Por defecto el servidor público
+  brouter.de; `BROUTER_URL` permite usar uno propio (p. ej. en el mismo VPS). Opcional: openrouteservice con
+  `ROUTE_ENGINE=ors` y `ORS_API_KEY`.
+- **Buscar lugar**: Nominatim de OpenStreetMap (sin clave; poco uso, con User-Agent identificado).
+- **Caché** en Redis por motor, puntos y modo (7 días): mover la vista o deshacer no repite la consulta.
 - **Tiempo estimado**: ritmo fácil del atleta (VDOT de sus entrenos, o 6:00/km), más lento en sendero y
   corregido por pendiente (subir cuesta, bajar ahorra algo). En bici, velocidades típicas por terreno.
 """
@@ -40,6 +42,19 @@ MODES = {
     "bici": "cycling-regular",
     "mtb": "cycling-mountain",
 }
+# Perfiles de BRouter por modo: «shortest» va por calles y caminos a pie; «hiking-mountain» prefiere senderos.
+BROUTER_PROFILES = {"asfalto": "shortest", "trail": "hiking-mountain", "bici": "fastbike", "mtb": "mtb"}
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+USER_AGENT = "KTrain/1.0 (+https://entrenos.klyp.es)"
+PAVED = {"asphalt", "paved", "concrete", "concrete:plates", "concrete:lanes", "paving_stones", "sett",
+         "cobblestone", "metal", "wood", "chipseal"}  # fmt: skip
+UNPAVED = {"unpaved", "gravel", "fine_gravel", "compacted", "dirt", "earth", "ground", "grass", "sand", "mud",
+           "pebblestone", "rock", "woodchips", "grass_paver"}  # fmt: skip
+ROADS = {"motorway", "trunk", "primary", "secondary", "tertiary", "unclassified", "residential", "service",
+         "living_street", "road", "motorway_link", "trunk_link", "primary_link", "secondary_link",
+         "tertiary_link"}  # fmt: skip
+PATHS = {"path", "footway", "steps", "pedestrian", "bridleway"}
+URBAN = {"footway", "pedestrian", "steps", "cycleway"}  # sin etiqueta de superficie, casi siempre pavimento
 MODE_LABELS = {"asfalto": "Asfalto", "trail": "Trail", "bici": "Bici", "mtb": "MTB"}
 DEFAULT_EASY_PACE = 360  # s/km sin datos del atleta
 TRAIL_FACTOR = 1.15  # el sendero es más lento a igual esfuerzo
@@ -75,8 +90,8 @@ def _redis() -> redis.Redis | None:
         return None
 
 
-def _cache_key(points: list[Waypoint], mode: str) -> str:
-    raw = json.dumps([mode, [(round(p.lat, 5), round(p.lon, 5)) for p in points]])
+def _cache_key(points: list[Waypoint], mode: str, engine: str = "brouter") -> str:
+    raw = json.dumps([engine, mode, [(round(p.lat, 5), round(p.lon, 5)) for p in points]])
     return "route-plan:" + hashlib.sha256(raw.encode()).hexdigest()[:32]
 
 
@@ -169,6 +184,121 @@ def parse_ors(data: dict) -> dict:
     }
 
 
+def _brouter_get(points: list[Waypoint], mode: str) -> dict:
+    lonlats = "|".join(f"{p.lon:.6f},{p.lat:.6f}" for p in points)
+    params = {"lonlats": lonlats, "profile": BROUTER_PROFILES[mode], "alternativeidx": 0, "format": "geojson"}
+    try:
+        with httpx.Client(timeout=TIMEOUT * 2, headers={"User-Agent": USER_AGENT}) as http:
+            res = http.get(get_settings().brouter_url, params=params)
+    except httpx.HTTPError as exc:
+        raise RouteError("No se pudo contactar con el servicio de rutas. Prueba en un momento.") from exc
+    if res.status_code != 200:
+        text = res.text[:300].lower()
+        log.info("BRouter %s: %s", res.status_code, text[:200])
+        if "not mapped" in text or "not found" in text and "position" in text:
+            raise RouteError("Algún punto está lejos de cualquier camino: acércalo a una calle o sendero.")
+        if "too long" in text or "distance" in text:
+            raise RouteError("La ruta es demasiado larga para calcularla de una vez: divídela en dos.")
+        if res.status_code in (429, 503):
+            raise RouteError("El servicio de rutas está saturado. Prueba en un momento.")
+        raise RouteError("No se ha encontrado un camino entre esos puntos con este modo.")
+    try:
+        return res.json()
+    except ValueError as exc:
+        raise RouteError("El servicio de rutas ha devuelto una respuesta no válida.") from exc
+
+
+def _tag(tags: str, key: str) -> str | None:
+    for part in tags.split():
+        k, _, v = part.partition("=")
+        if k == key:
+            return v
+    return None
+
+
+def _shares(totals: dict[str, float]) -> list[dict]:
+    total = sum(totals.values()) or 1
+    return sorted(
+        ({"tipo": k, "distancia_m": round(v), "pct": round(v / total * 100)} for k, v in totals.items() if v > 0),
+        key=lambda x: -x["distancia_m"],
+    )
+
+
+def parse_brouter(data: dict) -> dict:
+    """Lo mismo que `parse_ors`, desde el GeoJSON de BRouter (superficies y vías desde las etiquetas de OSM)."""
+    try:
+        feature = data["features"][0]
+    except (KeyError, IndexError) as exc:
+        raise RouteError("No se ha encontrado un camino entre esos puntos.") from exc
+    props = feature.get("properties", {})
+    pts = [(c[1], c[0], c[2] if len(c) > 2 else None) for c in feature["geometry"]["coordinates"]]
+    cumulative = [0.0]
+    for a, b in zip(pts, pts[1:], strict=False):
+        cumulative.append(cumulative[-1] + _haversine(a[:2], b[:2]))
+    distance = float(props.get("track-length") or cumulative[-1])
+    alts = [p[2] for p in pts if p[2] is not None]
+    # Bajada con histéresis de 3 m (como el «filtered ascend» de BRouter) para no contar el ruido del modelo.
+    descent, ref = 0.0, alts[0] if alts else 0.0
+    for alt in alts[1:]:
+        if alt > ref:
+            ref = alt
+        elif ref - alt >= 3:
+            descent += ref - alt
+            ref = alt
+    ascent = float(props.get("filtered ascend") or 0)
+    surfaces: dict[str, float] = {}
+    waytypes: dict[str, float] = {}
+    messages = props.get("messages") or []
+    if messages:
+        head = messages[0]
+        i_dist, i_tags = head.index("Distance"), head.index("WayTags")
+        for row in messages[1:]:
+            dist = float(row[i_dist] or 0)
+            tags = row[i_tags] or ""
+            surface, highway = _tag(tags, "surface"), _tag(tags, "highway")
+            if surface in PAVED or (surface is None and (highway in ROADS or highway in URBAN)):
+                group = "Asfalto o pavimento"
+            elif surface in UNPAVED or (surface is None and highway in ("track", "path")):
+                group = "Tierra, grava o pista"
+            else:
+                group = "Otros o sin datos"
+            surfaces[group] = surfaces.get(group, 0.0) + dist
+            way = ("Carretera o calle" if highway in ROADS else "Sendero o camino" if highway in PATHS
+                   else "Pista" if highway == "track" else "Carril bici" if highway == "cycleway"
+                   else "Otros o sin datos")  # fmt: skip
+            waytypes[way] = waytypes.get(way, 0.0) + dist
+    indices = range(len(pts))
+    if len(pts) > PROFILE_POINTS:
+        step = (len(pts) - 1) / (PROFILE_POINTS - 1)
+        indices = sorted({round(i * step) for i in range(PROFILE_POINTS)})
+    return {
+        "geometry": _simplify(
+            [[round(p[0], 6), round(p[1], 6), round(p[2], 1) if p[2] is not None else None] for p in pts], MAX_GEOMETRY
+        ),  # fmt: skip
+        "distance_m": round(distance),
+        "ascent_m": round(ascent),
+        "descent_m": round(descent),
+        "profile": [[round(cumulative[i]), round(pts[i][2], 1)] for i in indices if pts[i][2] is not None],
+        "surfaces": _shares(surfaces),
+        "waytypes": _shares(waytypes),
+        "max_altitude_m": round(max(alts)) if alts else None,
+        "min_altitude_m": round(min(alts)) if alts else None,
+    }
+
+
+def _route(points: list[Waypoint], mode: str) -> dict:
+    """Ruta calculada con el motor configurado (BRouter por defecto, sin clave)."""
+    if get_settings().route_engine == "ors":
+        body = {
+            "coordinates": [[p.lon, p.lat] for p in points],
+            "elevation": True,
+            "instructions": False,
+            "extra_info": ["surface", "waytype", "steepness"],
+        }
+        return parse_ors(_ors_post(f"/v2/directions/{MODES[mode]}/geojson", body))
+    return parse_brouter(_brouter_get(points, mode))
+
+
 def easy_pace(session: Session, user_id: int) -> tuple[float, str]:
     """Ritmo fácil (s/km) del atleta por su VDOT, o el de por defecto si aún no hay datos."""
     from app.services import progress as prog
@@ -222,7 +352,7 @@ def plan(session: Session, user_id: int, points: list[Waypoint], mode: str) -> d
     for p in points:
         if not (-90 <= p.lat <= 90 and -180 <= p.lon <= 180):
             raise RouteError("Hay un punto con coordenadas no válidas.")
-    key = _cache_key(points, mode)
+    key = _cache_key(points, mode, get_settings().route_engine)
     cache = _redis()
     result = None
     if cache:
@@ -232,13 +362,7 @@ def plan(session: Session, user_id: int, points: list[Waypoint], mode: str) -> d
         except redis.RedisError:
             cache = None
     if result is None:
-        body = {
-            "coordinates": [[p.lon, p.lat] for p in points],
-            "elevation": True,
-            "instructions": False,
-            "extra_info": ["surface", "waytype", "steepness"],
-        }
-        result = parse_ors(_ors_post(f"/v2/directions/{MODES[mode]}/geojson", body))
+        result = _route(points, mode)
         if cache:
             with contextlib.suppress(redis.RedisError):
                 cache.setex(key, CACHE_SECONDS, json.dumps(result))
@@ -249,20 +373,19 @@ def plan(session: Session, user_id: int, points: list[Waypoint], mode: str) -> d
 
 
 def geocode(text: str) -> list[dict]:
-    """Lugares que coinciden con el texto (para centrar el mapa)."""
-    key = get_settings().ors_api_key
-    if not key:
-        raise RouteError("El planificador de rutas no está configurado (falta la clave de openrouteservice).")
+    """Lugares que coinciden con el texto (para centrar el mapa), con Nominatim de OpenStreetMap."""
+    params = {"q": text[:100], "format": "jsonv2", "limit": 6, "accept-language": "es"}
     try:
-        with httpx.Client(timeout=TIMEOUT, headers={"User-Agent": "ktrain"}) as http:
-            res = http.get(f"{ORS_URL}/geocode/autocomplete", params={"api_key": key, "text": text[:100]})
+        with httpx.Client(timeout=TIMEOUT, headers={"User-Agent": USER_AGENT}) as http:
+            res = http.get(NOMINATIM_URL, params=params)
             res.raise_for_status()
     except httpx.HTTPError as exc:
         raise RouteError("No se pudo buscar el lugar. Prueba en un momento.") from exc
-    out = []
-    for f in res.json().get("features", [])[:6]:
-        lon, lat = f["geometry"]["coordinates"][:2]
-        out.append({"label": f.get("properties", {}).get("label", ""), "lat": lat, "lon": lon})
+    out: list[dict] = []
+    for r in res.json():  # Nominatim repite el mismo lugar (nodo, vía, área…): uno por nombre
+        label = r.get("display_name", "")
+        if label and all(o["label"] != label for o in out):
+            out.append({"label": label, "lat": float(r["lat"]), "lon": float(r["lon"])})
     return out
 
 

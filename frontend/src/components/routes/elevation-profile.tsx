@@ -84,7 +84,7 @@ export function ElevationProfile({
           />
           <YAxis
             dataKey="alt"
-            width={44}
+            width={56}
             domain={[Math.floor(min - pad), Math.ceil(max + pad)]}
             tick={axisTick}
             unit=" m"

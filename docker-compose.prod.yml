@@ -22,7 +22,9 @@ x-backend: &backend
     JWT_SECRET_KEY: ${JWT_SECRET_KEY:?}
     GARMIN_TOKEN_KEY: ${GARMIN_TOKEN_KEY:?}  # cifra tokens de Garmin y claves de IA
     CHAT_DAILY_LIMIT: ${CHAT_DAILY_LIMIT:-100}
-    ORS_API_KEY: ${ORS_API_KEY:-}  # planificador de rutas (openrouteservice.org, gratis)
+    ROUTE_ENGINE: ${ROUTE_ENGINE:-brouter}  # rutas: BRouter sin clave (u «ors» con ORS_API_KEY)
+    BROUTER_URL: ${BROUTER_URL:-https://brouter.de/brouter}
+    ORS_API_KEY: ${ORS_API_KEY:-}
     APP_PUBLIC_URL: ${APP_PUBLIC_URL:?}  # p. ej. https://entrenos.tudominio.com (enlaces de los emails)
     EMAIL_BACKEND: ${EMAIL_BACKEND:-auto}
     SMTP_HOST: ${SMTP_HOST:-}
