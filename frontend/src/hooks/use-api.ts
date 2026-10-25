@@ -1686,3 +1686,20 @@ export function geocodePlace(q: string) {
     `/api/v1/planned-routes/geocode?q=${encodeURIComponent(q)}`,
   );
 }
+
+/** Valorar una respuesta del entrenador (1 útil, -1 no útil, 0 quitar). */
+export function useMessageFeedback() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, value }: { id: number; value: -1 | 0 | 1 }) =>
+      apiFetch<{ feedback: number | null }>(
+        `/api/v1/chat/messages/${id}/feedback`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ value }),
+        },
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["conversation"] }),
+  });
+}

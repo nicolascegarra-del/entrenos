@@ -184,7 +184,14 @@ function ProposalChip({ effect }: { effect: ProposalEffect }) {
 
 /** Lo que hizo el entrenador en una respuesta: datos guardados y propuestas del plan. */
 export function CoachEffects({ effects }: { effects?: CoachEffect[] | null }) {
-  const shown = (effects ?? []).filter((e) => e.tipo !== "entrevista");
+  // Los botones (opciones, sugerencias) y «incompleta» los pinta el chat, no van aquí.
+  const shown = (effects ?? []).filter(
+    (e) =>
+      e.tipo === "memoria" ||
+      e.tipo === "propuesta" ||
+      e.tipo === "perfil" ||
+      e.tipo === "umbrales",
+  );
   if (!shown.length) return null;
   return (
     <div className="mt-2 space-y-1.5">

@@ -25,7 +25,7 @@ from app.core.crypto import decrypt_secret, encrypt_secret
 from app.core.db import engine
 from app.core.rate_limit import limiter
 from app.models import Activity, AiProvider, AiProviderConfig, ChatConversation, ChatMessage, User
-from app.services import ai_tools, coach
+from app.services import ai_tools, chat_markers, coach
 from app.services import progress as prog
 from app.services.ai_context import conversation_title, format_context, interview_prompt, system_prompt
 from app.services.ai_tools import clock
@@ -90,10 +90,18 @@ class TestOut(BaseModel):
 
 
 class ChatIn(BaseModel):
-    message: str = Field(min_length=1, max_length=2000)
+    message: str = Field(default="", max_length=2000)
     conversation_id: int | None = None
     provider: AiProvider | None = None
     mode: Literal["interview"] | None = Field(default=None, description="interview = entrevista inicial")
+    regenerate: bool = Field(
+        default=False,
+        description="Repetir la respuesta a la última pregunta de la conversación (Reintentar / Otra respuesta)",
+    )
+
+
+class FeedbackIn(BaseModel):
+    value: Literal[-1, 0, 1]
 
 
 class MessageOut(BaseModel):
@@ -103,7 +111,8 @@ class MessageOut(BaseModel):
     provider: str | None
     model: str | None
     tools: list[str] | None = None
-    effects: list[dict] | None = None  # datos guardados en la ficha y propuestas de cambio del plan
+    effects: list[dict] | None = None  # ficha, propuestas del plan, botones (opciones/sugerencias), incompleta
+    feedback: int | None = None
     created_at: datetime
 
 
@@ -391,6 +400,22 @@ def delete_conversation(conversation_id: int, session: SessionDep, user: Current
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.put(
+    "/chat/messages/{message_id}/feedback",
+    summary="Valorar una respuesta del asistente (útil / no útil)",
+    responses={404: {"description": "El mensaje no existe o no es tuyo."}},
+)
+def message_feedback(message_id: int, body: FeedbackIn, session: SessionDep, user: CurrentUser) -> dict:
+    row = session.get(ChatMessage, message_id)
+    if row is None or row.role != "assistant":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Mensaje no encontrado.")
+    _owned_conversation(session, user.id, row.conversation_id)
+    row.feedback = body.value or None
+    session.add(row)
+    session.commit()
+    return {"feedback": row.feedback}
+
+
 @router.post(
     "/chat",
     summary="Preguntar al asistente (respuesta en streaming)",
@@ -414,10 +439,30 @@ def chat(request: Request, body: ChatIn, session: SessionDep, user: CurrentUser)
             status.HTTP_429_TOO_MANY_REQUESTS, f"Has llegado al límite de {limit} preguntas por hoy. Vuelve mañana."
         )
 
-    if body.conversation_id is not None:
+    message = body.message.strip()
+    if body.regenerate:
+        # Reintentar u «Otra respuesta»: se repite la última pregunta y se quita la respuesta que hubiera después.
+        if body.conversation_id is None:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Falta la conversación.")
+        conversation = _owned_conversation(session, user.id, body.conversation_id)
+        last_user = session.exec(
+            select(ChatMessage)
+            .where(ChatMessage.conversation_id == conversation.id, ChatMessage.role == "user")
+            .order_by(col(ChatMessage.id).desc())
+        ).first()
+        if last_user is None:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "No hay ninguna pregunta que repetir.")
+        for old in session.exec(
+            select(ChatMessage).where(ChatMessage.conversation_id == conversation.id, ChatMessage.id > last_user.id)
+        ).all():
+            session.delete(old)
+        session.flush()
+    elif not message:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Escribe tu pregunta.")
+    elif body.conversation_id is not None:
         conversation = _owned_conversation(session, user.id, body.conversation_id)
     else:
-        conversation = ChatConversation(user_id=user.id, title=conversation_title(body.message))
+        conversation = ChatConversation(user_id=user.id, title=conversation_title(message))
         session.add(conversation)
         session.flush()
     previous = session.exec(
@@ -427,8 +472,9 @@ def chat(request: Request, body: ChatIn, session: SessionDep, user: CurrentUser)
         .limit(HISTORY_MESSAGES)
     ).all()
     history = [{"role": m.role, "content": m.content} for m in reversed(previous)]
-    history.append({"role": "user", "content": body.message})
-    session.add(ChatMessage(conversation_id=conversation.id, role="user", content=body.message))
+    if not body.regenerate:
+        history.append({"role": "user", "content": message})
+        session.add(ChatMessage(conversation_id=conversation.id, role="user", content=message))
     conversation.updated_at = datetime.now(UTC)
     session.add(conversation)
     session.commit()
@@ -444,10 +490,12 @@ def chat(request: Request, body: ChatIn, session: SessionDep, user: CurrentUser)
     provider, model, conversation_id, user_id = AiProvider(config.provider), config.model, conversation.id, user.id
     api_key = decrypt_secret(config.key_enc)
 
+    consulted_box: list[str] = []
+
     def events() -> Iterator[str]:
         yield _sse("meta", {"conversation_id": conversation_id, "provider": provider, "model": model})
         parts: list[str] = []
-        consulted: list[str] = []
+        consulted = consulted_box
         effects: list[dict] = []
         pending: list[dict] = []
         tokens_in = tokens_out = None
@@ -476,27 +524,34 @@ def chat(request: Request, body: ChatIn, session: SessionDep, user: CurrentUser)
                     tokens_out = chunk.output_tokens if chunk.output_tokens is not None else tokens_out
             except LLMError as exc:
                 logger.warning("Error del proveedor de IA", extra={"user_id": user_id, "status": exc.status})
-                yield _sse("error", {"message": exc.message})
+                # Lo que ya había escrito no se pierde: se guarda como respuesta incompleta (con «Continuar»).
+                partial = chat_markers.parse("".join(parts))[0]
+                saved = _save_answer(partial, [*effects, {"tipo": "incompleta"}]) if partial else None
+                yield _sse("error", {"message": exc.message, "partial_id": saved})
                 return
-        answer = "".join(parts).strip()
+        answer, buttons = chat_markers.parse("".join(parts))
         if not answer:
-            yield _sse("error", {"message": "El asistente no devolvió ninguna respuesta. Inténtalo de nuevo."})
+            yield _sse("error", {"message": "El entrenador no ha podido responder esta vez. Prueba a reintentarlo."})
             return
+        yield _sse("done", {"message_id": _save_answer(answer, [*effects, *buttons], tokens_in, tokens_out)})
+
+    def _save_answer(content: str, extra: list[dict], tokens_in: int | None = None,
+                     tokens_out: int | None = None) -> int:  # fmt: skip
         with Session(engine) as db:
-            message = ChatMessage(
+            row = ChatMessage(
                 conversation_id=conversation_id,
                 role="assistant",
-                content=answer,
+                content=content,
                 provider=provider,
                 model=model,
                 input_tokens=tokens_in,
                 output_tokens=tokens_out,
-                tools=consulted or None,
-                effects=effects or None,
+                tools=consulted_box or None,
+                effects=extra or None,
             )
-            db.add(message)
+            db.add(row)
             db.commit()
-            yield _sse("done", {"message_id": message.id})
+            return row.id
 
     return StreamingResponse(
         events(),

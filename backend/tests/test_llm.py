@@ -145,3 +145,30 @@ def test_check_model_cuando_responde_entonces_ok_y_cuando_falla_entonces_llmerro
     bad = _client(lambda r: httpx.Response(404, json={"error": {"message": "gone"}}))
     with pytest.raises(LLMError, match="gone"):
         check_model(AiProvider.OPENAI, "k", "gpt-x", client=bad)
+
+
+@pytest.mark.parametrize("provider", [AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.GEMINI])
+def test_stream_cuando_no_escribe_nada_entonces_se_le_pide_responder(provider):
+    bodies = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        if len(bodies) == 1:  # primera vuelta: nada de texto
+            empty = {
+                AiProvider.OPENAI: {"choices": [{"delta": {}}]},
+                AiProvider.ANTHROPIC: {"type": "message_stop"},
+                AiProvider.GEMINI: {"candidates": [{"content": {"parts": []}}]},
+            }[provider]
+            return httpx.Response(200, content=_sse(empty, done=provider is AiProvider.OPENAI))
+        reply = {
+            AiProvider.OPENAI: {"choices": [{"delta": {"content": "¿Qué distancia?"}}]},
+            AiProvider.ANTHROPIC: {"type": "content_block_delta", "index": 0,
+                                   "delta": {"type": "text_delta", "text": "¿Qué distancia?"}},
+            AiProvider.GEMINI: {"candidates": [{"content": {"parts": [{"text": "¿Qué distancia?"}]}}]},
+        }[provider]  # fmt: skip
+        return httpx.Response(200, content=_sse(reply, done=provider is AiProvider.OPENAI))
+
+    text, _, _ = _collect(provider, handler)
+    assert text == "¿Qué distancia?" and len(bodies) == 2
+    second = json.dumps(bodies[1], ensure_ascii=False)
+    assert "no has escrito ninguna respuesta" in second

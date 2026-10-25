@@ -22,7 +22,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
     >
       <QueryClientProvider client={queryClient}>
         {children}
-        <Toaster richColors position="top-center" />
+        {/* Abajo y por encima de la barra de pestañas: arriba quedaban tapados por la barra de estado del móvil. */}
+        <Toaster
+          richColors
+          closeButton
+          position="bottom-center"
+          duration={6000}
+          offset={{ bottom: 24 }}
+          mobileOffset={{
+            bottom: "calc(5.5rem + env(safe-area-inset-bottom))",
+            left: 12,
+            right: 12,
+          }}
+        />
       </QueryClientProvider>
     </ThemeProvider>
   );

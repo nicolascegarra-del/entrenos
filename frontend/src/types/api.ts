@@ -707,6 +707,8 @@ export interface ChatMessage {
   tools?: string[] | null;
   /** Lo que hizo el entrenador: datos guardados en la ficha, propuestas del plan… */
   effects?: CoachEffect[] | null;
+  /** Valoración: 1 útil, -1 no útil. */
+  feedback?: number | null;
   created_at: string;
 }
 
@@ -1359,7 +1361,13 @@ export type CoachEffect =
     }
   | { tipo: "perfil"; cambios: Record<string, string> }
   | { tipo: "umbrales"; id: number; cambios: Record<string, string> }
-  | { tipo: "entrevista"; accion: "terminada" };
+  | { tipo: "entrevista"; accion: "terminada" }
+  /** Respuestas rápidas a la pregunta del entrenador (botones). */
+  | { tipo: "opciones"; opciones: string[] }
+  /** Preguntas para seguir la conversación (botones). */
+  | { tipo: "sugerencias"; sugerencias: string[] }
+  /** La respuesta se cortó: se guardó lo que llevaba escrito. */
+  | { tipo: "incompleta" };
 
 export interface CoachSettings {
   health_consent: boolean;

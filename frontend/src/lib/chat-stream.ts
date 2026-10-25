@@ -52,6 +52,23 @@ export interface ChatRequest {
   provider?: AiProviderId | null;
   /** «interview»: entrevista inicial del entrenador. */
   mode?: "interview" | null;
+  /** Repetir la respuesta a la última pregunta (Reintentar / Otra respuesta). */
+  regenerate?: boolean;
+}
+
+/** El asistente no pudo terminar; si llegó a escribir algo, se guardó como respuesta incompleta. */
+export class ChatStreamError extends Error {
+  constructor(
+    message: string,
+    public partialId: number | null = null,
+  ) {
+    super(message);
+  }
+}
+
+/** Texto visible mientras llega: oculta las líneas de botones `[[opciones: …]]` (aunque estén a medias). */
+export function visibleText(text: string): string {
+  return text.replace(/\[\[[\s\S]*?(\]\]|$)/g, "").trimEnd();
 }
 
 /**
@@ -86,7 +103,11 @@ export async function streamChat(
       else if (event === "tool") handlers.onTool?.(String(data.label ?? ""));
       else if (event === "effect")
         handlers.onEffect?.(data as unknown as CoachEffect);
-      else if (event === "error") throw new Error(String(data.message));
+      else if (event === "error")
+        throw new ChatStreamError(
+          String(data.message),
+          typeof data.partial_id === "number" ? data.partial_id : null,
+        );
       else if (event === "done") finished = true;
     }
   }

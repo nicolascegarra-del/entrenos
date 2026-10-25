@@ -346,6 +346,26 @@ def _anthropic_append(native: list[dict], text: str, calls: list[ToolCall], raw,
                                                for c, result in zip(calls, results, strict=True)]})  # fmt: skip
 
 
+def _say_plain(native: list[dict], text: str) -> None:
+    """Añade un mensaje del usuario (OpenAI). Con Claude se une al último turno del usuario si lo hay."""
+    last = native[-1] if native else None
+    if last and last.get("role") == "user":
+        if isinstance(last.get("content"), list):
+            last["content"].append({"type": "text", "text": text})
+        else:
+            last["content"] = f"{last['content']}\n\n{text}"
+        return
+    native.append({"role": "user", "content": text})
+
+
+def _say_gemini(native: list[dict], text: str) -> None:
+    last = native[-1] if native else None
+    if last and last.get("role") == "user":
+        last["parts"].append({"text": text})
+    else:
+        native.append({"role": "user", "parts": [{"text": text}]})
+
+
 def _json_args(text: str) -> dict:
     try:
         value = json.loads(text) if text else {}
@@ -360,13 +380,22 @@ class _Adapter:
     request: Callable[..., tuple[str, dict, dict]]
     chunks: Callable[[Iterator[dict]], Iterator[Chunk]]
     append: Callable[..., None]
+    say: Callable[[list[dict], str], None]  # añade texto del usuario (para el empujón final)
 
 
 _ADAPTERS = {
-    AiProvider.OPENAI: _Adapter(_plain_history, _openai_request, _openai_chunks, _openai_append),
-    AiProvider.GEMINI: _Adapter(_gemini_native, _gemini_request, _gemini_chunks, _gemini_append),
-    AiProvider.ANTHROPIC: _Adapter(_plain_history, _anthropic_request, _anthropic_chunks, _anthropic_append),
+    AiProvider.OPENAI: _Adapter(_plain_history, _openai_request, _openai_chunks, _openai_append, _say_plain),
+    AiProvider.GEMINI: _Adapter(_gemini_native, _gemini_request, _gemini_chunks, _gemini_append, _say_gemini),
+    AiProvider.ANTHROPIC: _Adapter(
+        _plain_history, _anthropic_request, _anthropic_chunks, _anthropic_append, _say_plain
+    ),  # fmt: skip
 }
+
+# Si tras consultar datos el modelo no escribe nada (pasa, sobre todo en la última ronda), se le pide una vez más.
+NUDGE = (
+    "(Nota de la app, no del atleta: no has escrito ninguna respuesta. Contesta ya con lo que sabes. Si te falta "
+    "algún dato para responder bien, pregúntaselo en una frase y ofrécele opciones.)"
+)
 
 
 def _round(client: httpx.Client, adapter: _Adapter, api_key: str, model: str, system: str, native: list[dict],
@@ -416,6 +445,7 @@ def stream_chat(
     own = client is None
     client = client or httpx.Client(timeout=TIMEOUT)
     total_in = total_out = None
+    wrote = False
     try:
         for n in range(MAX_TOOL_ROUNDS + 1):
             allow = bool(use_tools) and n < MAX_TOOL_ROUNDS
@@ -424,6 +454,7 @@ def stream_chat(
             for chunk in _round(client, adapter, api_key, model, system, native, use_tools, allow):
                 if chunk.text:
                     text.append(chunk.text)
+                    wrote = wrote or bool(chunk.text.strip())
                     yield chunk
                 else:
                     last = chunk
@@ -442,6 +473,19 @@ def stream_chat(
                 yield Chunk(tool=label)
                 results.append(result)
             adapter.append(native, "".join(text), calls, last.raw, results)
+        if not wrote:
+            # Nunca dejar a la persona sin respuesta: un empujón sin herramientas.
+            adapter.say(native, NUDGE)
+            last = Chunk()
+            for chunk in _round(client, adapter, api_key, model, system, native, use_tools, False):
+                if chunk.text:
+                    yield chunk
+                else:
+                    last = chunk
+            if last.input_tokens is not None:
+                total_in = (total_in or 0) + last.input_tokens
+            if last.output_tokens is not None:
+                total_out = (total_out or 0) + last.output_tokens
         yield Chunk(input_tokens=total_in, output_tokens=total_out)
     except httpx.TimeoutException as exc:
         raise LLMError("El proveedor tardó demasiado en responder.") from exc

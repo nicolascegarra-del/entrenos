@@ -332,7 +332,9 @@ def test_tope_de_rondas_obliga_a_responder(monkeypatch):
             executor=lambda c: ("x", "{}"),
         )
     )
-    assert len(bodies) == 3 and bodies[-1]["tool_choice"] == "none"
+    # 2 rondas con herramientas, 1 obligada a responder y, como sigue sin escribir, el empujón final.
+    assert len(bodies) == 4 and bodies[2]["tool_choice"] == "none" and bodies[3]["tool_choice"] == "none"
+    assert "no has escrito ninguna respuesta" in bodies[3]["messages"][-1]["content"]
     assert len([c for c in chunks if c.tool]) == 2
 
 

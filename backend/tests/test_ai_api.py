@@ -321,3 +321,60 @@ def test_modelos_cuando_cuenta_guardada_entonces_usa_su_clave(client, user, monk
     monkeypatch.setattr(ai_api, "list_models", lambda provider, key: ["gpt-5-mini"] if key == KEY else [])
     res = client.post("/api/v1/ai/providers/openai/models", json={}, headers=auth(user))
     assert res.json()["recommended"] == ["gpt-5-mini"]
+
+
+def test_chat_cuando_opciones_entonces_botones_y_texto_limpio(client, user, monkeypatch, session):
+    _save(client, user)
+
+    def fake(*args, **kwargs):
+        yield Chunk(text="¿Qué carrera preparas?\n[[opciones: 5K | 10K | Media | ")
+        yield Chunk(text="Maratón]]")
+
+    monkeypatch.setattr(ai_api, "stream_chat", fake)
+    events = _events(client.post("/api/v1/chat", json={"message": "hazme un plan"}, headers=auth(user)).text)
+    assert events[-1][0] == "done"
+    msg = session.get(ChatMessage, events[-1][1]["message_id"])
+    assert msg.content == "¿Qué carrera preparas?"
+    assert msg.effects == [{"tipo": "opciones", "opciones": ["5K", "10K", "Media", "Maratón"]}]
+
+
+def test_chat_cuando_se_corta_entonces_guarda_lo_escrito_como_incompleto(client, user, monkeypatch, session):
+    _save(client, user)
+
+    def cut(*args, **kwargs):
+        yield Chunk(text="Tu semana va bien, ")
+        raise LLMError("El proveedor tardó demasiado en responder.")
+
+    monkeypatch.setattr(ai_api, "stream_chat", cut)
+    events = _events(client.post("/api/v1/chat", json={"message": "¿qué tal?"}, headers=auth(user)).text)
+    assert events[-1][0] == "error" and events[-1][1]["partial_id"]
+    msg = session.get(ChatMessage, events[-1][1]["partial_id"])
+    assert msg.content == "Tu semana va bien," and msg.effects == [{"tipo": "incompleta"}]
+
+
+def test_chat_reintentar_repite_la_ultima_pregunta_sin_duplicarla(client, user, fake_llm, session):
+    _save(client, user)
+    first = _events(client.post("/api/v1/chat", json={"message": "uno"}, headers=auth(user)).text)
+    conversation_id = first[0][1]["conversation_id"]
+    again = client.post("/api/v1/chat", json={"conversation_id": conversation_id, "regenerate": True},
+                        headers=auth(user))  # fmt: skip
+    assert _events(again.text)[-1][0] == "done"
+    assert [m["content"] for m in fake_llm[1]["messages"]] == ["uno"]  # sin la respuesta anterior
+    messages = client.get(f"/api/v1/chat/conversations/{conversation_id}", headers=auth(user)).json()["messages"]
+    assert [m["role"] for m in messages] == ["user", "assistant"]
+    assert client.post("/api/v1/chat", json={"message": "  "}, headers=auth(user)).status_code == 422
+
+
+def test_valorar_respuesta(client, user, fake_llm, session):
+    _save(client, user)
+    events = _events(client.post("/api/v1/chat", json={"message": "uno"}, headers=auth(user)).text)
+    mid = events[-1][1]["message_id"]
+    assert client.put(f"/api/v1/chat/messages/{mid}/feedback", json={"value": -1},
+                      headers=auth(user)).json() == {"feedback": -1}  # fmt: skip
+    session.expire_all()
+    assert session.get(ChatMessage, mid).feedback == -1
+    other = User(email="otra@example.com", password_hash="x")
+    session.add(other)
+    session.commit()
+    h = {"Authorization": f"Bearer {create_token(other.id, 'access')}"}
+    assert client.put(f"/api/v1/chat/messages/{mid}/feedback", json={"value": 1}, headers=h).status_code == 404

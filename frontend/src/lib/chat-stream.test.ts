@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { toBlocks } from "@/components/assistant/markdown";
 
-import { parseSse } from "./chat-stream";
+import { parseSse, visibleText } from "./chat-stream";
 
 describe("parseSse", () => {
   it("separa eventos completos y guarda el resto", () => {
@@ -53,5 +53,17 @@ describe("eventos de consulta del asistente", () => {
     expect(events).toEqual([
       { event: "tool", data: { label: "Tus zonas y umbrales" } },
     ]);
+  });
+});
+
+describe("visibleText", () => {
+  it("oculta las líneas de botones, también a medio llegar", () => {
+    expect(visibleText("¿Qué carrera?\n[[opciones: 5K | 10K]]")).toBe(
+      "¿Qué carrera?",
+    );
+    expect(visibleText("¿Qué carrera?\n[[opciones: 5K | 1")).toBe(
+      "¿Qué carrera?",
+    );
+    expect(visibleText("Texto normal")).toBe("Texto normal");
   });
 });

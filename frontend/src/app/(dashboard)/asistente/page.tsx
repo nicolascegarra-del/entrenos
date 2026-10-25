@@ -14,11 +14,15 @@ import {
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 
 import { Consulted } from "@/components/assistant/consulted";
 import { CoachEffects } from "@/components/assistant/effects";
 import { Markdown } from "@/components/assistant/markdown";
+import {
+  FailureBubble,
+  MessageActions,
+  ReplyChips,
+} from "@/components/assistant/message-actions";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +40,7 @@ import {
   useDeleteConversation,
 } from "@/hooks/use-api";
 import { ApiError, apiFetch } from "@/lib/api";
-import { streamChat } from "@/lib/chat-stream";
+import { ChatStreamError, streamChat, visibleText } from "@/lib/chat-stream";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { AiProviderId, CoachEffect, Conversation } from "@/types/api";
@@ -51,6 +55,9 @@ const SUGGESTIONS = [
 
 interface Bubble {
   key: string;
+  /** Id del mensaje guardado (no en los provisionales). */
+  id?: number;
+  feedback?: number | null;
   role: "user" | "assistant";
   content: string;
   /** Datos que consultó el asistente. */
@@ -141,6 +148,11 @@ function AssistantChat() {
   const [provider, setProvider] = useState<AiProviderId | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [failure, setFailure] = useState<{
+    message: string;
+    partial: boolean;
+  } | null>(null);
   // Entrevista inicial: se pide con ?modo=entrevista y dura hasta que el entrenador la da por terminada.
   const [interview, setInterview] = useState(
     params.get("modo") === "entrevista",
@@ -159,12 +171,24 @@ function AssistantChat() {
   const saved: Bubble[] =
     conversation?.messages.map((m) => ({
       key: `m${m.id}`,
+      id: m.id,
+      feedback: m.feedback,
       role: m.role,
       content: m.content,
       tools: m.tools ?? [],
       effects: m.effects ?? [],
     })) ?? [];
-  const bubbles = [...saved, ...pending];
+  // Con «Otra respuesta» / «Reintentar», la respuesta anterior se oculta mientras llega la nueva.
+  const shownSaved =
+    regenerating && saved[saved.length - 1]?.role === "assistant"
+      ? saved.slice(0, -1)
+      : saved;
+  const bubbles = [...shownSaved, ...pending];
+  const lastAssistant = [...saved]
+    .reverse()
+    .find((b) => b.role === "assistant");
+  const lastIsAssistant =
+    saved.length > 0 && saved[saved.length - 1].role === "assistant";
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
@@ -173,18 +197,27 @@ function AssistantChat() {
   const pick = (id: number | null) => {
     abortRef.current?.abort();
     setPending([]);
+    setFailure(null);
     setConversationId(id);
     setHistoryOpen(false);
     router.replace(id ? `/asistente?c=${id}` : "/asistente");
   };
 
-  const send = async (text: string, forceInterview = false) => {
+  const send = async (
+    text: string,
+    forceInterview = false,
+    regenerate = false,
+  ) => {
     const message = text.trim();
-    if (!message || streaming) return;
-    setInput("");
+    if ((!message && !regenerate) || streaming) return;
+    if (!regenerate) setInput("");
+    setFailure(null);
+    setRegenerating(regenerate);
     setStreaming(true);
     setPending([
-      { key: "u-pending", role: "user", content: message },
+      ...(regenerate
+        ? []
+        : [{ key: "u-pending", role: "user" as const, content: message }]),
       { key: "a-pending", role: "assistant", content: "", tools: [] },
     ]);
     const controller = new AbortController();
@@ -197,6 +230,7 @@ function AssistantChat() {
           conversation_id: conversationId,
           provider: chosen,
           mode: interview || forceInterview ? "interview" : null,
+          regenerate,
         },
         {
           onMeta: (meta) => {
@@ -239,13 +273,15 @@ function AssistantChat() {
         controller.signal,
       );
     } catch (err) {
-      if (!controller.signal.aborted) {
-        toast.error(
-          err instanceof ApiError || err instanceof Error
-            ? err.message
-            : "No se pudo obtener respuesta.",
-        );
-      }
+      // El fallo se enseña dentro del chat, con Reintentar (y Continuar si llegó a escribir algo).
+      if (!controller.signal.aborted)
+        setFailure({
+          message:
+            err instanceof ApiError || err instanceof Error
+              ? err.message
+              : "No se pudo obtener respuesta.",
+          partial: err instanceof ChatStreamError && err.partialId != null,
+        });
     } finally {
       setStreaming(false);
       abortRef.current = null;
@@ -267,6 +303,7 @@ function AssistantChat() {
       await queryClient.invalidateQueries({ queryKey: ["conversations"] });
       await queryClient.invalidateQueries({ queryKey: ["ai-providers"] });
       setPending([]);
+      setRegenerating(false);
     }
   };
 
@@ -463,14 +500,39 @@ function AssistantChat() {
                       labels={b.tools ?? []}
                       working={b.key === "a-pending" && streaming}
                     />
-                    {b.content && <Markdown text={b.content} />}
+                    {b.content && <Markdown text={visibleText(b.content)} />}
                     <CoachEffects effects={b.effects} />
+                    {b.id != null && (
+                      <MessageActions
+                        id={b.id}
+                        feedback={b.feedback}
+                        last={b.id === lastAssistant?.id && lastIsAssistant}
+                        disabled={streaming}
+                        onRegenerate={() => send("", false, true)}
+                      />
+                    )}
                   </>
                 ) : (
                   <p className="whitespace-pre-wrap">{b.content}</p>
                 )}
               </div>
             ))
+          )}
+          {!streaming && failure && (
+            <FailureBubble
+              message={failure.message}
+              partial={failure.partial}
+              disabled={streaming}
+              onRetry={() => send("", false, true)}
+              onContinue={() => send("Continúa donde lo dejaste.")}
+            />
+          )}
+          {!streaming && !failure && lastIsAssistant && lastAssistant && (
+            <ReplyChips
+              effects={lastAssistant.effects}
+              disabled={streaming}
+              onPick={(t) => send(t)}
+            />
           )}
           <div ref={endRef} />
         </div>
