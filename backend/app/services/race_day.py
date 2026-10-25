@@ -8,20 +8,22 @@ Plan del día de carrera: ajuste por calor y por desnivel, ritmo por km y avitua
   bajada se recupera ~55 % de lo que cuesta subir, hasta −10 % (más empinado ya no ayuda: se frena).
   El coste metabólico de Minetti et al. 2002 exagera el efecto en el ritmo con pendientes suaves.
 - Sin GPX, con el desnivel positivo total se supone un recorrido de subidas y bajadas iguales.
-- Avituallamiento: hidratos 30–60 g/h entre 1 y 2,5 h y 60–90 g/h en pruebas más largas
-  (Jeukendrup 2014); líquido 400–800 ml/h según el calor (ACSM 2007); sodio si dura > 2 h o hace calor.
+- Avituallamiento (vía `services.nutrition`): enjuague entre 45 y 75 min, hidratos 30–60 g/h hasta 2,5 h
+  y 60–90 g/h en pruebas más largas (Jeukendrup 2014); líquido 400–800 ml/h según el calor (ACSM 2007);
+  sodio si dura > 2 h o hace calor.
 """
 
 import math
 import re
 import xml.etree.ElementTree as ET  # noqa: N817
 
+from app.services import nutrition
 from app.services.routes import haversine
 
 UPHILL_PER_GRADE = 3.0  # +3 % de tiempo por cada 1 % de pendiente
 DOWNHILL_SHARE = 0.55
 MAX_DOWNHILL = 0.10
-GEL_CARBS_G = 25
+GEL_CARBS_G = nutrition.GEL_CARBS_G
 MAX_GPX_BYTES = 5_000_000
 PROFILE_POINTS = 400
 TRACK_POINTS = 300
@@ -184,21 +186,19 @@ def pacing_plan(total_s: float, distance_m: float, factors: list[float]) -> list
 
 
 def fueling(duration_s: float, temp_c: float | None) -> dict:
-    """Hidratos, geles, líquido y sodio recomendados según la duración y la temperatura."""
+    """
+    Hidratos, geles, líquido y sodio recomendados según la duración y la temperatura.
+
+    Las bandas de hidratos y de líquido salen de `services.nutrition` (Jeukendrup 2014, ACSM 2007) para que
+    el día de carrera y el módulo de nutrición den las mismas cifras.
+    """
     hours = duration_s / 3600
-    if hours < 1:
-        carbs = (0, 0)
-        note = "Menos de una hora: no hace falta comer; un enjuague de bebida isotónica puede ayudar."
-    elif hours <= 2.5:
-        carbs = (30, 60)
-        note = "Toma hidratos desde los 30–40 minutos, repartidos."
-    else:
-        carbs = (60, 90)
-        note = "Prueba larga: hidratos desde el principio y cada 20–30 minutos. Ensáyalo en los entrenos."
+    band = nutrition.carbs_band(duration_s / 60)
+    carbs, note = (band.low, band.high), band.note
     t = temp_c if temp_c is not None else 15
-    fluid = (400, 500) if t < 15 else (500, 700) if t < 25 else (600, 800)
+    fluid = nutrition.fluid_ml_h(temp_c)
     # Geles para cubrir el mínimo recomendado desde la primera toma (el resto, con bebida isotónica).
-    first_gel_min = 30 if hours > 2.5 else 40
+    first_gel_min = 30 if band.key == "hasta-90" else 40
     fuel_hours = max(0.0, duration_s / 60 - first_gel_min) / 60
     gels = max(1, round(carbs[0] * fuel_hours / GEL_CARBS_G)) if carbs[0] else 0
     interval = max(15, round(fuel_hours * 60 / gels)) if gels else None
