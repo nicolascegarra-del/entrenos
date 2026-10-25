@@ -215,7 +215,7 @@ const DRIFT_TEXT: Record<string, string> = {
     "La FC se disparó en la 2.ª mitad: el ritmo fue alto para tu base aeróbica actual (o hizo mucho calor).",
 };
 
-/** Parciales por km (barra más larga = km más rápido) y deriva cardiaca. */
+/** Parciales por km: ritmo (barra más larga = km más rápido) y tiempo acumulado; tabla con FC y cadencia. */
 function SplitsCard({ data }: { data: ActivityAnalysis }) {
   const rows = data.splits.map((s) => ({
     ...s,
@@ -223,6 +223,7 @@ function SplitsCard({ data }: { data: ActivityAnalysis }) {
     speed: s.distance_m / s.seconds,
   }));
   const best = Math.min(...rows.map((r) => r.pace_s_km));
+  const hasCadence = rows.some((r) => r.avg_cadence);
   const drift = data.decoupling;
   return (
     <Card className="shadow-sm">
@@ -232,7 +233,8 @@ function SplitsCard({ data }: { data: ActivityAnalysis }) {
           Parciales por km
         </CardTitle>
         <CardDescription>
-          Barra más larga = km más rápido. El más rápido va resaltado.
+          Barra más larga = km más rápido (resaltado). A la derecha, ritmo del
+          km · tiempo acumulado desde la salida.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -259,7 +261,7 @@ function SplitsCard({ data }: { data: ActivityAnalysis }) {
             <BarChart
               data={rows}
               layout="vertical"
-              margin={{ top: 0, right: 64, bottom: 0, left: 0 }}
+              margin={{ top: 0, right: 104, bottom: 0, left: 0 }}
               barCategoryGap={3}
             >
               <CartesianGrid horizontal={false} stroke="var(--border)" />
@@ -283,8 +285,16 @@ function SplitsCard({ data }: { data: ActivityAnalysis }) {
                 formatter={(_v, _n, item) => {
                   const r = item.payload as (typeof rows)[number];
                   return [
-                    `${formatDuration(r.pace_s_km)} /km${r.avg_hr ? ` · ${r.avg_hr} ppm` : ""} · +${r.elevation_gain_m} m`,
-                    "Ritmo",
+                    [
+                      `${formatDuration(r.pace_s_km)} /km`,
+                      `acumulado ${formatDuration(r.elapsed_s)}`,
+                      r.avg_hr ? `${r.avg_hr} ppm` : null,
+                      r.avg_cadence ? `${r.avg_cadence} pasos/min` : null,
+                      `+${r.elevation_gain_m} m`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · "),
+                    "Km",
                   ];
                 }}
               />
@@ -304,44 +314,68 @@ function SplitsCard({ data }: { data: ActivityAnalysis }) {
                   />
                 ))}
                 <LabelList
-                  dataKey="pace_s_km"
+                  dataKey="km"
                   position="right"
-                  formatter={(v: number) => `${formatDuration(v)}`}
-                  style={{ fontSize: 11, fill: "var(--foreground)" }}
+                  content={({ x, y, width, height, index }) => {
+                    const r = rows[index as number];
+                    return (
+                      <text
+                        x={Number(x) + Number(width) + 6}
+                        y={Number(y) + Number(height) / 2}
+                        dominantBaseline="middle"
+                        fontSize={11}
+                        fill="var(--foreground)"
+                      >
+                        {formatDuration(r.pace_s_km)} ·{" "}
+                        {formatDuration(r.elapsed_s)}
+                      </text>
+                    );
+                  }}
                 />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </figure>
-        <details className="text-sm">
+        <details className="text-sm" open>
           <summary className="min-h-11 cursor-pointer content-center font-medium md:min-h-8">
-            Tabla de parciales
+            Desglose por km
           </summary>
-          <table className="mt-1 w-full tabular-nums">
-            <thead className="text-left text-xs text-muted-foreground">
-              <tr>
-                <th className="py-1 font-normal">Km</th>
-                <th className="py-1 font-normal">Ritmo</th>
-                <th className="py-1 font-normal">FC</th>
-                <th className="py-1 font-normal">Desnivel</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.km} className="border-t">
-                  <td className="py-1">{r.label}</td>
-                  <td className="py-1">{formatDuration(r.pace_s_km)} /km</td>
-                  <td className="py-1">{r.avg_hr ? `${r.avg_hr} ppm` : "—"}</td>
-                  <td className="py-1">+{r.elevation_gain_m} m</td>
+          <div className="mt-1 overflow-x-auto">
+            <table className="w-full min-w-max text-xs tabular-nums sm:text-sm">
+              <thead className="text-left text-xs text-muted-foreground">
+                <tr>
+                  <th className="py-1 pr-2 font-normal">Km</th>
+                  <th className="py-1 pr-2 font-normal">Ritmo</th>
+                  <th className="py-1 pr-2 font-normal">Acum.</th>
+                  <th className="py-1 pr-2 font-normal">FC</th>
+                  {hasCadence && (
+                    <th className="py-1 pr-2 font-normal">Cadencia</th>
+                  )}
+                  <th className="py-1 font-normal">Desn.</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {rows.some((r) => r.distance_m < 990) && (
-            <p className="mt-1 text-xs text-muted-foreground">
-              * Último tramo, de menos de 1 km.
-            </p>
-          )}
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.km} className="border-t">
+                    <td className="py-1 pr-2">{r.label}</td>
+                    <td className="py-1 pr-2">{formatDuration(r.pace_s_km)}</td>
+                    <td className="py-1 pr-2">{formatDuration(r.elapsed_s)}</td>
+                    <td className="py-1 pr-2">{r.avg_hr ?? "—"}</td>
+                    {hasCadence && (
+                      <td className="py-1 pr-2">{r.avg_cadence ?? "—"}</td>
+                    )}
+                    <td className="py-1">+{r.elevation_gain_m} m</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Ritmo en min/km · acumulado desde la salida · FC en ppm
+            {hasCadence && " · cadencia en pasos/min"}.
+            {rows.some((r) => r.distance_m < 990) &&
+              " * Último tramo, de menos de 1 km."}
+          </p>
         </details>
       </CardContent>
     </Card>

@@ -49,6 +49,8 @@ def test_analisis_zonas_parciales_y_deriva(session: Session, user: User):
     splits = a["splits"]
     assert [s["km"] for s in splits] == list(range(1, 8)) and splits[0]["pace_s_km"] == 333  # 7,2 km
     assert splits[-1]["distance_m"] >= 998 and splits[0]["avg_hr"] == 140  # los 197 m finales no llegan a 200
+    # Tiempo acumulado desde la salida y cadencia media de cada km.
+    assert [s["elapsed_s"] for s in splits[:2]] == [334, 667] and splits[0]["avg_cadence"] == 170
     drift = a["decoupling"]
     assert drift["pct"] == pytest.approx((1 - 140 / 152) * 100, abs=0.3) and drift["level"] == "alta"
     vo2 = a["vo2max"]

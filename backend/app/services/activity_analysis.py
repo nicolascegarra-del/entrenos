@@ -64,10 +64,15 @@ def time_in_zones(time: list, hr: list, zones: list[dict]) -> list[dict]:
     ]
 
 
-def splits(time: list, dist: list, hr: list, alt: list) -> list[dict]:
-    """Parciales por km (el último, si tiene al menos 200 m)."""
+def splits(time: list, dist: list, hr: list, alt: list, cad: list | None = None) -> list[dict]:
+    """
+    Parciales por km (el último, si tiene al menos 200 m): ritmo, tiempo acumulado desde la salida,
+    FC y cadencia medias (pasos/min, sin contar los ceros de las paradas) y desnivel positivo.
+    """
+    cad = cad or []
     out: list[dict] = []
-    pts = [(t, d, hr[i] if i < len(hr) else None, alt[i] if i < len(alt) else None)
+    pts = [(t, d, hr[i] if i < len(hr) else None, alt[i] if i < len(alt) else None,
+            cad[i] if i < len(cad) else None)
            for i, (t, d) in enumerate(zip(time, dist, strict=False)) if t is not None and d is not None]  # fmt: skip
     if len(pts) < 2:
         return out
@@ -82,11 +87,14 @@ def splits(time: list, dist: list, hr: list, alt: list) -> list[dict]:
                 break
             hrs = [p[2] for p in seg if p[2]]
             avg_hr = round(sum(hrs) / len(hrs)) if hrs else None
+            cads = [p[4] for p in seg if p[4]]
+            avg_cad = round(sum(cads) / len(cads)) if cads else None
             alts = [p[3] for p in seg if p[3] is not None]
             gain = sum(max(0.0, b - a) for a, b in zip(alts, alts[1:], strict=False))
             out.append({"km": km, "distance_m": round(meters), "seconds": round(seconds),
+                        "elapsed_s": round(seg[-1][0] - pts[0][0]),
                         "pace_s_km": round(seconds / meters * 1000), "avg_hr": avg_hr,
-                        "elevation_gain_m": round(gain)})  # fmt: skip
+                        "avg_cadence": avg_cad, "elevation_gain_m": round(gain)})  # fmt: skip
             start_i, km = i, km + 1
     return out
 
@@ -146,8 +154,8 @@ def analysis(session: Session, activity: Activity) -> dict:
     from app.services.plan_steps import sport_family
     from app.services.profile import age_on, vo2max_percentile
 
-    ch = load_streams(session, activity.id, ("time", "distance", "hr", "altitude"))
-    time, dist, hr, alt = (ch.get(k) or [] for k in ("time", "distance", "hr", "altitude"))
+    ch = load_streams(session, activity.id, ("time", "distance", "hr", "altitude", "cadence"))
+    time, dist, hr, alt, cad = (ch.get(k) or [] for k in ("time", "distance", "hr", "altitude", "cadence"))
     zones, lthr, zone_source = _zones_for(session, activity.user_id, activity.sport)
     family = sport_family(activity.sport)
     on_foot = family == "running" or activity.sport in ("walking", "hiking")
@@ -175,6 +183,6 @@ def analysis(session: Session, activity: Activity) -> dict:
             "current_day": current_day,
             "percentile": percentile,
         },
-        "splits": splits(time, dist, hr, alt) if on_foot and dist else [],
+        "splits": splits(time, dist, hr, alt, cad) if on_foot and dist else [],
         "decoupling": decoupling(time, dist, hr) if dist and hr else None,
     }

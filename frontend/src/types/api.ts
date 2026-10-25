@@ -1255,8 +1255,12 @@ export interface ActivityAnalysis {
     km: number;
     distance_m: number;
     seconds: number;
+    /** Tiempo desde la salida hasta el final de este km. */
+    elapsed_s: number;
     pace_s_km: number;
     avg_hr: number | null;
+    /** Pasos por minuto (media sin paradas). */
+    avg_cadence: number | null;
     elevation_gain_m: number;
   }[];
   decoupling: {
