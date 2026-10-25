@@ -20,6 +20,7 @@ from app.models.metric import MetricDefinition, MetricScope
 from app.models.notification import NotificationLog, NotificationPrefs, PushSubscription
 from app.models.performance import PerformanceTest
 from app.models.plan import BlockKind, MatchMode, PlannedBlock, PlannedSession
+from app.models.planned_route import PlannedRoute
 from app.models.settings import SYNC_INTERVALS, SyncMode, UserSettings
 from app.models.sources import AppleImport, CorosCredential, CorosOAuth, IngestToken, OAuthClient, OAuthState
 from app.models.strength import ActivityFeedback, StrengthSet
@@ -66,6 +67,7 @@ __all__ = [
     "MetricDefinition",
     "MetricScope",
     "PlannedBlock",
+    "PlannedRoute",
     "PlannedSession",
     "Gear",
     "NotificationLog",

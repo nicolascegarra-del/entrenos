@@ -470,6 +470,55 @@ def marcas_y_previsiones(session: Session, user_id: int, args: dict) -> tuple[st
     )
 
 
+def _hms(seconds: float | None) -> str | None:
+    if not seconds:
+        return None
+    total = round(seconds)
+    return f"{total // 3600}:{total % 3600 // 60:02d}:{total % 60:02d}"
+
+
+def _route_brief(session: Session, route_id: int | None) -> dict | None:
+    from app.models import PlannedRoute
+    from app.services.route_planner import summary
+
+    route = session.get(PlannedRoute, route_id) if route_id else None
+    return summary(route) if route else None
+
+
+def ruta_planificada(session: Session, user_id: int, args: dict) -> tuple[str, dict]:
+    """Una ruta del mapa con su perfil por tramos de 1 km y sus superficies (o la lista si no hay id)."""
+    from app.models import PlannedRoute
+    from app.services.route_planner import MODE_LABELS, summary
+
+    route_id = args.get("id")
+    if not route_id:
+        rows = session.exec(
+            select(PlannedRoute).where(PlannedRoute.user_id == user_id).order_by(col(PlannedRoute.created_at).desc())
+        ).all()
+        return "Tus rutas", {"rutas": [summary(r) for r in rows[:30]]}
+    route = session.get(PlannedRoute, int(route_id))
+    if route is None or route.user_id != user_id:
+        raise ToolError("Esa ruta no existe.")
+    # Perfil por kilómetro: altitud al final de cada km y desnivel del tramo.
+    tramos, last_alt, km, gain, loss = [], None, 1, 0.0, 0.0
+    for dist, alt in route.profile:
+        if last_alt is not None:
+            gain += max(0.0, alt - last_alt)
+            loss += max(0.0, last_alt - alt)
+        last_alt = alt
+        if dist >= km * 1000:
+            tramos.append({"km": km, "altitud_m": round(alt), "sube_m": round(gain), "baja_m": round(loss)})
+            km, gain, loss = km + 1, 0.0, 0.0
+    return f"Ruta {route.name}", {
+        **summary(route),
+        "modo": MODE_LABELS.get(route.mode, route.mode),
+        "tiempo_estimado": _hms(route.estimated_s),
+        "superficies": route.surfaces,
+        "tipos_de_via": route.waytypes,
+        "por_km": tramos[:60],
+    }
+
+
 def plan_y_objetivos(session: Session, user_id: int, args: dict) -> tuple[str, dict]:
     from app.services.race_forecast import goal_forecast
     from app.services.training_plans import active_plan, report
@@ -493,6 +542,7 @@ def plan_y_objetivos(session: Session, user_id: int, args: dict) -> tuple[str, d
                     "tipo": s.session_kind,
                     "hecha_actividad_id": s.activity_id,
                     "cumplimiento_pct": _r(s.compliance_score, 0),
+                    "ruta": _route_brief(session, s.planned_route_id),
                 }
             )
             for s in sessions
@@ -726,6 +776,13 @@ TOOLS: list[ToolSpec] = [
         {"type": "object", "properties": {"desde": _DATE, "hasta": _DATE}},
     ),
     ToolSpec(
+        "ruta_planificada",
+        "Rutas que ha dibujado en el mapa (Plan → Rutas). Sin id, la lista; con id, su perfil km a km (altitud, "
+        "subida y bajada), superficies, tipos de vía y tiempo estimado. Úsala para ajustar ritmos por pendiente, "
+        "avituallamiento o la hora de salida de una sesión con ruta.",
+        {"type": "object", "properties": {"id": {"type": "integer", "description": "Id de la ruta (opcional)"}}},
+    ),
+    ToolSpec(
         "dia_de_carrera",
         "Plan del día de carrera de un objetivo: previsión ajustada por clima y desnivel, ritmo por km y geles.",
         {"type": "object", "properties": {"objetivo_id": {"type": "integer"}}, "required": ["objetivo_id"]},
@@ -865,6 +922,7 @@ _HANDLERS: dict[str, Callable[[Session, int, dict], tuple[str, dict]]] = {
     "marcas_y_previsiones": marcas_y_previsiones,
     "plan_y_objetivos": plan_y_objetivos,
     "dia_de_carrera": dia_de_carrera,
+    "ruta_planificada": ruta_planificada,
     "salud_diaria": salud_diaria,
     "lesiones_y_material": lesiones_y_material,
     "memoria_del_atleta": coach.tool_memoria,

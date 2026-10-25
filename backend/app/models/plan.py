@@ -38,6 +38,8 @@ class PlannedSession(SQLModel, table=True):
     compliance_detail: dict = jsonb_field()
     # Sesiones generadas por un plan de entrenamiento (None = creadas a mano).
     plan_id: int | None = Field(default=None, foreign_key="training_plan.id", index=True, ondelete="SET NULL")
+    # Ruta planificada en el mapa para esta sesión (opcional).
+    planned_route_id: int | None = Field(default=None, foreign_key="planned_route.id", index=True, ondelete="SET NULL")
     session_kind: str | None = Field(default=None, max_length=16)  # easy | long | threshold | intervals | test…
     # Sesión de test: protocolo de `performance_tests.PROTOCOLS` (al sincronizar se analiza sola).
     test_protocol: str | None = Field(default=None, max_length=32)

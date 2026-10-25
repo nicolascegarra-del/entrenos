@@ -18,6 +18,7 @@ from app.api import (
     goals,
     notifications,
     performance,
+    planned_routes,
     plans,
     profile,
     progress,
@@ -40,7 +41,7 @@ settings = get_settings()
 setup_logging("api")
 
 app = FastAPI(
-    title="APP ENTRENOS API",
+    title="KTrain API",
     version="0.1.0",
     docs_url=None if settings.is_production else "/docs",
     redoc_url=None if settings.is_production else "/redoc",
@@ -100,6 +101,8 @@ app.include_router(gear.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
 app.include_router(achievements.router, prefix="/api/v1")
 app.include_router(routes.router, prefix="/api/v1")
+app.include_router(planned_routes.router, prefix="/api/v1")
+app.include_router(planned_routes.session_router, prefix="/api/v1")
 app.include_router(sources.router, prefix="/api/v1")
 app.include_router(apple.router, prefix="/api/v1")
 app.include_router(performance.router, prefix="/api/v1")

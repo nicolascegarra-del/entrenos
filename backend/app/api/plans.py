@@ -52,7 +52,17 @@ def _to_out(session: Session, planned: PlannedSession) -> SessionOut:
         planned_duration_s=estimated_duration_s(steps),
         planned_distance_m=sum(distances) if distances else None,
         blocks=[BlockOut.model_validate(b, from_attributes=True) for b in blocks],
+        planned_route_id=planned.planned_route_id,
+        route=_route_summary(session, planned),
     )
+
+
+def _route_summary(session: Session, planned: PlannedSession) -> dict | None:
+    from app.models import PlannedRoute
+    from app.services.route_planner import summary
+
+    route = session.get(PlannedRoute, planned.planned_route_id) if planned.planned_route_id else None
+    return summary(route) if route else None
 
 
 def _to_detail(session: Session, planned: PlannedSession) -> SessionDetail:

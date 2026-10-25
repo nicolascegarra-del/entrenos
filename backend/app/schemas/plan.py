@@ -76,6 +76,9 @@ class SessionOut(BaseModel):
     planned_duration_s: float
     planned_distance_m: float | None
     blocks: list[BlockOut]
+    # Ruta planificada en el mapa (resumen) si la sesión tiene una.
+    planned_route_id: int | None = None
+    route: dict | None = None
 
 
 class SessionDetail(SessionOut):
