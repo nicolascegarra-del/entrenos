@@ -120,8 +120,13 @@ services:
   beat:
     <<: *backend
     command: ["celery", "-A", "app.tasks.celery_app", "beat", "-l", "info", "--schedule", "/tmp/celerybeat-schedule"]
+    # Sano si el planificador ha guardado su fichero en los últimos 15 min (lo reescribe cada pocos minutos).
     healthcheck:
-      disable: true
+      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(time.time() - os.path.getmtime('/tmp/celerybeat-schedule') > 900)"]
+      interval: 60s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
     depends_on:
       redis: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
@@ -163,8 +168,13 @@ services:
           find /backups -name '*.sql.gz' -mtime +$${BACKUP_KEEP_DAYS} -delete
           sleep 86400
         done
+    # Sano si hay una copia de las últimas 26 h (la diaria, o la previa al despliegue).
     healthcheck:
-      disable: true
+      test: ["CMD-SHELL", "find /backups -name '*.sql.gz' -mmin -1560 | grep -q ."]
+      interval: 5m
+      timeout: 10s
+      start_period: 10m
+      retries: 2
     depends_on:
       postgres: { condition: service_healthy }
 
