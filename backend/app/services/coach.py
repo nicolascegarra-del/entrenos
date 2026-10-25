@@ -5,8 +5,9 @@ proponga cambios en el plan, entrevista inicial y revisión semanal.
 - **Memoria** (`CoachMemory`): datos que el reloj no sabe (historial, lesiones, salud, disponibilidad,
   preferencias, objetivos, vida). Los guarda la IA cuando se los cuentas, o tú en Ajustes. Van siempre en
   el contexto de la IA. Lesiones y salud solo con consentimiento explícito (`CoachSettings`).
-- **Herramientas de escritura** para el modelo: guardar / corregir / olvidar un dato, terminar la entrevista
-  y proponer un cambio de una sesión del plan. Nada cambia el plan sin tu confirmación.
+- **Herramientas de escritura** para el modelo: guardar / corregir / olvidar un dato, completar el perfil
+  (nacimiento, sexo, peso, altura) y los umbrales conocidos (FC máx., FC y ritmo umbral, VO2max), terminar la
+  entrevista y proponer un cambio de una sesión del plan. Nada cambia el plan sin tu confirmación.
 - **Efectos**: lo que hace cada herramienta se devuelve también al chat (`efecto`) para enseñarlo con
   «Deshacer» o «Aceptar / Rechazar».
 """
@@ -286,11 +287,101 @@ def _memory_effect(action: str, m: CoachMemory) -> dict:
             "categoria_nombre": CATEGORIES.get(m.category, m.category), "dato": m.content}  # fmt: skip
 
 
+def _dato(valor: object, origen: str | None, detalle: str | None = None) -> dict:
+    return {"valor": valor, "origen": origen, "detalle": detalle}
+
+
+def athlete_basics(session: Session, user_id: int) -> dict:
+    """
+    Datos con los que la app calcula (edad → FC máx. y percentiles; sexo → percentiles; peso → calorías;
+    altura → IMC y zancada; FC máx. y umbral → zonas y carga), de dónde sale cada uno y cuáles faltan.
+
+    Origen: `garmin` (perfil importado del reloj), `manual` (lo metió la persona o la entrevista),
+    `actividades` (visto en sus entrenos), `reloj` (métrica que da el reloj), `test` (test confirmado) o
+    `edad` / `estimada` (calculado sin datos reales: cuenta como «falta»). Con esto la entrevista enseña lo
+    detectado para que lo confirme y solo pregunta lo que no hay.
+    """
+    from app.models import DailyMetric, SyncRun, SyncStatus
+    from app.services import progress as prog
+    from app.services.profile import get_profile
+    from app.services.test_results import active_test, tested_hr_max
+
+    profile = get_profile(session, user_id)
+    activities = prog.user_activities(session, user_id)
+    thr = prog.user_thresholds(session, user_id)
+    source = profile.source if profile.source in ("garmin", "manual") else "manual"
+
+    def field(value: object) -> dict:
+        return _dato(value, source if value is not None else None)
+
+    sex = getattr(profile.sex, "value", profile.sex)  # Sex o str según venga de la BD
+    datos = {
+        "fecha_nacimiento": field(profile.birth_date.isoformat() if profile.birth_date else None),
+        "sexo": field(sex),
+        "peso_kg": field(profile.weight_kg),
+        "altura_cm": field(profile.height_cm),
+    }
+
+    top = max((a for a in activities if a.max_hr), key=lambda a: a.max_hr, default=None)
+    tested = tested_hr_max(session, user_id)
+    if tested and (not top or tested >= top.max_hr):
+        datos["fc_max"] = _dato(tested, "test")
+    elif top:
+        when = top.start_time.date().strftime("%d/%m/%Y")
+        datos["fc_max"] = _dato(top.max_hr, "actividades", f"{when}, «{top.name or 'entreno'}» (id {top.id})")
+    else:
+        datos["fc_max"] = _dato(thr.hr_max, "edad" if thr.hr_max else None)
+
+    lthr_test = active_test(session, user_id, "running", "lthr")
+    pace_test = active_test(session, user_id, "running", "threshold_pace_s_km")
+    watch_lthr = next((a for a in reversed(activities) if a.metrics.get("lthr")), None)
+    if lthr_test:
+        datos["fc_umbral"] = _dato(lthr_test.results["lthr"], "test")
+    elif watch_lthr:
+        datos["fc_umbral"] = _dato(watch_lthr.metrics["lthr"], "reloj",
+                                   watch_lthr.start_time.date().strftime("%d/%m/%Y"))  # fmt: skip
+    else:
+        datos["fc_umbral"] = _dato(thr.lthr, "estimada" if thr.lthr else None)
+    if pace_test:
+        pace = round(pace_test.results["threshold_pace_s_km"])
+        datos["ritmo_umbral"] = _dato(f"{pace // 60}:{pace % 60:02d} /km", "test")
+    watch_vo2 = next((a for a in reversed(activities) if a.metrics.get("vo2max")), None)
+    if watch_vo2:
+        datos["vo2max"] = _dato(watch_vo2.metrics["vo2max"], "reloj", watch_vo2.start_time.date().strftime("%d/%m/%Y"))
+    rests = session.exec(
+        select(DailyMetric).where(DailyMetric.user_id == user_id).order_by(col(DailyMetric.day).desc()).limit(30)
+    ).all()
+    if any(r.metrics.get("resting_hr") for r in rests):
+        datos["fc_reposo"] = _dato(round(thr.hr_rest), "reloj", "mediana de los últimos 30 días")
+
+    labels = {"fecha_nacimiento": "fecha de nacimiento", "sexo": "sexo", "peso_kg": "peso", "altura_cm": "altura",
+              "fc_max": "FC máxima"}  # fmt: skip
+    missing = [label for key, label in labels.items() if datos[key]["origen"] in (None, "edad")]
+    if datos["fc_umbral"]["origen"] in (None, "estimada") and "ritmo_umbral" not in datos:
+        missing.append("FC o ritmo umbral (solo si los conoce de un test o su reloj)")
+    detected = [key for key, d in datos.items() if d["origen"] in ("garmin", "actividades", "reloj")]
+    running = session.exec(
+        select(SyncRun.id).where(
+            SyncRun.user_id == user_id,
+            SyncRun.status == SyncStatus.RUNNING,
+            SyncRun.started_at >= datetime.now(UTC) - timedelta(hours=2),
+        )  # fmt: skip
+    ).first()
+    return {
+        "datos": datos,
+        "detectados": detected,
+        "faltan": missing,
+        "actividades": len(activities),
+        "sincronizando": running is not None,
+    }
+
+
 def tool_memoria(session: Session, user_id: int, args: dict) -> tuple[str, dict]:
     s = settings(session, user_id)
     return "Tu ficha", {
         "datos": [{"id": m.id, "categoria": m.category, "dato": m.content, "fecha": m.created_at.date().isoformat()}
                   for m in memories(session, user_id)],
+        "perfil": athlete_basics(session, user_id),
         "consentimiento_salud": s.health_consent,
         "entrevista_hecha": bool(s.interview_done_at),
         "categorias": CATEGORIES,
@@ -317,6 +408,97 @@ def tool_olvidar(session: Session, user_id: int, args: dict) -> tuple[str, dict]
     except (CoachError, ValueError) as exc:
         raise ToolError(str(exc)) from exc
     return f"Quitado de tu ficha: {m.content[:60]}", {"ok": True, "efecto": _memory_effect("olvidado", m)}
+
+
+SEXES = {"male": "male", "hombre": "male", "varon": "male", "varón": "male", "female": "female", "mujer": "female"}
+
+
+def tool_perfil(session: Session, user_id: int, args: dict) -> tuple[str, dict]:
+    """Completa el perfil con lo que la persona ha dicho (solo los campos que vengan)."""
+    from app.models import Sex
+    from app.services.ai_tools import ToolError
+    from app.services.profile import age_on, get_profile, record_weight
+
+    profile = get_profile(session, user_id)
+    changes: dict[str, str] = {}
+    if args.get("fecha_nacimiento"):
+        try:
+            born = date.fromisoformat(str(args["fecha_nacimiento"])[:10])
+        except ValueError as exc:
+            raise ToolError("La fecha de nacimiento va como AAAA-MM-DD.") from exc
+        if not 5 <= age_on(born, date.today()) <= 110:
+            raise ToolError("La fecha de nacimiento no es válida.")
+        profile.birth_date = born
+        changes["Nacimiento"] = born.strftime("%d/%m/%Y")
+    if args.get("sexo"):
+        sex = SEXES.get(str(args["sexo"]).strip().lower())
+        if not sex:
+            raise ToolError("El sexo va como «male» o «female».")
+        profile.sex = Sex(sex)
+        changes["Sexo"] = "hombre" if sex == "male" else "mujer"
+    numbers = (("peso_kg", "weight_kg", "Peso", 20, 300, "kg"), ("altura_cm", "height_cm", "Altura", 100, 250, "cm"))
+    for key, field, label, low, high, unit in numbers:
+        if args.get(key) is None:
+            continue
+        try:
+            value = round(float(args[key]), 1)
+        except (TypeError, ValueError) as exc:
+            raise ToolError(f"{key} debe ser un número.") from exc
+        if not low < value < high:
+            raise ToolError(f"{key} fuera de rango ({low}–{high} {unit}).")
+        if field == "weight_kg" and value != profile.weight_kg:
+            record_weight(session, user_id, value, "manual")
+        setattr(profile, field, value)
+        changes[label] = f"{value:g} {unit}"
+    if not changes:
+        raise ToolError("No hay ningún dato del perfil que guardar.")
+    profile.source = "manual"
+    session.add(profile)
+    session.commit()
+    text = ", ".join(f"{k.lower()} {v}" for k, v in changes.items())
+    return f"Perfil actualizado: {text}", {"ok": True, "efecto": {"tipo": "perfil", "cambios": changes}}
+
+
+def _pace_s(value: object) -> int | None:
+    """Ritmo «4:30» (min:s por km) o en segundos."""
+    if value is None or value == "":
+        return None
+    text = str(value).strip()
+    if ":" in text:
+        minutes, seconds = text.split(":", 1)
+        return int(minutes) * 60 + int(seconds)
+    return int(float(text))
+
+
+def tool_umbrales(session: Session, user_id: int, args: dict) -> tuple[str, dict]:
+    """Guarda como test manual (confirmado) los valores de carrera que la persona conoce."""
+    from app.services import performance_tests as pt
+    from app.services.ai_tools import ToolError
+
+    try:
+        values = {
+            "hr_max": int(args["fc_max"]) if args.get("fc_max") else None,
+            "lthr": int(args["fc_umbral"]) if args.get("fc_umbral") else None,
+            "threshold_pace_s_km": _pace_s(args.get("ritmo_umbral")),
+            "vo2max": float(args["vo2max"]) if args.get("vo2max") else None,
+        }
+        day = date.fromisoformat(str(args["fecha"])[:10]) if args.get("fecha") else date.today()
+    except (TypeError, ValueError) as exc:
+        raise ToolError("Formato: FC en ppm, ritmo «m:ss», VO2max en ml/kg/min y fecha AAAA-MM-DD.") from exc
+    if day > date.today():
+        raise ToolError("La fecha no puede ser futura.")
+    try:
+        row = pt.manual_test(session, user_id, "running", day, values, "Dato de la entrevista con el entrenador")
+    except pt.TestError as exc:
+        raise ToolError(str(exc)) from exc
+    labels = {"hr_max": ("FC máx.", "{:g} ppm"), "lthr": ("FC umbral", "{:g} ppm"), "vo2max": ("VO2max", "{:g}")}
+    changes = {labels[k][0]: labels[k][1].format(v) for k, v in values.items() if v is not None and k in labels}
+    if values["threshold_pace_s_km"]:
+        pace = values["threshold_pace_s_km"]
+        changes["Ritmo umbral"] = f"{pace // 60}:{pace % 60:02d} /km"
+    text = ", ".join(f"{k} {v}" for k, v in changes.items())
+    effect = {"tipo": "umbrales", "id": row.id, "cambios": changes}
+    return f"Umbrales guardados: {text}", {"ok": True, "efecto": effect}
 
 
 def tool_terminar_entrevista(session: Session, user_id: int, args: dict) -> tuple[str, dict]:

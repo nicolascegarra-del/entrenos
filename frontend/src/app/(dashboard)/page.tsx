@@ -29,11 +29,14 @@ import { TodayCard } from "@/components/summary/today-card";
 import { TourInvite } from "@/components/tour/tour-invite";
 import {
   useAchievements,
+  useAiProviders,
+  useCoachSettings,
   useGarminStatus,
   useGear,
   useGoals,
   useInjuryRisk,
   useLatestReview,
+  useProfile,
   useSummary,
   useSources,
 } from "@/hooks/use-api";
@@ -140,11 +143,19 @@ function Notices() {
 const SETUP_HIDDEN = "hoy.configuracion-oculta";
 
 /** «Completa tu configuración»: lo que falta para sacarle partido (se puede ocultar). */
-function SetupCard() {
+const FICHA_STEPS = new Set(["interview", "profile", "thresholds"]);
+
+function SetupCard({ hasActivities }: { hasActivities: boolean }) {
   const { data: garmin } = useGarminStatus();
   const { data: goals } = useGoals();
   const { data: gear } = useGear();
   const { data: sources } = useSources();
+  const { data: profile } = useProfile();
+  const { data: coach } = useCoachSettings();
+  const { data: ai } = useAiProviders();
+  const hasAi = ai
+    ? ai.providers.some((p) => p.configured && p.enabled)
+    : undefined;
   const [hidden, setHidden] = useState(true);
   useEffect(() => {
     try {
@@ -153,33 +164,46 @@ function SetupCard() {
       setHidden(false);
     }
   }, []);
-  const steps = setupSteps({ garmin, goals, gear, sources });
-  if (hidden || !steps.length) return null;
+  const steps = setupSteps({
+    garmin,
+    goals,
+    gear,
+    sources,
+    profile,
+    coach,
+    hasAi,
+    hasActivities,
+  });
+  // La ficha del atleta (entrevista o perfil) no se puede ocultar: sin ella las métricas salen estimadas.
+  const shown = hidden ? steps.filter((s) => FICHA_STEPS.has(s.key)) : steps;
+  if (!shown.length) return null;
   return (
     <Card className="shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between gap-2">
         <CardTitle className="font-heading text-base">
           Completa tu configuración
         </CardTitle>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="min-h-11 text-muted-foreground md:min-h-8"
-          onClick={() => {
-            setHidden(true);
-            try {
-              window.localStorage.setItem(SETUP_HIDDEN, "1");
-            } catch {
-              // Solo es una comodidad.
-            }
-          }}
-        >
-          Ocultar
-        </Button>
+        {!hidden && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="min-h-11 text-muted-foreground md:min-h-8"
+            onClick={() => {
+              setHidden(true);
+              try {
+                window.localStorage.setItem(SETUP_HIDDEN, "1");
+              } catch {
+                // Solo es una comodidad.
+              }
+            }}
+          >
+            Ocultar
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         <ul className="space-y-1">
-          {steps.map((step) => (
+          {shown.map((step) => (
             <li key={step.key}>
               <Link
                 href={step.href}
@@ -189,7 +213,14 @@ function SetupCard() {
                   className="size-4 shrink-0 text-klyp-accent"
                   aria-hidden
                 />
-                <span className="flex-1">{step.label}</span>
+                <span className="min-w-0 flex-1 py-1.5">
+                  <span className="block">{step.label}</span>
+                  {step.hint && (
+                    <span className="block text-xs text-muted-foreground">
+                      {step.hint}
+                    </span>
+                  )}
+                </span>
                 <ChevronRight
                   className="size-4 shrink-0 text-muted-foreground"
                   aria-hidden
@@ -301,11 +332,12 @@ export default function HoyPage() {
       <section className="space-y-4">
         <PageHeader title="Hoy" hideTitleOnMobile />
         <TourInvite />
-        <EmptyState icon={Footprints} title="Empieza conectando Garmin">
+        <SetupCard hasActivities={false} />
+        <EmptyState icon={Footprints} title="Empieza conectando tu reloj">
           <p className="max-w-sm text-sm text-muted-foreground">
             Sincroniza tus actividades desde{" "}
             <Link
-              href="/ajustes"
+              href="/ajustes/conexiones"
               className="font-medium text-klyp-accent underline"
             >
               Ajustes
@@ -340,7 +372,7 @@ export default function HoyPage() {
       <Notices />
       <LatestReviewLine />
       <CoachNudges />
-      <SetupCard />
+      <SetupCard hasActivities={data.recent.length > 0} />
 
       <div className="space-y-2" data-tour="week-kpis">
         <h2 className="font-heading text-lg font-semibold">Esta semana</h2>

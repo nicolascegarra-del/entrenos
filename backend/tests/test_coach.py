@@ -7,11 +7,14 @@ from sqlmodel import Session, select
 from app.core.security import create_token
 from app.models import (
     CoachSettings,
+    PerformanceTest,
     PlannedBlock,
     PlannedSession,
     PlanProposal,
     User,
+    UserProfile,
     WeeklyCheckin,
+    WeightLog,
 )
 from app.services import ai_tools, coach, weekly_review
 
@@ -42,6 +45,73 @@ def test_la_ia_guarda_corrige_y_olvida(session: Session, user: User):
     assert coach.memories(session, user.id) == []
     bad = _tool(session, user, "guardar_en_memoria", {"categoria": "inventada", "dato": "x"})
     assert "Categoría desconocida" in bad["error"]
+
+
+def test_la_entrevista_completa_el_perfil_y_los_umbrales(session: Session, user: User):
+    faltan = _tool(session, user, "memoria_del_atleta", {})["perfil"]["faltan"]
+    assert {"fecha de nacimiento", "sexo", "peso", "altura"} <= set(faltan)
+    saved = _tool(session, user, "actualizar_perfil", {"fecha_nacimiento": "1985-04-12", "sexo": "male",
+                                                       "peso_kg": 71.5, "altura_cm": 178})  # fmt: skip
+    assert saved["efecto"] == {"tipo": "perfil", "cambios": {"Nacimiento": "12/04/1985", "Sexo": "hombre",
+                                                             "Peso": "71.5 kg", "Altura": "178 cm"}}  # fmt: skip
+    profile = session.get(UserProfile, user.id)
+    assert (profile.birth_date, profile.weight_kg, profile.source) == (date(1985, 4, 12), 71.5, "manual")
+    assert session.exec(select(WeightLog).where(WeightLog.user_id == user.id)).first().weight_kg == 71.5
+
+    tested = _tool(session, user, "guardar_umbrales", {"fc_max": 188, "ritmo_umbral": "4:35"})
+    assert tested["efecto"]["tipo"] == "umbrales"
+    assert tested["efecto"]["cambios"] == {"FC máx.": "188 ppm", "Ritmo umbral": "4:35 /km"}
+    test = session.get(PerformanceTest, tested["efecto"]["id"])
+    assert test.results == {"hr_max": 188, "threshold_pace_s_km": 275} and test.status == "confirmed"
+    perfil = _tool(session, user, "memoria_del_atleta", {})["perfil"]
+    assert perfil["faltan"] == [] and perfil["datos"]["fc_max"] == {"valor": 188, "origen": "test", "detalle": None}
+    assert perfil["datos"]["ritmo_umbral"]["valor"] == "4:35 /km"
+
+
+def test_la_entrevista_propone_lo_detectado_en_reloj_y_entrenos(session: Session, user: User):
+    from app.services.file_import import ImportedActivity, save_imported
+    from app.services.profile import apply_garmin_profile
+
+    empty = _tool(session, user, "memoria_del_atleta", {})["perfil"]
+    assert empty["actividades"] == 0 and empty["detectados"] == [] and "FC máxima" in empty["faltan"]
+    apply_garmin_profile(session, user.id, {"userData": {"birthDate": "1985-04-12", "gender": "MALE",
+                                                         "weight": 71500, "height": 178}})  # fmt: skip
+    n = 1200
+    run = ImportedActivity(
+        sport="running",
+        start_time=datetime(2026, 5, 12, 8, tzinfo=UTC),
+        duration_s=float(n),
+        distance_m=n * 3.5,
+        avg_hr=160,
+        max_hr=188,
+        name="Series 6x1000",
+        metrics={"lthr": 171, "vo2max": 52.0},
+        streams={"time": [float(i) for i in range(n)], "distance": [i * 3.5 for i in range(n)]},
+    )
+    save_imported(session, user.id, run, "fit")
+    perfil = _tool(session, user, "memoria_del_atleta", {})["perfil"]
+    datos = perfil["datos"]
+    assert datos["sexo"] == {"valor": "male", "origen": "garmin", "detalle": None}
+    assert datos["fc_max"]["origen"] == "actividades" and datos["fc_max"]["valor"] == 188
+    assert "12/05/2026" in datos["fc_max"]["detalle"] and "Series 6x1000" in datos["fc_max"]["detalle"]
+    assert datos["fc_umbral"] == {"valor": 171, "origen": "reloj", "detalle": "12/05/2026"}
+    assert datos["vo2max"]["valor"] == 52.0
+    assert {"sexo", "fc_max", "fc_umbral", "vo2max"} <= set(perfil["detectados"])
+    assert perfil["faltan"] == [] and perfil["actividades"] == 1 and perfil["sincronizando"] is False
+
+
+@pytest.mark.parametrize(
+    ("name", "args", "error"),
+    [
+        ("actualizar_perfil", {}, "ningún dato"),
+        ("actualizar_perfil", {"fecha_nacimiento": "2030-01-01"}, "no es válida"),
+        ("actualizar_perfil", {"peso_kg": 900}, "fuera de rango"),
+        ("guardar_umbrales", {"fc_max": 400}, "fuera de lo posible"),
+        ("guardar_umbrales", {"ritmo_umbral": "rápido"}, "Formato"),
+    ],
+)
+def test_perfil_y_umbrales_no_validos(session: Session, user: User, name: str, args: dict, error: str):
+    assert error in _tool(session, user, name, args)["error"]
 
 
 def test_salud_solo_con_consentimiento(client, user, session):

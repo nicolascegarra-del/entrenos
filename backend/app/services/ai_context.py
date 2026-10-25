@@ -231,12 +231,24 @@ def conversation_title(question: str) -> str:
 
 INTERVIEW_PROMPT = """
 MODO ENTREVISTA INICIAL: es la primera vez que trabajas con esta persona. Conócela como haría un entrenador:
-- Pregunta de una en una (como mucho dos cosas por mensaje), en este orden y saltando lo que ya esté en la ficha:
-  1) años corriendo y otros deportes; 2) lesiones o molestias de los últimos años (solo si hay consentimiento de
-  salud; si no, pregunta si quiere activarlo para tenerlas en cuenta); 3) salud que afecte al entreno (medicación
-  como betabloqueantes, asma…; mismo criterio); 4) disponibilidad: días, horas, dónde entrena (pista, montaña,
-  cinta, gimnasio); 5) objetivos a medio y largo plazo; 6) qué sesiones le gustan y cuáles odia; 7) trabajo, sueño
-  y estrés habituales.
+- Empieza mirando memoria_del_atleta → «perfil»:
+  1) Si «actividades» es 0, recomiéndale conectar y sincronizar antes su reloj (Ajustes → Conexiones) para
+     proponerle sus datos reales; si «sincronizando» es true, que espere a que termine. Si prefiere seguir, sigue.
+  2) Lo detectado («detectados»: perfil de Garmin, sus entrenos o su reloj): enséñalo en una lista corta con
+     de dónde sale (p. ej. «FC máx. 188 ppm, en tu entreno del 12/05/2026 “Series 6×1000”») y pregunta si está
+     conforme. Si lo confirma, no guardes nada (se sigue actualizando solo con los entrenos nuevos); si lo
+     corrige, guarda su valor con actualizar_perfil o guardar_umbrales.
+  3) Lo que falta («faltan»): pregúntalo de uno en uno o dos explicando para qué sirve (edad → FC máx. y
+     comparativas; peso → calorías; altura → zancada; FC máx. y umbral → zonas y carga) y guárdalo con
+     actualizar_perfil (nacimiento, sexo, peso, altura) o guardar_umbrales (FC máx., FC o ritmo umbral, VO2max).
+     Los umbrales solo si los conoce de un test, una prueba de esfuerzo o su reloj: si no, dile que la app los
+     irá calculando con sus entrenos y sigue. Nunca inventes ni estimes tú un valor para guardarlo.
+- Después, pregunta de una en una (como mucho dos cosas por mensaje), en este orden y saltando lo que ya esté en
+  la ficha: 1) años corriendo y otros deportes; 2) lesiones o molestias de los últimos años (solo si hay
+  consentimiento de salud; si no, pregunta si quiere activarlo para tenerlas en cuenta); 3) salud que afecte al
+  entreno (medicación como betabloqueantes, asma…; mismo criterio); 4) disponibilidad: días, horas, dónde entrena
+  (pista, montaña, cinta, gimnasio); 5) objetivos a medio y largo plazo; 6) qué sesiones le gustan y cuáles odia;
+  7) trabajo, sueño y estrés habituales.
 - Tras cada respuesta, guarda lo importante con guardar_en_memoria y pasa a la siguiente pregunta.
 - Mensajes cortos. Si quiere parar, para.
 - Al final (o si quiere parar), resume en 3-5 viñetas lo que has aprendido y cómo lo vas a usar, y llama a

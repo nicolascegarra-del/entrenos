@@ -785,6 +785,37 @@ COACH_TOOLS: list[ToolSpec] = [
         },
     ),
     ToolSpec(
+        "actualizar_perfil",
+        "Guarda en su perfil los datos que te ha DICHO y con los que la app calcula: fecha de nacimiento (FC máx. "
+        "por edad y percentiles), sexo (percentiles), peso (calorías) y altura (IMC y zancada). Solo los campos "
+        "que te haya dado; mira antes en memoria_del_atleta cuáles faltan.",
+        {
+            "type": "object",
+            "properties": {
+                "fecha_nacimiento": _DATE,
+                "sexo": {"type": "string", "enum": ["male", "female"]},
+                "peso_kg": {"type": "number"},
+                "altura_cm": {"type": "number"},
+            },
+        },
+    ),
+    ToolSpec(
+        "guardar_umbrales",
+        "Guarda los valores de carrera que conoce de un test, una prueba de esfuerzo o su reloj: FC máxima, FC "
+        "umbral, ritmo umbral o VO2max (quedan como test manual y ajustan sus zonas). Solo lo que te haya dicho, "
+        "nunca estimaciones tuyas.",
+        {
+            "type": "object",
+            "properties": {
+                "fc_max": {"type": "integer", "description": "ppm"},
+                "fc_umbral": {"type": "integer", "description": "ppm"},
+                "ritmo_umbral": {"type": "string", "description": "min:s por km, p. ej. «4:35»"},
+                "vo2max": {"type": "number", "description": "ml/kg/min"},
+                "fecha": {"type": "string", "description": "AAAA-MM-DD del test (por defecto, hoy)"},
+            },
+        },
+    ),
+    ToolSpec(
         "olvidar_dato",
         "Borra un dato de su ficha (cuando te dice que ya no es así o que lo olvides).",
         {"type": "object", "properties": {"id": {"type": "integer"}}, "required": ["id"]},
@@ -816,7 +847,14 @@ COACH_TOOLS: list[ToolSpec] = [
 READ_TOOLS = TOOLS
 TOOLS = TOOLS + COACH_TOOLS
 # Herramientas cuyo resultado lleva un «efecto» que se enseña en el chat (guardado, propuesta…).
-EFFECT_TOOLS = {"guardar_en_memoria", "olvidar_dato", "terminar_entrevista", "proponer_cambio_plan"}
+EFFECT_TOOLS = {
+    "guardar_en_memoria",
+    "olvidar_dato",
+    "actualizar_perfil",
+    "guardar_umbrales",
+    "terminar_entrevista",
+    "proponer_cambio_plan",
+}
 
 _HANDLERS: dict[str, Callable[[Session, int, dict], tuple[str, dict]]] = {
     "buscar_actividades": buscar_actividades,
@@ -832,6 +870,8 @@ _HANDLERS: dict[str, Callable[[Session, int, dict], tuple[str, dict]]] = {
     "memoria_del_atleta": coach.tool_memoria,
     "guardar_en_memoria": coach.tool_guardar,
     "olvidar_dato": coach.tool_olvidar,
+    "actualizar_perfil": coach.tool_perfil,
+    "guardar_umbrales": coach.tool_umbrales,
     "terminar_entrevista": coach.tool_terminar_entrevista,
     "proponer_cambio_plan": coach.tool_proponer,
 }

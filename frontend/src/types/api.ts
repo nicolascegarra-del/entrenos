@@ -1289,6 +1289,8 @@ export type CoachEffect =
       resumen: string;
       motivo: string;
     }
+  | { tipo: "perfil"; cambios: Record<string, string> }
+  | { tipo: "umbrales"; id: number; cambios: Record<string, string> }
   | { tipo: "entrevista"; accion: "terminada" };
 
 export interface CoachSettings {

@@ -1,6 +1,14 @@
 "use client";
 
-import { CalendarClock, Check, NotebookPen, Undo2, X } from "lucide-react";
+import {
+  CalendarClock,
+  Check,
+  Gauge,
+  NotebookPen,
+  Undo2,
+  UserRound,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -19,6 +27,34 @@ const errorText = (e: unknown) =>
 
 type MemoryEffect = Extract<CoachEffect, { tipo: "memoria" }>;
 type ProposalEffect = Extract<CoachEffect, { tipo: "propuesta" }>;
+type DataEffect = Extract<CoachEffect, { tipo: "perfil" | "umbrales" }>;
+
+/** «Guardado en tu perfil / umbrales» con enlace para revisarlo o corregirlo. */
+function DataChip({ effect }: { effect: DataEffect }) {
+  const profile = effect.tipo === "perfil";
+  const Icon = profile ? UserRound : Gauge;
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-md border bg-background p-2 text-xs">
+      <Icon className="size-4 shrink-0 text-klyp-accent" aria-hidden />
+      <span className="min-w-0 flex-1">
+        <span className="font-medium">
+          {profile ? "Guardado en tu perfil" : "Guardado en tus umbrales"}
+        </span>{" "}
+        <span className="text-muted-foreground">
+          {Object.entries(effect.cambios)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(" · ")}
+        </span>
+      </span>
+      <Link
+        href={profile ? "/ajustes/perfil" : "/progresion/rendimiento"}
+        className="inline-flex min-h-11 items-center rounded-md px-2 font-medium text-klyp-accent hover:bg-muted md:min-h-7"
+      >
+        Revisar
+      </Link>
+    </div>
+  );
+}
 
 /** «Guardado en tu ficha» con deshacer (o «Recuperar» si lo olvidó). */
 function MemoryChip({ effect }: { effect: MemoryEffect }) {
@@ -157,6 +193,8 @@ export function CoachEffects({ effects }: { effects?: CoachEffect[] | null }) {
           <MemoryChip key={`m${e.id}-${i}`} effect={e} />
         ) : e.tipo === "propuesta" ? (
           <ProposalChip key={`p${e.id}`} effect={e} />
+        ) : e.tipo === "perfil" || e.tipo === "umbrales" ? (
+          <DataChip key={`${e.tipo}-${i}`} effect={e} />
         ) : null,
       )}
     </div>
