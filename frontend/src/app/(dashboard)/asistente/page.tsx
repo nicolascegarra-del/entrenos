@@ -328,7 +328,7 @@ function AssistantChat() {
 
       {/* Alto disponible: pantalla menos cabecera, título y barra inferior (móvil). */}
       <div className="flex h-[calc(100dvh-9.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-h-80 flex-col md:h-[calc(100dvh-11rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] rounded-lg border bg-card shadow-sm lg:h-[calc(100dvh-9rem)]">
-        <div className="flex items-center gap-2 border-b p-2">
+        <div className="flex flex-wrap items-center gap-2 border-b p-2">
           <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="sm" className="min-h-11 lg:hidden">
@@ -359,24 +359,27 @@ function AssistantChat() {
               <CalendarCheck aria-hidden /> Revisión semanal
             </Link>
           </Button>
-          <label className="ml-auto flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-            <span className="sr-only sm:not-sr-only">Asistente</span>
-            <select
-              className={cn(
-                selectClass,
-                "max-w-44 min-w-0 truncate sm:max-w-none",
-              )}
-              value={chosen}
-              onChange={(e) => setProvider(e.target.value as AiProviderId)}
-              disabled={streaming}
-            >
-              {active.map((p) => (
-                <option key={p.provider} value={p.provider}>
-                  {p.label.split(" ")[0]} · {p.model}
-                </option>
-              ))}
-            </select>
-          </label>
+          {/* Con una sola IA no hay nada que elegir: así la barra cabe en el móvil. */}
+          {active.length > 1 && (
+            <label className="ml-auto flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+              <span className="sr-only sm:not-sr-only">Asistente</span>
+              <select
+                className={cn(
+                  selectClass,
+                  "w-40 max-w-full min-w-0 truncate sm:w-auto",
+                )}
+                value={chosen}
+                onChange={(e) => setProvider(e.target.value as AiProviderId)}
+                disabled={streaming}
+              >
+                {active.map((p) => (
+                  <option key={p.provider} value={p.provider}>
+                    {p.label.split(" ")[0]} · {p.model}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
 
         <div
@@ -386,7 +389,8 @@ function AssistantChat() {
           {conversationId && isFetching && !conversation ? (
             <Skeleton className="h-24" />
           ) : bubbles.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+            // min-h-full (no h-full) y shrink-0: si no cabe, se desplaza en vez de encoger y solaparse.
+            <div className="flex min-h-full flex-col items-center justify-center gap-4 py-2 text-center [&>*]:shrink-0">
               <Sparkles className="size-8 text-klyp-accent" aria-hidden />
               <div>
                 <p className="font-heading text-lg font-semibold">
@@ -410,7 +414,7 @@ function AssistantChat() {
                       true,
                     );
                   }}
-                  className="flex min-h-11 max-w-md items-center gap-3 rounded-lg border border-klyp-accent/50 bg-klyp-accent/5 p-3 text-left text-sm hover:bg-klyp-accent/10"
+                  className="flex min-h-11 w-full max-w-md items-center gap-3 rounded-lg border border-klyp-accent/50 bg-klyp-accent/5 p-3 text-left text-sm hover:bg-klyp-accent/10"
                 >
                   <UserRoundSearch
                     className="size-5 shrink-0 text-klyp-accent"
