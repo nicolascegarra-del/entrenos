@@ -53,7 +53,25 @@ def test_set_modules_cuando_guarda_entonces_invalida_la_cache(session):
     assert stored["ia"] is False and stored["reloj"] is True
 
 
-def test_modulos_cuando_cambia_la_bd_por_fuera_entonces_se_sirve_la_cache(session):
+class MemoryRedis:
+    """Redis en memoria: la CI no tiene Redis y sin él no hay caché que probar."""
+
+    def __init__(self) -> None:
+        self.data: dict[str, str] = {}
+
+    def get(self, key):
+        return self.data.get(key)
+
+    def setex(self, key, _ttl, value):
+        self.data[key] = value
+
+    def delete(self, key):
+        self.data.pop(key, None)
+
+
+def test_modulos_cuando_cambia_la_bd_por_fuera_entonces_se_sirve_la_cache(session, monkeypatch):
+    fake = MemoryRedis()
+    monkeypatch.setattr(modules, "_redis", lambda: fake)
     assert modules.enabled(session, "rutas")
     session.add(AppSetting(key=modules.SETTING_KEY, value=json.dumps({"rutas": False})))
     session.commit()
