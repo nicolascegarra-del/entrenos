@@ -24,6 +24,7 @@ const ALL_ON: Modules = {
   reloj: true,
   rutas: true,
   nutricion: true,
+  oura: true,
 };
 const off = (...keys: (keyof Modules)[]): Modules => ({
   ...ALL_ON,

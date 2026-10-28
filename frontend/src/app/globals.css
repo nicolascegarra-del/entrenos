@@ -29,6 +29,15 @@
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+  --color-sleep-deep: var(--intensity-high);
+  --color-sleep-rem: var(--intensity-mid);
+  --color-sleep-light: var(--intensity-low);
+  --color-sleep-awake: var(--chart-2);
+  --color-activity-1: var(--activity-1);
+  --color-activity-2: var(--activity-2);
+  --color-activity-3: var(--activity-3);
+  --color-activity-4: var(--activity-4);
+  --color-activity-5: var(--activity-5);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -84,6 +93,12 @@
   --intensity-low: #b9d3ef;
   --intensity-mid: #5b93d3;
   --intensity-high: #1a3a6b;
+  /* Actividad cada 5 min (Oura): secuencial naranja, descanso → alta */
+  --activity-1: #fde3d3;
+  --activity-2: #f8bf9c;
+  --activity-3: #f08a55;
+  --activity-4: #d9480f;
+  --activity-5: #8f2e08;
   --radius: 0.5rem;
   --sidebar: #051937;
   --sidebar-foreground: #ffffff;
@@ -122,6 +137,11 @@
   --intensity-low: #2a4f80;
   --intensity-mid: #4f8fd6;
   --intensity-high: #b9d3ef;
+  --activity-1: #4a2a1a;
+  --activity-2: #7a3b19;
+  --activity-3: #b4531f;
+  --activity-4: #e2691a;
+  --activity-5: #f7a26b;
   --sidebar: #031127;
   --sidebar-foreground: #e8edf5;
   --sidebar-primary: #2e6db4;

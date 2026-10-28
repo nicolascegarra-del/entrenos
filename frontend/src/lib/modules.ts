@@ -4,7 +4,8 @@
  * Desactivar solo oculta la interfaz (y su API responde 404): nunca borra datos.
  */
 
-export type ModuleKey = "entrenadores" | "ia" | "reloj" | "rutas" | "nutricion";
+export type ModuleKey =
+  "entrenadores" | "ia" | "reloj" | "rutas" | "nutricion" | "oura";
 
 export type Modules = Record<ModuleKey, boolean>;
 
@@ -18,6 +19,7 @@ export const LOADING_MODULES: Modules = {
   reloj: true,
   rutas: true,
   nutricion: false,
+  oura: true,
 };
 
 /**
@@ -39,6 +41,11 @@ export const MODULE_INFO: { key: ModuleKey; label: string; hint: string }[] = [
     key: "rutas",
     label: "Rutas",
     hint: "Oculta Plan → Rutas y las rutas asociadas a las sesiones.",
+  },
+  {
+    key: "oura",
+    label: "Oura Ring",
+    hint: "Oculta la conexión con el anillo Oura.",
   },
 ];
 

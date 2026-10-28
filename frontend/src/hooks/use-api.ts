@@ -1,12 +1,20 @@
 import {
   useInfiniteQuery,
   useMutation,
+  useQueries,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 
-import { apiFetch } from "@/lib/api";
+import { ApiError, apiFetch } from "@/lib/api";
 import { moduleOn, type ModuleKey, type Modules } from "@/lib/modules";
+import type {
+  HealthDay,
+  HealthNight,
+  OuraStatus,
+  RecoverySource,
+  RestPeriod,
+} from "@/types/api";
 import type {
   GeoResult,
   PlannedRouteDetail,
@@ -275,6 +283,17 @@ export function useMetricSeries(key: string, days: number) {
     queryKey: ["metric-series", key, days],
     queryFn: () =>
       apiFetch<SeriesPoint[]>(`/api/v1/progress/metric/${key}?days=${days}`),
+  });
+}
+
+/** Varias series diarias a la vez (gráficos con varias líneas del mismo eje). */
+export function useMetricSeriesMany(keys: string[], days: number) {
+  return useQueries({
+    queries: keys.map((key) => ({
+      queryKey: ["metric-series", key, days],
+      queryFn: () =>
+        apiFetch<SeriesPoint[]>(`/api/v1/progress/metric/${key}?days=${days}`),
+    })),
   });
 }
 
@@ -1776,5 +1795,125 @@ export function useMessageFeedback() {
       ),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["conversation"] }),
+  });
+}
+
+// ─── Oura Ring ───────────────────────────────────────────────────────────────
+// Sin dependencias del modo entrenador (sujeto) ni del sistema de módulos salvo `useOuraEnabled`,
+// para poder llevarlo tal cual a ramas que no los tienen.
+
+/**
+ * ¿Se ofrece Oura en la interfaz? Único sitio que mira el módulo `oura`; en una rama sin módulos
+ * basta con devolver `true` (la tarjeta ya enseña «pendiente de configurar» sin credenciales).
+ */
+export function useOuraEnabled(): boolean {
+  return useModuleOn("oura");
+}
+
+/** Estado de la conexión con Oura; se refresca solo mientras importa el histórico. */
+export function useOuraStatus(enabled = true) {
+  return useQuery({
+    queryKey: ["oura-status"],
+    enabled,
+    retry: 1,
+    queryFn: () => apiFetch<OuraStatus>("/api/v1/sources/oura"),
+    refetchInterval: (q) =>
+      q.state.data?.history.status === "running" ? 5000 : false,
+  });
+}
+
+/** Lo que cambia al tocar Oura: su estado y todo lo de salud que se pinta con sus datos. */
+function invalidateOura(queryClient: ReturnType<typeof useQueryClient>) {
+  for (const key of [
+    "oura-status",
+    "sources",
+    "health-night",
+    "health-day",
+    "rest-periods",
+    "metric-series",
+    "summary",
+  ])
+    void queryClient.invalidateQueries({ queryKey: [key] });
+}
+
+/** URL de autorización de Oura (el navegador se va a la web de Oura). */
+export function ouraConnectUrl() {
+  return apiFetch<{ url: string }>("/api/v1/sources/oura/connect");
+}
+
+export function useSyncOura() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ queued: boolean }>("/api/v1/sources/oura/sync", {
+        method: "POST",
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["oura-status"] }),
+  });
+}
+
+/** Desconectar Oura; con `purge` borra también los datos que trajo. */
+export function useDisconnectOura() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (purge: boolean) =>
+      apiFetch<void>(`/api/v1/sources/oura?purge=${purge}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => invalidateOura(queryClient),
+  });
+}
+
+export function useSetRecoverySource() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (source: RecoverySource) =>
+      apiFetch<{ recovery_source: RecoverySource }>(
+        "/api/v1/settings/recovery-source",
+        { method: "PUT", body: JSON.stringify({ source }) },
+      ),
+    onSuccess: () => invalidateOura(queryClient),
+  });
+}
+
+/** Un 404 de salud es «sin datos de ese día», no un error. */
+async function orNull<T>(p: Promise<T>): Promise<T | null> {
+  try {
+    return await p;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+/** La noche que termina el día `day` (YYYY-MM-DD). */
+export function useHealthNight(day: string, enabled = true) {
+  return useQuery({
+    queryKey: ["health-night", day],
+    enabled,
+    queryFn: () => orNull(apiFetch<HealthNight>(`/api/v1/health/night/${day}`)),
+  });
+}
+
+export function useHealthDay(day: string, enabled = true) {
+  return useQuery({
+    queryKey: ["health-day", day],
+    enabled,
+    queryFn: () => orNull(apiFetch<HealthDay>(`/api/v1/health/day/${day}`)),
+  });
+}
+
+/** Periodos de modo descanso que tocan el rango (ambos días incluidos). */
+export function useRestPeriods(from: string, to: string, enabled = true) {
+  return useQuery({
+    queryKey: ["rest-periods", from, to],
+    enabled,
+    retry: 1,
+    staleTime: 5 * 60_000,
+    queryFn: () =>
+      apiFetch<RestPeriod[]>(
+        `/api/v1/health/rest-periods?date_from=${from}&date_to=${to}`,
+      ),
   });
 }

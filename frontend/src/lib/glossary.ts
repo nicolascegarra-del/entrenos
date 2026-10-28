@@ -111,6 +111,46 @@ export const GLOSSARY = {
     what: "Lo duro que te pareció el entreno, de 1 (muy fácil) a 10 (máximo).",
     read: "Sirve para calcular la carga cuando no hay pulso y para detectar días en que todo cuesta más de lo normal.",
   },
+  readiness: {
+    name: "Recuperación (readiness)",
+    abbr: "Oura",
+    what: "Puntuación de 0 a 100 del anillo Oura que resume lo recuperado que estás: sueño, FC en reposo, HRV, temperatura y actividad de los días anteriores.",
+    read: "85 o más, óptima; de 70 a 84, buena; por debajo de 70, conviene ir con calma. Mira qué contribuidor la baja para saber por qué.",
+  },
+  skin_temperature: {
+    name: "Temperatura de la piel",
+    what: "Diferencia entre tu temperatura de la piel durante la noche y tu referencia habitual, en grados. No es tu temperatura corporal.",
+    read: "Cerca de 0 es lo normal. Subidas de +0,5 °C o más, sobre todo varios días seguidos, pueden indicar que estás incubando algo, el ciclo menstrual, alcohol o calor.",
+  },
+  breathing_disturbance: {
+    name: "Índice de alteraciones respiratorias",
+    abbr: "BDI",
+    what: "Cuántas veces por hora de sueño baja de forma notable tu oxígeno en sangre (SpO2), según el anillo.",
+    read: "Por debajo de 5, normal; de 5 a 15, moderado; por encima de 15, alto. No es un diagnóstico: si sale alto a menudo, coméntalo con tu médico.",
+  },
+  resilience: {
+    name: "Resiliencia",
+    abbr: "Oura",
+    what: "Cómo aguantas el estrés a lo largo de varias semanas, según cuánto te recuperas durmiendo y de día frente al estrés que acumulas.",
+    read: "De menos a más: limitada, suficiente, sólida, fuerte y excepcional. Mejora con buen sueño, días tranquilos y carga bien repartida.",
+  },
+  vascular_age: {
+    name: "Edad vascular",
+    abbr: "Cardiovascular age",
+    what: "Edad que corresponde a la rigidez de tus arterias, estimada por el anillo a partir de la velocidad de la onda de pulso.",
+    read: "Si es menor que tu edad real, tus arterias están más elásticas que la media. Cambia despacio: fíjate en la tendencia de meses.",
+  },
+  pulse_wave: {
+    name: "Velocidad de la onda de pulso",
+    abbr: "PWV",
+    what: "Lo rápido que viaja cada latido por tus arterias, en metros por segundo. Cuanto más rígidas, más rápido va.",
+    read: "Más bajo es mejor. El ejercicio aeróbico regular tiende a bajarla con los meses.",
+  },
+  hypnogram: {
+    name: "Hipnograma",
+    what: "Gráfico de tu noche que muestra, minuto a minuto, en qué fase estabas: despierto, REM, sueño ligero o profundo.",
+    read: "Lo normal es pasar por 4–6 ciclos: más sueño profundo al principio de la noche y más REM al final. Despertares cortos son normales.",
+  },
 } satisfies Record<string, GlossaryEntry>;
 
 export type GlossaryKey = keyof typeof GLOSSARY;

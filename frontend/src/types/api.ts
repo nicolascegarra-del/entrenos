@@ -1411,3 +1411,156 @@ export interface PlanProposal {
   status: "pending" | "accepted" | "rejected" | "expired";
   created_at: string;
 }
+
+// ─── Oura Ring ───────────────────────────────────────────────────────────────
+
+/** Fuente de sueño y recuperación elegida: automática, la del reloj o la del anillo. */
+export type RecoverySource = "auto" | "watch" | "oura";
+
+/** Anillo Oura conectado (lo que devuelve su API de configuración del anillo). */
+export interface OuraRing {
+  model: string | null;
+  color: string | null;
+  size: number | string | null;
+  firmware: string | null;
+  battery_level: number | null;
+  battery_at: string | null;
+}
+
+/** `GET /api/v1/sources/oura`: estado de la conexión con Oura. */
+export interface OuraStatus {
+  /** El administrador ha puesto las credenciales de la app de Oura. */
+  configured: boolean;
+  connected: boolean;
+  status: "ok" | "expired" | "error" | null;
+  last_sync_at: string | null;
+  last_error: string;
+  scopes: string[];
+  ring: OuraRing | null;
+  recovery_source: RecoverySource;
+  /** Hay un reloj que también trae sueño y HRV. */
+  has_watch: boolean;
+  /** Importación del histórico tras conectar. */
+  history: {
+    status: "idle" | "running" | "done" | "error";
+    from: string | null;
+    to: string | null;
+  };
+}
+
+/** Serie a intervalos fijos desde `start` (FC o HRV nocturna, MET del día). */
+export interface IntervalSeries {
+  start: string;
+  interval_s: number;
+  items: (number | null)[];
+}
+
+/** Un periodo de sueño (el principal de la noche o una siesta). */
+export interface SleepPeriod {
+  type: string;
+  bedtime_start: string;
+  bedtime_end: string;
+  total_sleep_s: number | null;
+  deep_s: number | null;
+  rem_s: number | null;
+  light_s: number | null;
+  awake_s: number | null;
+  latency_s: number | null;
+  efficiency: number | null;
+  time_in_bed_s: number | null;
+  avg_hr: number | null;
+  lowest_hr: number | null;
+  avg_hrv: number | null;
+  avg_breath: number | null;
+  restless_periods: number | null;
+}
+
+export interface HealthTag {
+  start: string | null;
+  end: string | null;
+  label: string;
+  comment: string | null;
+}
+
+/** `GET /api/v1/health/night/{día}`: la noche que termina ese día. */
+export interface HealthNight {
+  day: string;
+  source: string | null;
+  main: SleepPeriod | null;
+  naps: SleepPeriod[];
+  /** Cada carácter son 5 min: "1" profundo, "2" ligero, "3" REM, "4" despierto. */
+  hypnogram: { start: string; interval_s: number; phases: string } | null;
+  hr: IntervalSeries | null;
+  hrv: IntervalSeries | null;
+  sleep_score: number | null;
+  sleep_contributors: Record<string, number | null>;
+  readiness: {
+    score: number | null;
+    temperature_deviation: number | null;
+    temperature_trend_deviation: number | null;
+    contributors: Record<string, number | null>;
+  } | null;
+  sleep_time: {
+    recommendation: string | null;
+    status: string | null;
+    optimal_bedtime: {
+      start_offset: number;
+      end_offset: number;
+      day_tz: number;
+    } | null;
+  } | null;
+  spo2: {
+    average: number | null;
+    breathing_disturbance_index: number | null;
+  } | null;
+  tags: HealthTag[];
+}
+
+/** Muestra de FC del día: [segundos epoch, ppm, origen]. */
+export type HeartRateSample = [number, number, string];
+
+/** `GET /api/v1/health/day/{día}`. */
+export interface HealthDay {
+  day: string;
+  heartrate: HeartRateSample[];
+  activity: {
+    score: number | null;
+    steps: number | null;
+    active_calories: number | null;
+    total_calories: number | null;
+    high_s: number | null;
+    medium_s: number | null;
+    low_s: number | null;
+    sedentary_s: number | null;
+    non_wear_s: number | null;
+    /** Cada carácter son 5 min: "0" sin llevarlo, "1" descanso, "2" inactivo, "3" baja, "4" media, "5" alta. */
+    class_5min: { start: string; classes: string } | null;
+    met: { start: string; interval_s: number; items: number[] } | null;
+  } | null;
+  stress: {
+    stress_high_s: number | null;
+    recovery_high_s: number | null;
+    day_summary: string | null;
+  } | null;
+  resilience: {
+    level: string | null;
+    contributors: Record<string, number | null>;
+  } | null;
+  sessions: {
+    type: string;
+    start: string;
+    end: string;
+    mood: string | null;
+    hr_avg: number | null;
+    hrv_avg: number | null;
+  }[];
+  tags: HealthTag[];
+  rest_mode: { start_date: string; end_date: string | null } | null;
+}
+
+/** Periodo de modo descanso (`GET /api/v1/health/rest-periods`). */
+export interface RestPeriod {
+  start_date: string;
+  end_date: string | null;
+  source: string;
+}
