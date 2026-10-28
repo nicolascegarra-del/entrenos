@@ -109,3 +109,7 @@ def mail_on(monkeypatch, outbox) -> list[dict]:
     """Activa el correo (backend de fichero) y devuelve la bandeja de salida."""
     monkeypatch.setattr(get_settings(), "email_backend", "file")
     return outbox
+
+
+# Oura simulado (fixtures `oura` y `queued`).
+from tests.oura_fake import oura, queued  # noqa: E402,F401
