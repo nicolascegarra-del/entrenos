@@ -440,6 +440,40 @@ export function mergeByDay(
     .map(([day, row]) => ({ day, ...row }));
 }
 
+/** Cada fila pasa a % del total del día (fases del sueño, niveles de estrés…). Días sin datos: null. */
+export function toShares<
+  T extends { day: string } & Record<string, number | null | string>,
+>(rows: T[], keys: string[]): T[] {
+  return rows.map((row) => {
+    const total = keys.reduce((sum, k) => sum + (Number(row[k]) || 0), 0);
+    const out: Record<string, number | null | string> = { ...row };
+    for (const k of keys) {
+      const v = row[k];
+      out[k] = total > 0 && typeof v === "number" ? (v / total) * 100 : null;
+    }
+    return out as T;
+  });
+}
+
+/** Media de cada serie en el periodo (solo días con dato) y su parte del total de medias. */
+export function seriesAverages(
+  rows: ({ day: string } & Record<string, number | null | string>)[],
+  keys: string[],
+): { key: string; avg: number | null; share: number | null }[] {
+  const avgs = keys.map((k) => {
+    const vals = rows
+      .map((r) => r[k])
+      .filter((v): v is number => typeof v === "number");
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  });
+  const total = avgs.reduce<number>((sum, v) => sum + (v ?? 0), 0);
+  return keys.map((key, i) => ({
+    key,
+    avg: avgs[i],
+    share: total > 0 && avgs[i] != null ? (avgs[i]! / total) * 100 : null,
+  }));
+}
+
 // ─── Modo descanso ──────────────────────────────────────────────────────────
 
 /** ¿Cae `day` dentro de algún periodo de modo descanso? (sin fin = sigue activo). */

@@ -215,7 +215,20 @@ def _fit_metrics(s: dict, running: bool) -> dict[str, float]:
         out["avg_stride_length"] = round(step / 10, 1)  # mm → cm, como Garmin
     if (max_speed := _first(s, "enhanced_max_speed", "max_speed")) is not None:
         out["max_speed"] = max_speed
+    # El resto de métricas de sesión del catálogo (potencia máx., dinámica de carrera, temperatura…):
+    # las que traiga el fichero, con las mismas unidades que Garmin.
+    for key, fit_field in _fit_session_fields().items():
+        if key not in out and (value := _first(s, fit_field)) is not None:
+            out[key] = value / 10 if key == "avg_vertical_oscillation" else value  # FIT en mm → cm
     return out
+
+
+def _fit_session_fields() -> dict[str, str]:
+    from app.models import MetricScope
+    from app.services.metric_catalog import CATALOG
+
+    return {d.key: d.sources["fit_session"] for d in CATALOG if d.scope == MetricScope.ACTIVITY
+            and "fit_session" in d.sources}  # fmt: skip
 
 
 def _fit_laps(fit, start: datetime, running: bool) -> list[dict]:

@@ -23,6 +23,8 @@ import {
   isIsoDay,
   lowBattery,
   mergeByDay,
+  seriesAverages,
+  toShares,
   nightHasData,
   offsetClock,
   ouraCardState,
@@ -429,5 +431,26 @@ describe("contribuidores y textos", () => {
         resilience: null,
       }),
     ).toBe(false);
+  });
+});
+
+describe("partes de un total", () => {
+  const rows = [
+    { day: "2026-10-01", deep: 1.5, rem: 1.5, light: 3 },
+    { day: "2026-10-02", deep: 1, rem: null, light: 3 },
+  ];
+
+  it("toShares pasa cada día a % de su total", () => {
+    const [a, b] = toShares(rows, ["deep", "rem", "light"]);
+    expect(a.deep).toBe(25);
+    expect(a.light).toBe(50);
+    expect(b.deep).toBe(25);
+    expect(b.rem).toBeNull();
+  });
+
+  it("seriesAverages da la media de cada parte y su %", () => {
+    const avgs = seriesAverages(rows, ["deep", "rem", "light"]);
+    expect(avgs.map((a) => a.avg)).toEqual([1.25, 1.5, 3]);
+    expect(Math.round(avgs[2].share!)).toBe(52);
   });
 });

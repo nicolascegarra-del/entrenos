@@ -179,12 +179,13 @@ export default function Page() {
       {/* Sueño en detalle */}
       <MultiMetricSection
         title="Fases del sueño"
-        description="Horas por noche en cada fase."
+        description="Horas por noche en cada fase, o el % de la noche. Abajo, la media del periodo."
         days={sleepDays}
         unit="h"
         decimals={1}
         transform={toH}
         kind="bar"
+        shareToggle
         className="lg:col-span-2"
         metrics={[
           {
@@ -281,6 +282,14 @@ export default function Page() {
       />
       <MetricSection
         hideEmpty
+        title="SpO2 mínima"
+        metric="spo2_lowest"
+        days={days}
+        unit="%"
+        color="var(--chart-2)"
+      />
+      <MetricSection
+        hideEmpty
         title="Alteraciones respiratorias"
         term="breathing_disturbance"
         metric="breathing_disturbance_index"
@@ -289,34 +298,110 @@ export default function Page() {
         color="var(--chart-2)"
       />
 
-      {/* Estrés y resiliencia */}
+      {/* Estrés (reloj u Oura): cada gráfico solo aparece si tu dispositivo da el dato */}
       <MultiMetricSection
-        title="Estrés y recuperación de día"
-        description="Minutos al día con estrés alto y con recuperación alta."
+        title="Estrés del día"
+        description="Nivel medio y máximo (0–100) que calcula tu reloj con la variabilidad de la FC."
+        days={days}
+        unit=""
+        metrics={[
+          { key: "stress_avg", label: "Medio", color: "var(--chart-2)" },
+          { key: "stress_max", label: "Máximo", color: "var(--chart-4)" },
+        ]}
+      />
+      <MultiMetricSection
+        title="Tiempo por nivel de estrés"
+        description="Horas al día en descanso y con estrés bajo, medio y alto."
+        days={days}
+        unit="h"
+        decimals={1}
+        transform={toH}
+        kind="bar"
+        shareToggle
+        className="lg:col-span-2"
+        metrics={[
+          {
+            key: "stress_rest_s",
+            label: "Descanso",
+            color: "var(--intensity-low)",
+          },
+          { key: "stress_low_s", label: "Bajo", color: "var(--intensity-mid)" },
+          { key: "stress_medium_s", label: "Medio", color: "var(--chart-4)" },
+          { key: "stress_high_s", label: "Alto", color: "var(--chart-2)" },
+        ]}
+      />
+      <MetricSection
+        hideEmpty
+        title="Estrés durante el sueño"
+        metric="sleep_stress_avg"
+        days={sleepDays}
+        unit=""
+        color="var(--chart-2)"
+        description="Cuanto más bajo, más descansa tu cuerpo por la noche."
+      />
+      <MetricSection
+        hideEmpty
+        title="Recuperación de día (Oura)"
+        metric="recovery_high_s"
         days={days}
         unit="min"
         transform={toMin}
+        color="var(--chart-3)"
+        description="Minutos al día con recuperación alta."
+      />
+
+      {/* Body Battery y preparación (relojes Garmin que los calculan) */}
+      <MultiMetricSection
+        title="Body Battery"
+        description="Energía (0–100): máxima, mínima y al despertar."
+        days={days}
+        unit=""
+        metrics={[
+          { key: "body_battery_max", label: "Máx.", color: "var(--chart-3)" },
+          {
+            key: "body_battery_wake",
+            label: "Al despertar",
+            color: "var(--chart-1)",
+          },
+          { key: "body_battery_min", label: "Mín.", color: "var(--chart-2)" },
+        ]}
+      />
+      <MultiMetricSection
+        title="Body Battery cargado y gastado"
+        days={days}
+        unit=""
         metrics={[
           {
-            key: "stress_high_s",
-            label: "Estrés alto",
-            color: "var(--chart-2)",
+            key: "body_battery_charged",
+            label: "Cargado",
+            color: "var(--chart-3)",
           },
           {
-            key: "recovery_high_s",
-            label: "Recuperación alta",
-            color: "var(--chart-3)",
+            key: "body_battery_drained",
+            label: "Gastado",
+            color: "var(--chart-2)",
           },
         ]}
       />
       <MetricSection
         hideEmpty
-        title="Estrés medio"
-        metric="stress_avg"
+        title="Preparación para entrenar"
+        metric="training_readiness"
         days={days}
         unit=""
-        color="var(--chart-2)"
+        color="var(--chart-1)"
+        yDomain={[0, 100]}
+        description="Training Readiness de tu reloj: sueño, recuperación, carga y HRV."
       />
+      <MetricSection
+        hideEmpty
+        title="HRV media de 7 días"
+        metric="hrv_weekly_avg"
+        days={days}
+        unit="ms"
+        color="var(--chart-1)"
+      />
+
       <MetricSection
         hideEmpty
         title="Resiliencia"
@@ -407,6 +492,42 @@ export default function Page() {
           },
           { key: "total_calories", label: "Totales", color: "var(--chart-5)" },
         ]}
+      />
+      {/* Actividad diaria del reloj */}
+      <MultiMetricSection
+        title="Minutos de intensidad"
+        description="Minutos al día de intensidad moderada y vigorosa (la OMS recomienda 150 moderados a la semana)."
+        days={days}
+        unit="min"
+        kind="bar"
+        metrics={[
+          {
+            key: "intensity_min_moderate",
+            label: "Moderada",
+            color: "var(--intensity-mid)",
+          },
+          {
+            key: "intensity_min_vigorous",
+            label: "Vigorosa",
+            color: "var(--intensity-high)",
+          },
+        ]}
+      />
+      <MetricSection
+        hideEmpty
+        title="Pisos subidos"
+        metric="floors_ascended"
+        days={days}
+        unit=""
+        color="var(--chart-4)"
+      />
+      <MetricSection
+        hideEmpty
+        title="FC máxima del día"
+        metric="max_hr_daily"
+        days={days}
+        unit="ppm"
+        color="var(--chart-2)"
       />
     </div>
   );

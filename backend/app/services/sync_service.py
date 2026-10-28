@@ -230,3 +230,27 @@ def reprocess_activities(session: Session, user_id: int, only_outdated: bool = T
         count += 1
     session.commit()
     return count
+
+
+def reparse_garmin_daily(session: Session) -> int:
+    """
+    Vuelve a leer las métricas diarias de Garmin desde el raw guardado (cuando el catálogo aprende campos
+    nuevos, como el estrés por niveles o las fases del sueño). No llama a Garmin. Returns: filas tocadas.
+    """
+    from app.models import DailyMetric
+    from app.services.daily_sources import preferences, set_source_metrics
+
+    prefs: dict[int, tuple] = {}
+    count = 0
+    rows = session.exec(select(DailyMetric)).all()
+    for row in rows:
+        raw = row.raw or {}
+        if not any(k in raw for k in ("stats", "sleep", "hrv", "max_metrics")):
+            continue
+        if row.user_id not in prefs:
+            prefs[row.user_id] = preferences(session, row.user_id)
+        set_source_metrics(session, row.user_id, row.day, "garmin", parser.parse_daily(raw), raw=None,
+                           prefs=prefs[row.user_id])  # fmt: skip
+        count += 1
+    session.commit()
+    return count

@@ -225,4 +225,6 @@ class GarminConnectClient:
             "hrv": self._safe("hrv", lambda: self._api.get_hrv_data(day)),
             "sleep": self._safe("sleep", lambda: self._api.get_sleep_data(day)),
             "max_metrics": self._safe("max_metrics", lambda: self._api.get_max_metrics(day)),
+            # Solo los relojes que la calculan (Forerunner 265/965, Fenix 7+…); el resto devuelve vacío.
+            "training_readiness": self._safe("training_readiness", lambda: self._api.get_training_readiness(day)),
         }

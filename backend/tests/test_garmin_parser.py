@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from sqlmodel import select
 
 from app.services.garmin_parser import (
     TIME_CHANNEL,
@@ -153,3 +154,89 @@ def test_parse_details_cuando_bici_entonces_cadencia_rpm():
         "activityDetailMetrics": [{"metrics": [0.0, 88.0]}, {"metrics": [1000.0, 90.0]}],
     }
     assert parse_details(details)["cadence"] == [88.0, 90.0]
+
+
+def test_parse_daily_cuando_reloj_con_estres_body_battery_y_fases_entonces_aparecen():
+    raw = load("daily")
+    raw["stats"] = {
+        **(raw.get("stats") or {}),
+        "averageStressLevel": 31,
+        "maxStressLevel": 88,
+        "restStressDuration": 30000,
+        "lowStressDuration": 12000,
+        "mediumStressDuration": 6000,
+        "highStressDuration": 1800,
+        "bodyBatteryHighestValue": 92,
+        "bodyBatteryLowestValue": 18,
+        "bodyBatteryAtWakeTime": 85,
+        "averageSpo2": 95,
+        "lowestSpo2": 89,
+        "moderateIntensityMinutes": 20,
+        "vigorousIntensityMinutes": 35,
+        "floorsAscended": 7,
+    }
+    raw["sleep"] = {
+        "dailySleepDTO": {
+            "sleepTimeSeconds": 27000,
+            "deepSleepSeconds": 5400,
+            "remSleepSeconds": 6300,
+            "lightSleepSeconds": 15300,
+            "awakeSleepSeconds": 900,
+            "avgSleepStress": 14,
+            "averageRespirationValue": 14.5,
+        }
+    }
+    raw["hrv"] = {"hrvSummary": {"lastNightAvg": 58, "weeklyAvg": 61}}
+    raw["training_readiness"] = [{"score": 72}]
+    m = parse_daily(raw)
+    assert (m["stress_avg"], m["stress_max"], m["stress_high_s"], m["stress_rest_s"]) == (31, 88, 1800, 30000)
+    assert (m["body_battery_max"], m["body_battery_min"], m["body_battery_wake"]) == (92, 18, 85)
+    assert (m["spo2_avg"], m["spo2_lowest"]) == (95, 89)
+    assert (m["sleep_deep_s"], m["sleep_rem_s"], m["sleep_light_s"], m["sleep_awake_s"]) == (5400, 6300, 15300, 900)
+    assert m["sleep_stress_avg"] == 14 and m["breath_rate"] == 14.5
+    assert m["hrv_weekly_avg"] == 61 and m["training_readiness"] == 72
+    assert m["intensity_min_vigorous"] == 35 and m["floors_ascended"] == 7
+
+
+def test_parse_daily_cuando_reloj_sin_esos_datos_entonces_no_se_inventan():
+    raw = load("daily")
+    raw["stats"] = {**(raw.get("stats") or {}), "averageStressLevel": None, "bodyBatteryHighestValue": None}
+    m = parse_daily(raw)
+    assert not {"stress_avg", "stress_max", "body_battery_max", "training_readiness"} & set(m)
+
+
+def test_parse_summary_cuando_reloj_con_potencia_y_dinamica_entonces_metricas_extra():
+    from app.services.garmin_parser import parse_summary
+
+    summary = {
+        "activityId": 1,
+        "startTimeGMT": "2026-10-20 07:00:00",
+        "duration": 3600,
+        "activityType": {"typeKey": "running"},
+        "avgPower": 260,
+        "maxPower": 512,
+        "avgVerticalOscillation": 8.9,
+        "avgGroundContactTime": 245,
+        "avgVerticalRatio": 7.6,
+        "maxTemperature": 24,
+        "waterEstimated": 650,
+        "avgRespirationRate": 38,
+    }
+    metrics = parse_summary(summary).metrics
+    assert metrics["max_power"] == 512 and metrics["avg_power"] == 260
+    assert metrics["avg_vertical_oscillation"] == 8.9 and metrics["avg_ground_contact_time"] == 245
+    assert metrics["max_temperature"] == 24 and metrics["sweat_loss_ml"] == 650
+
+
+def test_reparse_garmin_daily_cuando_raw_guardado_entonces_rellena_lo_nuevo(session, user):
+    from datetime import date
+
+    from app.models import DailyMetric
+    from app.services.sync_service import reparse_garmin_daily
+
+    raw = {"stats": {"restingHeartRate": 50, "maxStressLevel": 70, "averageStressLevel": 25}}
+    session.add(DailyMetric(user_id=user.id, day=date(2026, 10, 1), metrics={"resting_hr": 50}, raw=raw))
+    session.commit()
+    assert reparse_garmin_daily(session) == 1
+    row = session.exec(select(DailyMetric).where(DailyMetric.user_id == user.id)).one()
+    assert row.metrics["stress_max"] == 70 and row.metrics["stress_avg"] == 25 and row.metrics["resting_hr"] == 50

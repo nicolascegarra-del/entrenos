@@ -40,7 +40,13 @@ import {
   formatNumber,
   formatPace,
 } from "@/lib/format";
-import { CONTRIBUTORS, mergeByDay, type ContributorKind } from "@/lib/oura";
+import {
+  CONTRIBUTORS,
+  mergeByDay,
+  seriesAverages,
+  toShares,
+  type ContributorKind,
+} from "@/lib/oura";
 import { THRESHOLD_LABEL } from "@/lib/thresholds";
 import { cn } from "@/lib/utils";
 import type { GlossaryKey } from "@/lib/glossary";
@@ -550,6 +556,7 @@ export function MultiMetricSection({
   transform = (v) => v,
   kind = "line",
   className,
+  shareToggle = false,
 }: {
   title: string;
   term?: GlossaryKey;
@@ -562,7 +569,10 @@ export function MultiMetricSection({
   /** "bar" apila las series (partes de un total, como las fases del sueño). */
   kind?: "line" | "bar";
   className?: string;
+  /** Partes de un total: botón «Horas / %» y la media de cada parte en el periodo (en unidad y en %). */
+  shareToggle?: boolean;
 }) {
+  const [asShare, setAsShare] = useState(false);
   const results = useMetricSeriesMany(
     metrics.map((m) => m.key),
     days,
@@ -577,6 +587,9 @@ export function MultiMetricSection({
     ),
     transform,
   );
+  const keys = present.map((m) => m.key);
+  const shown = shareToggle && asShare ? toShares(rows, keys) : rows;
+  const averages = shareToggle ? seriesAverages(rows, keys) : [];
   return (
     <Section
       title={title}
@@ -584,14 +597,42 @@ export function MultiMetricSection({
       description={description}
       className={className}
     >
+      {shareToggle && (
+        <div
+          role="group"
+          aria-label="Ver en"
+          className="inline-flex w-fit rounded-md border p-0.5 text-xs"
+        >
+          {[
+            [false, unit],
+            [true, "%"],
+          ].map(([share, label]) => (
+            <button
+              key={String(share)}
+              type="button"
+              aria-pressed={asShare === share}
+              onClick={() => setAsShare(share as boolean)}
+              className={cn(
+                "min-h-11 min-w-11 rounded px-3 font-medium md:min-h-8",
+                asShare === share
+                  ? "bg-klyp-navy text-white dark:bg-klyp-accent"
+                  : "text-muted-foreground hover:bg-muted",
+              )}
+            >
+              {label === "h" ? "Horas" : label}
+            </button>
+          ))}
+        </div>
+      )}
       <TimeChart
-        data={rows.map(({ day, ...rest }) => ({
+        data={shown.map(({ day, ...rest }) => ({
           t: t(day),
           ...(rest as Record<string, number | null>),
         }))}
         devices={devices}
-        unit={unit}
-        format={(v) => formatNumber(v, decimals)}
+        unit={shareToggle && asShare ? "%" : unit}
+        yDomain={shareToggle && asShare ? [0, 100] : undefined}
+        format={(v) => formatNumber(v, shareToggle && asShare ? 0 : decimals)}
         series={present.map((m) => ({
           key: m.key,
           label: m.label,
@@ -600,6 +641,35 @@ export function MultiMetricSection({
           stack: kind === "bar" ? "total" : undefined,
         }))}
       />
+      {shareToggle && (
+        <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+          {averages.map((a) => {
+            const m = present.find((x) => x.key === a.key)!;
+            return (
+              <div key={a.key} className="rounded-md border p-2">
+                <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span
+                    aria-hidden
+                    className="size-2.5 rounded-sm"
+                    style={{ background: m.color }}
+                  />
+                  {m.label}
+                </dt>
+                <dd className="font-medium tabular-nums">
+                  {a.avg == null
+                    ? "—"
+                    : `${formatNumber(a.avg, decimals)} ${unit}`}
+                  {a.share != null && (
+                    <span className="ml-1 text-xs text-muted-foreground">
+                      · {formatNumber(a.share, 0)} %
+                    </span>
+                  )}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      )}
     </Section>
   );
 }

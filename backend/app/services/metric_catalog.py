@@ -89,6 +89,153 @@ CATALOG: list[MetricDefinition] = [
     ),
     MetricDefinition(key="steps", scope=_A, label="Pasos", unit="", sports=[RUN], sources={"garmin_summary": "steps"}),
     MetricDefinition(
+        key="max_power",
+        scope=_A,
+        label="Potencia máxima",
+        unit="W",
+        higher_is_better=True,
+        sources={"garmin_summary": "maxPower", "fit_session": "max_power"},
+    ),
+    MetricDefinition(
+        key="max_20min_power",
+        scope=_A,
+        label="Mejor potencia en 20 min",
+        unit="W",
+        higher_is_better=True,
+        sources={"garmin_summary": "max20MinPower"},
+    ),
+    MetricDefinition(
+        key="max_cadence",
+        scope=_A,
+        label="Cadencia máxima",
+        unit="ppm",
+        sources={"garmin_summary": "maxRunningCadenceInStepsPerMinute|maxBikingCadenceInRevPerMinute"},
+    ),
+    MetricDefinition(
+        key="avg_vertical_oscillation",
+        scope=_A,
+        label="Oscilación vertical",
+        unit="cm",
+        higher_is_better=False,
+        sources={"garmin_summary": "avgVerticalOscillation", "fit_session": "avg_vertical_oscillation"},
+    ),
+    MetricDefinition(
+        key="avg_ground_contact_time",
+        scope=_A,
+        label="Tiempo de contacto con el suelo",
+        unit="ms",
+        higher_is_better=False,
+        sources={"garmin_summary": "avgGroundContactTime", "fit_session": "avg_stance_time"},
+    ),
+    MetricDefinition(
+        key="avg_vertical_ratio",
+        scope=_A,
+        label="Ratio vertical",
+        unit="%",
+        higher_is_better=False,
+        sources={"garmin_summary": "avgVerticalRatio", "fit_session": "avg_vertical_ratio"},
+    ),
+    MetricDefinition(
+        key="avg_gct_balance",
+        scope=_A,
+        label="Equilibrio del contacto (izq.)",
+        unit="%",
+        sources={"garmin_summary": "avgGroundContactBalance"},
+    ),
+    MetricDefinition(
+        key="grade_adjusted_speed",
+        scope=_A,
+        label="Velocidad ajustada a pendiente",
+        unit="m/s",
+        higher_is_better=True,
+        sources={"garmin_summary": "avgGradeAdjustedSpeed"},
+    ),
+    MetricDefinition(
+        key="avg_respiration",
+        scope=_A,
+        label="Respiración media",
+        unit="rpm",
+        sources={"garmin_summary": "avgRespirationRate"},
+    ),
+    MetricDefinition(
+        key="max_respiration",
+        scope=_A,
+        label="Respiración máxima",
+        unit="rpm",
+        sources={"garmin_summary": "maxRespirationRate"},
+    ),
+    MetricDefinition(
+        key="min_temperature",
+        scope=_A,
+        label="Temperatura mínima",
+        unit="°C",
+        sources={"garmin_summary": "minTemperature", "fit_session": "min_temperature"},
+    ),
+    MetricDefinition(
+        key="max_temperature",
+        scope=_A,
+        label="Temperatura máxima",
+        unit="°C",
+        sources={"garmin_summary": "maxTemperature", "fit_session": "max_temperature"},
+    ),
+    MetricDefinition(
+        key="sweat_loss_ml",
+        scope=_A,
+        label="Pérdida de sudor estimada",
+        unit="ml",
+        sources={"garmin_summary": "waterEstimated"},
+    ),
+    MetricDefinition(
+        key="body_battery_delta",
+        scope=_A,
+        label="Body Battery consumido",
+        unit="",
+        sources={"garmin_summary": "differenceBodyBattery"},
+    ),
+    MetricDefinition(
+        key="session_intensity_min_moderate",
+        scope=_A,
+        label="Minutos de intensidad moderada",
+        unit="min",
+        sources={"garmin_summary": "moderateIntensityMinutes"},
+    ),
+    MetricDefinition(
+        key="session_intensity_min_vigorous",
+        scope=_A,
+        label="Minutos de intensidad vigorosa",
+        unit="min",
+        sources={"garmin_summary": "vigorousIntensityMinutes"},
+    ),
+    MetricDefinition(
+        key="avg_swolf",
+        scope=_A,
+        label="SWOLF medio",
+        unit="",
+        higher_is_better=False,
+        sources={"garmin_summary": "averageSwolf"},
+    ),
+    MetricDefinition(key="total_strokes", scope=_A, label="Brazadas", unit="", sources={"garmin_summary": "strokes"}),
+    MetricDefinition(
+        key="avg_stroke_rate",
+        scope=_A,
+        label="Ritmo de brazada",
+        unit="brazadas/min",
+        sources={"garmin_summary": "averageSwimCadenceInStrokesPerMinute"},
+    ),
+    MetricDefinition(
+        key="pool_length", scope=_A, label="Largo de piscina", unit="m", sources={"garmin_summary": "poolLength"}
+    ),
+    MetricDefinition(
+        key="active_lengths", scope=_A, label="Largos", unit="", sources={"garmin_summary": "activeLengths"}
+    ),
+    MetricDefinition(
+        key="avg_left_balance",
+        scope=_A,
+        label="Equilibrio de pedaleo (izq.)",
+        unit="%",
+        sources={"garmin_summary": "avgLeftBalance"},
+    ),
+    MetricDefinition(
         key="total_sets",
         scope=_A,
         label="Series",
@@ -354,9 +501,13 @@ CATALOG: list[MetricDefinition] = [
 ]
 
 
-def _daily(key: str, label: str, unit: str = "", better: bool | None = None) -> MetricDefinition:
-    """Métrica diaria sin ruta de Garmin (la rellenan otras fuentes, p. ej. el anillo Oura)."""
-    return MetricDefinition(key=key, scope=_D, label=label, unit=unit, higher_is_better=better, sources={})
+def _daily(key: str, label: str, unit: str = "", better: bool | None = None,
+           garmin: dict[str, str] | None = None) -> MetricDefinition:  # fmt: skip
+    """
+    Métrica diaria. `garmin` = rutas en la respuesta diaria de Garmin (`{"garmin_stats": "campo"}`); sin
+    ella la rellenan otras fuentes (Oura, Apple…). Si el reloj no da el dato, simplemente no aparece.
+    """
+    return MetricDefinition(key=key, scope=_D, label=label, unit=unit, higher_is_better=better, sources=garmin or {})
 
 
 # ── Diarias de Oura (y de cualquier fuente que las dé) ─────────────────────
@@ -364,32 +515,36 @@ OURA_DAILY: list[MetricDefinition] = [
     _daily("readiness_score", "Preparación (readiness)", "", True),
     _daily("temperature_deviation", "Desviación de temperatura", "°C"),
     _daily("temperature_trend_deviation", "Tendencia de temperatura", "°C"),
-    _daily("active_calories", "Calorías activas", "kcal"),
-    _daily("total_calories", "Calorías totales", "kcal"),
-    _daily("spo2_avg", "SpO2 media nocturna", "%", True),
+    _daily("active_calories", "Calorías activas", "kcal", garmin={"garmin_stats": "activeKilocalories"}),
+    _daily("total_calories", "Calorías totales", "kcal", garmin={"garmin_stats": "totalKilocalories"}),
+    _daily("spo2_avg", "SpO2 media", "%", True, garmin={"garmin_stats": "averageSpo2"}),
     _daily("breathing_disturbance_index", "Índice de alteraciones respiratorias", "", False),
-    _daily("stress_high_s", "Tiempo con estrés alto", "s", False),
+    _daily("stress_high_s", "Tiempo con estrés alto", "s", False, garmin={"garmin_stats": "highStressDuration"}),
     _daily("recovery_high_s", "Tiempo en recuperación alta", "s", True),
     _daily("resilience_level", "Resiliencia (1 limitada – 5 excepcional)", "", True),
     _daily("vo2max_oura", "VO2max (Oura)", "ml/kg/min", True),
     _daily("cardio_age", "Edad cardiovascular", "años", False),
     _daily("pulse_wave_velocity", "Velocidad de onda de pulso", "m/s", False),
-    _daily("sleep_deep_s", "Sueño profundo", "s", True),
-    _daily("sleep_rem_s", "Sueño REM", "s", True),
-    _daily("sleep_light_s", "Sueño ligero", "s"),
-    _daily("sleep_awake_s", "Despierto en la cama", "s", False),
+    _daily("sleep_deep_s", "Sueño profundo", "s", True, garmin={"garmin_sleep": "dailySleepDTO.deepSleepSeconds"}),
+    _daily("sleep_rem_s", "Sueño REM", "s", True, garmin={"garmin_sleep": "dailySleepDTO.remSleepSeconds"}),
+    _daily("sleep_light_s", "Sueño ligero", "s", garmin={"garmin_sleep": "dailySleepDTO.lightSleepSeconds"}),
+    _daily(
+        "sleep_awake_s", "Despierto en la cama", "s", False, garmin={"garmin_sleep": "dailySleepDTO.awakeSleepSeconds"}
+    ),
     _daily("sleep_latency_s", "Tiempo en dormirse", "s", False),
     _daily("sleep_efficiency", "Eficiencia del sueño", "%", True),
     _daily("time_in_bed_s", "Tiempo en la cama", "s"),
     _daily("restless_periods", "Periodos inquietos", "", False),
-    _daily("breath_rate", "Respiración nocturna", "rpm"),
-    _daily("avg_hr_sleep", "FC media durmiendo", "ppm", False),
+    _daily(
+        "breath_rate", "Respiración nocturna", "rpm", garmin={"garmin_sleep": "dailySleepDTO.averageRespirationValue"}
+    ),
+    _daily("avg_hr_sleep", "FC media durmiendo", "ppm", False, garmin={"garmin_sleep": "dailySleepDTO.avgHeartRate"}),
     _daily("naps_s", "Siestas", "s"),
     _daily("activity_score", "Puntuación de actividad", "", True),
-    _daily("high_activity_time_s", "Actividad alta", "s"),
+    _daily("high_activity_time_s", "Actividad alta", "s", garmin={"garmin_stats": "highlyActiveSeconds"}),
     _daily("medium_activity_time_s", "Actividad media", "s"),
     _daily("low_activity_time_s", "Actividad baja", "s"),
-    _daily("sedentary_time_s", "Tiempo sedentario", "s", False),
+    _daily("sedentary_time_s", "Tiempo sedentario", "s", False, garmin={"garmin_stats": "sedentarySeconds"}),
     _daily("high_activity_met_min", "MET-min de actividad alta", "MET-min"),
     _daily("medium_activity_met_min", "MET-min de actividad media", "MET-min"),
     _daily("low_activity_met_min", "MET-min de actividad baja", "MET-min"),
@@ -398,6 +553,48 @@ OURA_DAILY: list[MetricDefinition] = [
     _daily("inactivity_alerts", "Avisos de inactividad", "", False),
     _daily("equivalent_walking_distance", "Distancia equivalente andando", "m"),
 ]
+# ── Diarias que dan los relojes (Garmin) además de las de arriba ───────────
+WATCH_DAILY: list[MetricDefinition] = [
+    _daily("stress_max", "Estrés máximo", "", False, garmin={"garmin_stats": "maxStressLevel"}),
+    _daily("stress_rest_s", "Tiempo en descanso (estrés)", "s", True, garmin={"garmin_stats": "restStressDuration"}),
+    _daily("stress_low_s", "Tiempo con estrés bajo", "s", garmin={"garmin_stats": "lowStressDuration"}),
+    _daily("stress_medium_s", "Tiempo con estrés medio", "s", False, garmin={"garmin_stats": "mediumStressDuration"}),
+    _daily(
+        "sleep_stress_avg",
+        "Estrés durante el sueño",
+        "",
+        False,
+        garmin={"garmin_sleep": "dailySleepDTO.avgSleepStress"},
+    ),
+    _daily("body_battery_min", "Body Battery mín.", "", True, garmin={"garmin_stats": "bodyBatteryLowestValue"}),
+    _daily(
+        "body_battery_wake", "Body Battery al despertar", "", True, garmin={"garmin_stats": "bodyBatteryAtWakeTime"}
+    ),
+    _daily(
+        "body_battery_charged", "Body Battery cargado", "", True, garmin={"garmin_stats": "bodyBatteryChargedValue"}
+    ),
+    _daily("body_battery_drained", "Body Battery gastado", "", garmin={"garmin_stats": "bodyBatteryDrainedValue"}),
+    _daily("spo2_lowest", "SpO2 mínima", "%", True, garmin={"garmin_stats": "lowestSpo2"}),
+    _daily("max_hr_daily", "FC máxima del día", "ppm", garmin={"garmin_stats": "maxHeartRate"}),
+    _daily(
+        "intensity_min_moderate",
+        "Minutos de intensidad moderada",
+        "min",
+        garmin={"garmin_stats": "moderateIntensityMinutes"},
+    ),
+    _daily(
+        "intensity_min_vigorous",
+        "Minutos de intensidad vigorosa",
+        "min",
+        garmin={"garmin_stats": "vigorousIntensityMinutes"},
+    ),
+    _daily("floors_ascended", "Pisos subidos", "", garmin={"garmin_stats": "floorsAscended"}),
+    _daily("hrv_weekly_avg", "HRV media de 7 días", "ms", True, garmin={"garmin_hrv": "hrvSummary.weeklyAvg"}),
+    _daily(
+        "training_readiness", "Preparación para entrenar", "", True, garmin={"garmin_training_readiness": "0.score"}
+    ),
+]
+CATALOG += WATCH_DAILY
 # Contribuidores (0–100) de cada puntuación de Oura.
 OURA_CONTRIBUTORS: dict[str, dict[str, str]] = {
     "readiness": {
