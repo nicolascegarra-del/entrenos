@@ -18,6 +18,7 @@ import logging
 import re
 import statistics
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -35,7 +36,7 @@ from app.models import (
 )
 from app.services import daily_sources
 from app.services.file_import import ImportedActivity, after_import, save_imported, sport_name
-from app.services.oura_client import OuraClient, OuraScopeError
+from app.services.oura_client import OuraAuthError, OuraClient, OuraError, OuraScopeError
 
 logger = logging.getLogger(__name__)
 
@@ -535,24 +536,49 @@ def sync_range(session: Session, user: User | int, start: date, end: date) -> di
             skipped.append(name)
             return []
 
+    def guarded(name: str, save: Callable[[], int]) -> int:
+        """
+        Guarda un tipo de dato sin que un formato inesperado (otro modelo de anillo, un campo nuevo o que
+        falta) tumbe el resto: se deshace solo ese tipo, se anota y se sigue con los demás.
+        """
+        try:
+            result = save()
+            session.commit()
+            return result
+        except (OuraAuthError, OuraError):
+            raise
+        except Exception:  # noqa: BLE001 - datos con forma inesperada: se salta ese tipo
+            session.rollback()
+            logger.exception("Oura: no se pudo guardar %s; se sigue con el resto", name)
+            failed.append(name)
+            return 0
+
+    failed: list[str] = []
     hr_rows: list[dict] = []
     for a, b in _chunks(start, end, HEARTRATE_CHUNK_DAYS):
         hr_rows += fetch("heartrate", start_datetime=f"{a.isoformat()}T00:00:00+00:00",
                          end_datetime=f"{(b + timedelta(days=1)).isoformat()}T00:00:00+00:00")  # fmt: skip
-    counts["heartrate"] = store_heartrate(session, user_id, hr_rows)
-    session.commit()
+    counts["heartrate"] = guarded("heartrate", lambda: store_heartrate(session, user_id, hr_rows))
     # `end_date` +1: así el último día entra seguro aunque Oura lo trate como exclusivo.
     dates = {"start_date": start.isoformat(), "end_date": (end + timedelta(days=1)).isoformat()}
     for data_type in RANGE_TYPES:
         by_day = data_type in ("sleep", *DAILY_TYPES)
-        docs = [d for d in fetch(collection(data_type), **dates)
-                if not by_day or start <= (parse_day(d.get("day")) or start) <= end]  # fmt: skip
-        counts[data_type] = store(session, user_id, data_type, docs, prefs)
-        session.commit()
-    store_ring(conn, fetch("ring_configuration"), fetch("ring_battery_level", latest="true"))
+        docs = [d for d in fetch(collection(data_type), **dates) if isinstance(d, dict)]
+        if by_day:
+            docs = [d for d in docs if start <= (parse_day(d.get("day")) or start) <= end]
+        counts[data_type] = guarded(data_type, lambda t=data_type, d=docs: store(session, user_id, t, d, prefs))
+    conn = session.get(OuraConnection, user_id) or conn
+    ring = fetch("ring_configuration")
+    battery = fetch("ring_battery_level", latest="true")
+    guarded("ring", lambda: store_ring(conn, ring, battery) or 0)
     conn.last_sync_at = datetime.now(UTC)
     conn.status = "ok"
-    conn.last_error = ("Sin permiso para: " + ", ".join(skipped))[:255] if skipped else ""
+    notes = []
+    if skipped:
+        notes.append("Sin permiso para: " + ", ".join(skipped))
+    if failed:
+        notes.append("Datos con formato inesperado (se reintentará): " + ", ".join(failed))
+    conn.last_error = ". ".join(notes)[:255]
     session.add(conn)
     session.commit()
     check_battery(session, conn)
@@ -656,8 +682,11 @@ def fetch_object(session: Session, user_id: int, data_type: str, object_id: str,
     conn = session.get(OuraConnection, user_id)
     if conn is None:
         return 0
-    doc = OuraClient(session, conn).document(collection(data_type), object_id)
-    if not doc:
+    try:
+        doc = OuraClient(session, conn).document(collection(data_type), object_id)
+    except OuraScopeError:
+        return 0  # tipo sin permiso en esta cuenta o este anillo
+    if not isinstance(doc, dict) or not doc:
         return 0
     if data_type == "workout":
         # La FC del entreno sale de la FC continua de ese rato (si aún no está, se trae ahora).
@@ -666,7 +695,13 @@ def fetch_object(session: Session, user_id: int, data_type: str, object_id: str,
             with contextlib.suppress(OuraScopeError):
                 store_heartrate(session, user_id, OuraClient(session, conn).collection(
                     "heartrate", start_datetime=start.isoformat(), end_datetime=end.isoformat()))  # fmt: skip
-    count = store(session, user_id, data_type, [doc], daily_sources.preferences(session, user_id), replace_days=False)
+    try:
+        count = store(session, user_id, data_type, [doc], daily_sources.preferences(session, user_id),
+                      replace_days=False)  # fmt: skip
+    except Exception:  # noqa: BLE001 - formato inesperado: se ignora este aviso (el sondeo lo reintenta)
+        session.rollback()
+        logger.exception("Oura: no se pudo guardar el aviso %s %s", data_type, object_id)
+        return 0
     conn.last_sync_at = datetime.now(UTC)
     session.add(conn)
     session.commit()

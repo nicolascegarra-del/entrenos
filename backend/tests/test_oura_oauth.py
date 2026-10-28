@@ -22,7 +22,10 @@ def test_connect_cuando_configurado_entonces_url_de_oura_con_state_y_scopes(clie
     params = _start(client, user)
     assert params["client_id"] == "cliente-de-prueba"
     assert params["redirect_uri"] == "http://localhost:3000/api/v1/sources/oura/callback"
-    assert params["scope"] == oura_oauth.SCOPES and params["code_challenge_method"] == "S256"
+    assert (
+        params["scope"] == f"{oura_oauth.SCOPES} {oura_oauth.EXTRA_SCOPES}"
+        and params["code_challenge_method"] == "S256"
+    )
     pending = session.get(OAuthState, params["state"])
     assert pending.provider == "oura" and pending.user_id == user.id
 
@@ -195,3 +198,29 @@ def test_estado_cuando_sin_conectar_entonces_valores_vacios(client, user):
     data = client.get("/api/v1/sources/oura", headers=auth(user)).json()
     assert data["connected"] is False and data["status"] is None and data["ring"] is None
     assert data["history"] == {"status": "idle", "from": None, "to": None} and data["scopes"] == []
+
+
+def test_autorizar_cuando_se_piden_permisos_extra_entonces_van_en_la_url(session, user, oura):
+    from urllib.parse import parse_qs, urlparse
+
+    from app.services import oura_oauth
+
+    url = oura_oauth.start(session, user.id, "http://localhost:3000")
+    scope = parse_qs(urlparse(url).query)["scope"][0]
+    assert "ring_configuration" in scope and "heart_health" in scope
+    basic = parse_qs(urlparse(oura_oauth.start(session, user.id, "http://localhost:3000", basic=True)).query)
+    assert "ring_configuration" not in basic["scope"][0]
+
+
+def test_vuelta_cuando_oura_rechaza_permisos_extra_entonces_reintenta_sin_ellos(client, session, user, oura):
+    from urllib.parse import parse_qs, urlparse
+
+    from app.services import oura_oauth
+
+    url = oura_oauth.start(session, user.id, "http://localhost:3000")
+    state = parse_qs(urlparse(url).query)["state"][0]
+    r = client.get("/api/v1/sources/oura/callback", params={"state": state, "error": "invalid_scope"},
+                   follow_redirects=False)  # fmt: skip
+    assert r.status_code == 303
+    again = parse_qs(urlparse(r.headers["location"]).query)
+    assert "ring_configuration" not in again["scope"][0] and again["state"][0] != state

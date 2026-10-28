@@ -172,6 +172,13 @@ def oura_callback(session: SessionDep, state: str = "", code: str = "", error: s
     def fail(reason: str) -> RedirectResponse:
         return RedirectResponse(f"{target}?oura=error&motivo={quote(reason)}", status_code=status.HTTP_303_SEE_OTHER)
 
+    if error == "invalid_scope" and pending is not None and pending.provider == oura_oauth.PROVIDER:
+        # Oura no reconoce algún permiso extra: se repite la autorización solo con los documentados.
+        user_id, origin_url = pending.user_id, origin
+        session.delete(pending)
+        session.commit()
+        url = oura_oauth.start(session, user_id, origin_url, basic=True)
+        return RedirectResponse(url, status_code=status.HTTP_303_SEE_OTHER)
     if error or not code or pending is None:
         if pending is not None:
             session.delete(pending)

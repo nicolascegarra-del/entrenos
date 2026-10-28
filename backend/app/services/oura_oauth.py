@@ -18,7 +18,7 @@ import secrets
 from datetime import UTC, date, datetime, timedelta
 from urllib.parse import urlencode
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.core.crypto import decrypt_secret, encrypt_secret
 from app.models import OAuthState, OuraConnection, Sex
@@ -32,6 +32,10 @@ AUTHORIZE_URL = "https://cloud.ouraring.com/oauth/authorize"
 TOKEN_URL = "https://api.ouraring.com/oauth/token"
 REVOKE_URL = "https://api.ouraring.com/oauth/revoke"
 SCOPES = "email personal daily heartrate workout tag session spo2 heart_health"
+# Permisos que da de alta el formulario de apps de Oura pero no su documentación (anillo, estrés y
+# resiliencia). Se piden; si Oura los rechaza (`invalid_scope`), la vuelta reintenta sola sin ellos.
+EXTRA_SCOPES = "ring_configuration stress"
+BASIC_PROVIDER = "oura_basic"
 CALLBACK_PATH = "/api/v1/sources/oura/callback"
 STATE_TTL = timedelta(minutes=15)
 EXPIRED_MESSAGE = "La conexión con Oura ha caducado: vuelve a conectarla."
@@ -47,13 +51,14 @@ def _pkce() -> tuple[str, str]:
     return verifier, challenge
 
 
-def start(session: Session, user_id: int, origin: str) -> str:
+def start(session: Session, user_id: int, origin: str, basic: bool = False) -> str:
     """
     Prepara la autorización y devuelve la URL de Oura a la que llevar a la persona.
 
     Args:
         origin: La web desde la que se conecta: la vuelta llega a `origin + CALLBACK_PATH` (debe estar dada
             de alta como Redirect URI en la app de Oura).
+        basic: Solo los permisos documentados (cuando Oura ya rechazó los extra).
 
     Raises:
         OuraOAuthError: Si la app de Oura no está configurada.
@@ -65,17 +70,20 @@ def start(session: Session, user_id: int, origin: str) -> str:
     verifier, challenge = _pkce()
     state = secrets.token_urlsafe(32)
     for old in session.exec(
-        select(OAuthState).where(OAuthState.user_id == user_id, OAuthState.provider == PROVIDER)
+        select(OAuthState).where(
+            OAuthState.user_id == user_id, col(OAuthState.provider).in_((PROVIDER, BASIC_PROVIDER))
+        )  # fmt: skip
     ).all():
         session.delete(old)
-    session.add(OAuthState(state=state, user_id=user_id, provider=PROVIDER, code_verifier=verifier,
+    session.add(OAuthState(state=state, user_id=user_id, provider=BASIC_PROVIDER if basic else PROVIDER,
+                           code_verifier=verifier,
                            redirect_uri=redirect_uri))  # fmt: skip
     session.commit()
     params = {
         "response_type": "code",
         "client_id": creds.client_id,
         "redirect_uri": redirect_uri,
-        "scope": SCOPES,
+        "scope": SCOPES if basic else f"{SCOPES} {EXTRA_SCOPES}",
         "state": state,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
@@ -110,7 +118,7 @@ def _token_request(data: dict) -> dict | None:
 
 def pending_state(session: Session, state: str) -> OAuthState | None:
     row = session.get(OAuthState, state) if state else None
-    return row if row is not None and row.provider == PROVIDER else None
+    return row if row is not None and row.provider in (PROVIDER, BASIC_PROVIDER) else None
 
 
 def finish(session: Session, state: str, code: str) -> int:

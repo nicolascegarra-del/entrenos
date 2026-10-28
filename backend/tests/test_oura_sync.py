@@ -220,3 +220,41 @@ def test_sync_recent_cuando_modulo_apagado_entonces_no_sincroniza(session, user,
     assert tasks.sync_recent(session) == 0
     modules.set_user_modules(session, user, {"oura": None}, None)
     assert tasks.sync_recent(session) == 1
+
+
+def test_sincronizar_cuando_un_documento_tiene_formato_inesperado_entonces_se_salta_solo_ese_tipo(
+    session, user, oura, monkeypatch
+):
+    from datetime import date
+
+    from app.models import OuraConnection
+    from app.services import oura_sync
+
+    connect(session, user)
+    oura.collections["tag"] = [{"id": "t1", "day": "2026-10-20", "tag_type_code": "tag_generic_alcohol"}]
+    original = oura_sync.store
+
+    def store(session_, user_id, data_type, docs, prefs, **kw):
+        if data_type == "daily_stress":
+            raise TypeError("campo con un tipo distinto en este modelo de anillo")
+        return original(session_, user_id, data_type, docs, prefs, **kw)
+
+    monkeypatch.setattr(oura_sync, "store", store)
+    counts = oura_sync.sync_range(session, user.id, date(2026, 10, 19), date(2026, 10, 21))
+    session.expire_all()
+    row = session.get(OuraConnection, user.id)
+    assert row.status == "ok" and "daily_stress" in row.last_error
+    assert counts["daily_stress"] == 0 and "tag" in counts
+
+
+def test_sincronizar_cuando_faltan_campos_o_tipos_raros_entonces_no_falla(session, user, oura):
+    from datetime import date
+
+    from app.services import oura_sync
+
+    connect(session, user)
+    oura.collections["daily_readiness"] = [{"id": "r1", "day": "2026-10-20"}, "no-es-un-dict", {"day": None}]
+    oura.collections["sleep"] = [{"id": "s1", "day": "2026-10-20", "type": "long_sleep", "total_sleep_duration": None}]
+    oura.collections["daily_activity"] = [{"id": "a1", "day": "2026-10-20", "steps": "muchos", "class_5_min": 12}]
+    counts = oura_sync.sync_range(session, user.id, date(2026, 10, 19), date(2026, 10, 21))
+    assert counts is not None
