@@ -115,6 +115,32 @@ def test_cliente_cuando_401_entonces_renueva_y_reintenta_una_vez(session, user, 
     assert oura.form()["grant_type"] == "refresh_token"
 
 
+def test_cliente_cuando_401_tras_renovar_entonces_sin_permiso_y_la_conexion_sigue(session, user, oura):
+    from app.services.oura_client import OuraScopeError
+
+    conn = connect(session, user)
+    oura.fail["/v2/usercollection/ring_configuration"] = [401, 401]
+    with pytest.raises(OuraScopeError):
+        OuraClient(session, conn).collection("ring_configuration")
+    session.expire_all()
+    assert session.get(OuraConnection, user.id).status == "ok"
+
+
+def test_sincronizar_cuando_un_tipo_da_401_entonces_se_salta_y_el_resto_se_guarda(session, user, oura):
+    from datetime import date
+
+    from app.services import oura_sync
+
+    connect(session, user)
+    oura.fail["/v2/usercollection/ring_configuration"] = [401, 401]
+    oura.collections["tag"] = [{"id": "t1", "day": "2026-10-20", "tag_type_code": "tag_generic_alcohol"}]
+    counts = oura_sync.sync_range(session, user.id, date(2026, 10, 19), date(2026, 10, 21))
+    session.expire_all()
+    row = session.get(OuraConnection, user.id)
+    assert row.status == "ok" and "ring_configuration" in row.last_error
+    assert "tag" in counts
+
+
 def test_paginacion_cuando_hay_next_token_entonces_trae_todas_las_paginas(session, user, oura):
     conn = connect(session, user)
     oura.page_size = 2

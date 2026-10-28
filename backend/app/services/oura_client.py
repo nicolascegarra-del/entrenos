@@ -99,10 +99,12 @@ class OuraClient:
         headers = {"Authorization": f"Bearer {self._token()}"}
         res = send("GET", f"{API_URL}{path}", params=params or {}, headers=headers)
         if res.status_code == 401 and retry_auth:
-            refresh(self.session, self.conn)
+            refresh(self.session, self.conn)  # si el token ya no vale, esto lanza OuraAuthError
             return self.get(path, params, retry_auth=False)
         if res.status_code == 401:
-            raise OuraAuthError("La conexión con Oura ha caducado: vuelve a conectarla.")
+            # Con un token recién renovado, un 401 no es caducidad: Oura lo devuelve para los tipos de dato
+            # cuyo permiso no se concedió (p. ej. la configuración del anillo). Se salta solo ese tipo.
+            raise OuraScopeError(f"Sin permiso para {path.rsplit('/', 1)[-1]}.")
         if res.status_code == 403:
             raise OuraScopeError(f"Sin permiso para {path.rsplit('/', 1)[-1]}.")
         if res.status_code == 404:
