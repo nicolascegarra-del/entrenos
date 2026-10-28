@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BedDouble,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -17,8 +18,15 @@ import { ScoreBadge } from "@/components/plan/status-badge";
 import { ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useActivePlan, useActivitiesInRange, usePlans } from "@/hooks/use-api";
+import {
+  useActivePlan,
+  useActivitiesInRange,
+  useOuraEnabled,
+  usePlans,
+  useRestPeriods,
+} from "@/hooks/use-api";
 import { formatDistance, formatDuration, sportInfo } from "@/lib/format";
+import { restDays } from "@/lib/oura";
 import { addDays, startOfWeek, toIsoDay } from "@/lib/plan";
 import { cn } from "@/lib/utils";
 import type { ActivitySummary, PlannedSession } from "@/types/api";
@@ -110,6 +118,11 @@ export default function PlanPage() {
   const to = toIsoDay(days[6]);
   const plans = usePlans(from, to);
   const activities = useActivitiesInRange(from, to);
+  const rest = useRestPeriods(from, to, useOuraEnabled());
+  const restSet = restDays(
+    rest.data,
+    days.map((d) => toIsoDay(d)),
+  );
   const today = toIsoDay(new Date());
 
   const matched = new Set((plans.data ?? []).map((p) => p.activity_id));
@@ -222,7 +235,10 @@ export default function PlanPage() {
               (a) => localIsoDay(a.start_time) === iso,
             );
             const empty =
-              !plans.isPending && !dayPlans.length && !dayUnplanned.length;
+              !plans.isPending &&
+              !dayPlans.length &&
+              !dayUnplanned.length &&
+              !restSet.has(iso);
             return (
               <li
                 key={iso}
@@ -247,6 +263,12 @@ export default function PlanPage() {
                     <Plus className="size-4" />
                   </Link>
                 </div>
+                {restSet.has(iso) && (
+                  <p className="flex items-center gap-1 rounded-md bg-klyp-accent/10 px-2 py-1 text-[11px] font-medium text-klyp-accent dark:text-klyp-pale">
+                    <BedDouble className="size-3.5 shrink-0" aria-hidden />
+                    Modo descanso
+                  </p>
+                )}
                 {plans.isPending ? (
                   <Skeleton className="h-14 w-full" />
                 ) : (

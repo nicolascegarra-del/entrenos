@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 
 import { AskCoachCard } from "@/components/assistant/ask-coach-card";
 import { CoachNudges } from "@/components/assistant/coach-nudges";
+import { OuraTodayCard } from "@/components/health/oura-today-card";
 import { InfoTerm } from "@/components/glossary/info-term";
 import { PageHeader } from "@/components/layout/page-header";
 import { ScoreBadge } from "@/components/plan/status-badge";
@@ -372,6 +373,7 @@ export default function HoyPage() {
       <div data-tour="today-card">
         <TodayCard summary={data} goals={goals} today={today} />
       </div>
+      <OuraTodayCard today={today} />
       {ia && <AskCoachCard summary={data} today={today} />}
       <Notices />
       {ia && <LatestReviewLine />}

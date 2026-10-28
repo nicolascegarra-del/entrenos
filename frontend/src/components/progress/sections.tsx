@@ -28,6 +28,7 @@ import {
   useFitness,
   useInjuryRisk,
   useMetricSeries,
+  useMetricSeriesMany,
   usePaceCurve,
   useRecords,
   useWeekly,
@@ -39,6 +40,7 @@ import {
   formatNumber,
   formatPace,
 } from "@/lib/format";
+import { CONTRIBUTORS, mergeByDay, type ContributorKind } from "@/lib/oura";
 import { THRESHOLD_LABEL } from "@/lib/thresholds";
 import { cn } from "@/lib/utils";
 import type { GlossaryKey } from "@/lib/glossary";
@@ -477,6 +479,10 @@ export function MetricSection({
   description,
   insight,
   transform = (v) => v,
+  hideEmpty = false,
+  format,
+  zeroLine,
+  yDomain,
 }: {
   title: string;
   term?: GlossaryKey;
@@ -488,9 +494,16 @@ export function MetricSection({
   description?: string;
   insight?: Insight;
   transform?: (v: number) => number;
+  /** Sin datos no se pinta la tarjeta (métricas que solo trae algún dispositivo, como Oura). */
+  hideEmpty?: boolean;
+  format?: (v: number) => string;
+  zeroLine?: boolean;
+  yDomain?: [number, number];
 }) {
   const { data, isPending, isError, refetch } = useMetricSeries(metric, days);
   const { data: devices } = useDevices();
+  // Las opcionales no ocupan sitio mientras cargan ni si fallan: solo aparecen con datos.
+  if (hideEmpty && (isPending || isError || data.length < 2)) return null;
   return (
     <Section
       title={title}
@@ -512,8 +525,145 @@ export function MetricSection({
           data={data.map((p) => ({ t: t(p.day), value: transform(p.value) }))}
           devices={devices}
           unit={unit}
-          format={(v) => formatNumber(v, decimals)}
+          format={format ?? ((v) => formatNumber(v, decimals))}
+          zeroLine={zeroLine}
+          yDomain={yDomain}
           series={[{ key: "value", label: title, color, kind: "line" }]}
+        />
+      )}
+    </Section>
+  );
+}
+
+/**
+ * Varias métricas diarias de la misma unidad en un solo gráfico (un eje, leyenda), p. ej. las
+ * fases del sueño. Si ninguna tiene datos, no se pinta.
+ */
+export function MultiMetricSection({
+  title,
+  term,
+  description,
+  days,
+  unit,
+  metrics,
+  decimals = 0,
+  transform = (v) => v,
+  kind = "line",
+  className,
+}: {
+  title: string;
+  term?: GlossaryKey;
+  description?: string;
+  days: number;
+  unit: string;
+  metrics: { key: string; label: string; color: string }[];
+  decimals?: number;
+  transform?: (v: number) => number;
+  /** "bar" apila las series (partes de un total, como las fases del sueño). */
+  kind?: "line" | "bar";
+  className?: string;
+}) {
+  const results = useMetricSeriesMany(
+    metrics.map((m) => m.key),
+    days,
+  );
+  const { data: devices } = useDevices();
+  if (results.some((r) => r.isPending)) return null;
+  const present = metrics.filter((m, i) => (results[i].data?.length ?? 0) >= 2);
+  if (!present.length) return null;
+  const rows = mergeByDay(
+    Object.fromEntries(
+      present.map((m) => [m.key, results[metrics.indexOf(m)].data]),
+    ),
+    transform,
+  );
+  return (
+    <Section
+      title={title}
+      term={term}
+      description={description}
+      className={className}
+    >
+      <TimeChart
+        data={rows.map(({ day, ...rest }) => ({
+          t: t(day),
+          ...(rest as Record<string, number | null>),
+        }))}
+        devices={devices}
+        unit={unit}
+        format={(v) => formatNumber(v, decimals)}
+        series={present.map((m) => ({
+          key: m.key,
+          label: m.label,
+          color: m.color,
+          kind,
+          stack: kind === "bar" ? "total" : undefined,
+        }))}
+      />
+    </Section>
+  );
+}
+
+/**
+ * Contribuidores de una puntuación de Oura (0–100) con un selector: una sola serie cada vez para
+ * que el gráfico se lea. Solo aparece si la puntuación tiene datos.
+ */
+export function ContributorSection({
+  title,
+  description,
+  days,
+  scoreMetric,
+  prefix,
+  kind,
+  color,
+}: {
+  title: string;
+  description?: string;
+  days: number;
+  scoreMetric: string;
+  prefix: string;
+  kind: ContributorKind;
+  color: string;
+}) {
+  const options = Object.entries(CONTRIBUTORS[kind]);
+  const [picked, setPicked] = useState(options[0][0]);
+  const score = useMetricSeries(scoreMetric, days);
+  const series = useMetricSeries(`${prefix}${picked}`, days);
+  const { data: devices } = useDevices();
+  if (!score.data || score.data.length < 2) return null;
+  const label = CONTRIBUTORS[kind][picked];
+  return (
+    <Section title={title} description={description}>
+      <label className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:gap-2">
+        Contribuidor
+        <select
+          value={picked}
+          onChange={(e) => setPicked(e.target.value)}
+          className="min-h-11 rounded-md border border-input bg-background px-2 text-sm text-foreground md:min-h-9"
+        >
+          {options.map(([key, name]) => (
+            <option key={key} value={key}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {series.isPending ? (
+        <Loading />
+      ) : series.isError ? (
+        <ErrorState
+          message={`No se pudo cargar ${label.toLowerCase()}.`}
+          onRetry={() => series.refetch()}
+        />
+      ) : series.data.length < 2 ? (
+        <NoData />
+      ) : (
+        <TimeChart
+          data={series.data.map((p) => ({ t: t(p.day), value: p.value }))}
+          devices={devices}
+          format={(v) => formatNumber(v)}
+          yDomain={[0, 100]}
+          series={[{ key: "value", label, color, kind: "line" }]}
         />
       )}
     </Section>

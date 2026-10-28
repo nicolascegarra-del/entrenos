@@ -39,11 +39,7 @@ const FEATURES: Feature[] = [
   {
     icon: Watch,
     title: "Todos tus relojes, en un sitio",
-    text: `Garmin, COROS, Apple Watch y, vía Health Connect, Samsung, Xiaomi, Amazfit, Huawei o Wear OS.${
-      view.oura
-        ? " También el anillo Oura, con tu sueño, recuperación y actividad."
-        : ""
-    } Y ficheros FIT, GPX y TCX de Suunto, Polar, Wahoo… sin duplicados.`,
+    text: `Garmin, COROS, Apple Watch y, vía Health Connect, Samsung, Xiaomi, Amazfit, Huawei o Wear OS. También el anillo Oura, con tu sueño, recuperación y actividad. Y ficheros FIT, GPX y TCX de Suunto, Polar, Wahoo… sin duplicados.`,
   },
   {
     icon: MapPinned,
@@ -53,9 +49,7 @@ const FEATURES: Feature[] = [
   {
     icon: HeartPulse,
     title: "Salud y progreso",
-    text: view.oura
-      ? "FC en reposo, variabilidad, fases del sueño, recuperación y temperatura (con Oura), logros y rachas, y avisos cuando subes la carga demasiado rápido para que no te lesiones."
-      : "FC en reposo, variabilidad, sueño, logros y rachas, y avisos cuando subes la carga demasiado rápido para que no te lesiones.",
+    text: "FC en reposo, variabilidad, fases del sueño, recuperación y temperatura (con Oura), logros y rachas, y avisos cuando subes la carga demasiado rápido para que no te lesiones.",
   },
 ];
 
