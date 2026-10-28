@@ -1564,3 +1564,21 @@ export interface RestPeriod {
   end_date: string | null;
   source: string;
 }
+
+/** Admin → Conexiones: app de Oura. El Client Secret nunca viene en la respuesta. */
+export interface OuraAppSettings {
+  configured: boolean;
+  source: "panel" | "entorno" | null;
+  client_id: string;
+  has_secret: boolean;
+  has_webhook_token: boolean;
+  redirect_uris: string[];
+  webhook_url: string;
+  webhooks: string;
+}
+
+export interface OuraAppSettingsInput {
+  client_id: string;
+  client_secret: string | null;
+  new_webhook_token: boolean;
+}

@@ -3,6 +3,7 @@
 import { ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
+import { ConnectionsTab } from "@/components/admin/connections-tab";
 import { EmailTab } from "@/components/admin/email-tab";
 import { InvitationsTab } from "@/components/admin/invitations-tab";
 import { ModulesTab } from "@/components/admin/modules-tab";
@@ -20,6 +21,7 @@ const TABS = [
   { key: "registration", label: "Registro", Panel: RegistrationTab },
   { key: "email", label: "Correo", Panel: EmailTab },
   { key: "modules", label: "Módulos", Panel: ModulesTab },
+  { key: "connections", label: "Conexiones", Panel: ConnectionsTab },
   { key: "system", label: "Sistema", Panel: SystemTab },
   { key: "audit", label: "Actividad", Panel: AuditTab },
 ] as const;

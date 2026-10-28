@@ -13,7 +13,6 @@ from sqlmodel import select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.api.sources import _allowed_origin
-from app.core.config import get_settings
 from app.core.rate_limit import limiter
 from app.models import (
     CorosCredential,
@@ -23,7 +22,7 @@ from app.models import (
     IngestToken,
     OuraConnection,
 )
-from app.services import daily_sources, health_views, oura_oauth, oura_webhooks
+from app.services import daily_sources, health_views, oura_config, oura_oauth, oura_webhooks
 from app.services.mailer import link
 from app.services.oura_sync import oura_enabled
 from app.services.sync_schedule import get_user_settings
@@ -108,7 +107,7 @@ def _status(session: SessionDep, user_id: int) -> OuraStatusOut:
         )  # fmt: skip
     pref = get_user_settings(session, user_id).recovery_source or "auto"
     return OuraStatusOut(
-        configured=get_settings().oura_configured,
+        configured=oura_config.credentials(session).configured,
         connected=conn is not None,
         status=conn.status if conn else None,
         last_sync_at=conn.last_sync_at if conn else None,

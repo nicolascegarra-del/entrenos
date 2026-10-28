@@ -38,7 +38,7 @@ from app.models import (
     UserStatus,
 )
 from app.schemas.auth import EMAIL_PATTERN
-from app.services import accounts, mailer, modules
+from app.services import accounts, mailer, modules, oura_config
 from app.services.limits import basic_limits, save_basic_limits
 from app.services.signup_guard import captcha_enabled, extra_domains, parse_domains
 from app.tasks.heartbeat import HEARTBEAT_KEY
@@ -739,3 +739,70 @@ def test_email(request: Request, body: EmailTestIn, session: SessionDep, admin: 
         raise HTTPException(status.HTTP_400_BAD_REQUEST, smtp_error_text(exc)) from exc
     where = "guardado en la bandeja local (modo de prueba)" if config.mode == "file" else f"enviado a {to}"
     return {"ok": True, "message": f"Email de prueba {where}."}
+
+
+# ─── Conexiones: app de Oura ─────────────────────────────────────────────────
+
+
+class OuraAppOut(BaseModel):
+    configured: bool
+    source: str | None = Field(description="«panel», «entorno» (variables de entorno) o null")
+    client_id: str
+    has_secret: bool
+    has_webhook_token: bool
+    redirect_uris: list[str] = Field(description="Las que hay que dar de alta en la app de Oura")
+    webhook_url: str
+    webhooks: str = Field(description="«ok» o el motivo por el que los webhooks no están activos")
+
+
+class OuraAppIn(BaseModel):
+    client_id: str = Field(min_length=1, max_length=255)
+    client_secret: str | None = Field(default=None, max_length=255, description="Vacío = conservar el guardado")
+    new_webhook_token: bool = False
+
+
+def _oura_out(session: Session) -> OuraAppOut:
+    from app.services import oura_oauth, oura_webhooks
+
+    creds = oura_config.credentials(session)
+    public = mailer.link(oura_oauth.CALLBACK_PATH)
+    local = [f"http://localhost:{port}{oura_oauth.CALLBACK_PATH}" for port in (3000, 8000)]
+    return OuraAppOut(
+        configured=creds.configured,
+        source=creds.source,
+        client_id=creds.client_id,
+        has_secret=bool(creds.client_secret),
+        has_webhook_token=bool(creds.webhook_token),
+        redirect_uris=list(dict.fromkeys([public, *local])),
+        webhook_url=oura_webhooks.callback_url(),
+        webhooks=oura_webhooks.enabled() or "ok",
+    )
+
+
+@router.get(
+    "/oura",
+    summary="App de Oura: estado de las credenciales",
+    description="Nunca devuelve el Client Secret ni el token de webhooks: solo si están puestos.",
+)
+def get_oura_app(session: SessionDep, _: AdminUser) -> OuraAppOut:
+    return _oura_out(session)
+
+
+@router.put(
+    "/oura",
+    summary="Guardar las credenciales de la app de Oura",
+    description="Se guardan cifradas. Sin Client Secret se conserva el anterior. Queda en la auditoría.",
+    responses={422: {"description": "Falta el Client ID o el Client Secret"}},
+)
+def put_oura_app(body: OuraAppIn, session: SessionDep, admin: AdminUser) -> OuraAppOut:
+    try:
+        oura_config.save(session, admin, client_id=body.client_id, client_secret=body.client_secret,
+                         new_webhook_token=body.new_webhook_token)  # fmt: skip
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    return _oura_out(session)
+
+
+@router.delete("/oura", summary="Quitar las credenciales de Oura del panel", status_code=204)
+def delete_oura_app(session: SessionDep, admin: AdminUser) -> None:
+    oura_config.clear(session, admin)

@@ -17,9 +17,8 @@ from urllib.parse import urlparse
 
 from sqlmodel import Session, select
 
-from app.core.config import get_settings
 from app.models import OuraWebhookSubscription
-from app.services import oura_client
+from app.services import oura_client, oura_config
 from app.services.oura_sync import WEBHOOK_TYPES
 
 logger = logging.getLogger(__name__)
@@ -39,19 +38,19 @@ def callback_url() -> str:
 
 def enabled() -> str | None:
     """None si se pueden usar los webhooks; si no, el motivo."""
-    settings = get_settings()
-    if not settings.oura_configured:
-        return "Falta OURA_CLIENT_ID / OURA_CLIENT_SECRET."
-    if not settings.oura_webhook_token:
-        return "Falta OURA_WEBHOOK_TOKEN."
+    creds = oura_config.credentials()
+    if not creds.configured:
+        return "Faltan el Client ID y el Client Secret de Oura (Admin → Conexiones)."
+    if not creds.webhook_token:
+        return "Falta el token de verificación de los webhooks (Admin → Conexiones)."
     if urlparse(callback_url()).scheme != "https":
         return "La URL pública (APP_PUBLIC_URL) no es https."
     return None
 
 
 def _headers() -> dict[str, str]:
-    settings = get_settings()
-    return {"x-client-id": settings.oura_client_id, "x-client-secret": settings.oura_client_secret}
+    creds = oura_config.credentials()
+    return {"x-client-id": creds.client_id, "x-client-secret": creds.client_secret}
 
 
 def sign(secret: str, timestamp: str, body: bytes) -> str:
@@ -74,7 +73,7 @@ def _timestamp(value: str) -> datetime | None:
 
 def valid_signature(body: bytes, signature: str | None, timestamp: str | None, now: datetime | None = None) -> bool:
     """Firma correcta y aviso reciente (≤ 5 min)."""
-    secret = get_settings().oura_client_secret
+    secret = oura_config.credentials().client_secret
     if not secret or not signature or not timestamp:
         return False
     when = _timestamp(timestamp)
@@ -84,7 +83,7 @@ def valid_signature(body: bytes, signature: str | None, timestamp: str | None, n
 
 
 def valid_verification(token: str | None) -> bool:
-    expected = get_settings().oura_webhook_token
+    expected = oura_config.credentials().webhook_token
     return bool(expected and token) and hmac.compare_digest(str(token), expected)
 
 
@@ -137,7 +136,7 @@ def ensure_subscriptions(session: Session, now: datetime | None = None) -> dict:
         for event_type in EVENT_TYPES:
             current = mine.get((data_type, event_type))
             if current is None:
-                body = {"callback_url": url, "verification_token": get_settings().oura_webhook_token,
+                body = {"callback_url": url, "verification_token": oura_config.credentials().webhook_token,
                         "event_type": event_type, "data_type": data_type}  # fmt: skip
                 r = oura_client.send("POST", SUBSCRIPTION_URL, json=body, headers=_headers())
                 if r.status_code < 400 and isinstance(r.json(), dict) and r.json().get("id"):

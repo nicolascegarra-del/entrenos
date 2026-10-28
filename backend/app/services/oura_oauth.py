@@ -20,10 +20,9 @@ from urllib.parse import urlencode
 
 from sqlmodel import Session, select
 
-from app.core.config import get_settings
 from app.core.crypto import decrypt_secret, encrypt_secret
 from app.models import OAuthState, OuraConnection, Sex
-from app.services import oura_client
+from app.services import oura_client, oura_config
 from app.services.oura_client import OuraAuthError, OuraError
 
 logger = logging.getLogger(__name__)
@@ -59,8 +58,8 @@ def start(session: Session, user_id: int, origin: str) -> str:
     Raises:
         OuraOAuthError: Si la app de Oura no está configurada.
     """
-    settings = get_settings()
-    if not settings.oura_configured:
+    creds = oura_config.credentials(session)
+    if not creds.configured:
         raise OuraOAuthError("La conexión con Oura no está configurada en este servidor.")
     redirect_uri = origin.rstrip("/") + CALLBACK_PATH
     verifier, challenge = _pkce()
@@ -74,7 +73,7 @@ def start(session: Session, user_id: int, origin: str) -> str:
     session.commit()
     params = {
         "response_type": "code",
-        "client_id": settings.oura_client_id,
+        "client_id": creds.client_id,
         "redirect_uri": redirect_uri,
         "scope": SCOPES,
         "state": state,
@@ -96,8 +95,8 @@ def _save_tokens(row: OuraConnection, tokens: dict) -> None:
 
 
 def _token_request(data: dict) -> dict | None:
-    settings = get_settings()
-    body = {**data, "client_id": settings.oura_client_id, "client_secret": settings.oura_client_secret}
+    creds = oura_config.credentials()
+    body = {**data, "client_id": creds.client_id, "client_secret": creds.client_secret}
     res = oura_client.send("POST", TOKEN_URL, data=body)
     try:
         payload = res.json()

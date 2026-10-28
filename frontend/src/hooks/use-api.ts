@@ -9,6 +9,8 @@ import {
 import { ApiError, apiFetch } from "@/lib/api";
 import { moduleOn, type ModuleKey, type Modules } from "@/lib/modules";
 import type {
+  OuraAppSettings,
+  OuraAppSettingsInput,
   HealthDay,
   HealthNight,
   OuraStatus,
@@ -1080,6 +1082,41 @@ export function useModules() {
 export function useModuleOn(key: ModuleKey): boolean {
   const { data } = useModules();
   return moduleOn(data, key);
+}
+
+/** Admin → Conexiones: credenciales de la app de Oura (el secreto nunca vuelve). */
+export function useAdminOuraApp() {
+  return useQuery({
+    queryKey: ["admin-oura-app"],
+    queryFn: () => apiFetch<OuraAppSettings>("/api/v1/admin/oura"),
+  });
+}
+
+export function useSaveAdminOuraApp() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: OuraAppSettingsInput) =>
+      apiFetch<OuraAppSettings>("/api/v1/admin/oura", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: async (data) => {
+      queryClient.setQueryData(["admin-oura-app"], data);
+      await queryClient.invalidateQueries({ queryKey: ["oura-status"] });
+    },
+  });
+}
+
+export function useClearAdminOuraApp() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<void>("/api/v1/admin/oura", { method: "DELETE" }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin-oura-app"] });
+      await queryClient.invalidateQueries({ queryKey: ["oura-status"] });
+    },
+  });
 }
 
 /** Valor general de los módulos (Admin → Módulos), sin lo fijado para tu cuenta. */
