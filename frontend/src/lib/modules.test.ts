@@ -51,8 +51,11 @@ describe("moduleOn", () => {
   });
 
   it("cada módulo tiene su explicación para el panel", () => {
+    // Entrenadores y nutrición no existen en esta rama: no salen en el panel.
     expect(MODULE_INFO.map((m) => m.key).sort()).toEqual(
-      Object.keys(ALL_ON).sort(),
+      Object.keys(ALL_ON)
+        .filter((k) => k !== "entrenadores" && k !== "nutricion")
+        .sort(),
     );
     MODULE_INFO.forEach((m) => expect(m.hint.length).toBeGreaterThan(10));
   });
@@ -166,8 +169,8 @@ describe("módulos por cuenta", () => {
 
   it("resume lo fijado para la tarjeta del usuario", () => {
     expect(overridesSummary({})).toBe("");
-    expect(
-      overridesSummary({ ia: false, rutas: false, entrenadores: true }),
-    ).toBe("Entrenadores activado · Entrenador IA y Rutas desactivados");
+    expect(overridesSummary({ ia: false, rutas: false, reloj: true })).toBe(
+      "Envío al reloj activado · Entrenador IA y Rutas desactivados",
+    );
   });
 });

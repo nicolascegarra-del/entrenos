@@ -20,13 +20,11 @@ export const LOADING_MODULES: Modules = {
   nutricion: false,
 };
 
-/** Qué explica cada interruptor del panel de administración. */
+/**
+ * Qué explica cada interruptor del panel de administración. En esta rama no hay modo entrenador ni
+ * nutrición: sus claves siguen en `Modules` (apagadas) pero no se ofrecen en el panel.
+ */
 export const MODULE_INFO: { key: ModuleKey; label: string; hint: string }[] = [
-  {
-    key: "entrenadores",
-    label: "Entrenadores",
-    hint: "Entrenadores reales que siguen a sus atletas. Aún no está disponible: de momento solo es el interruptor.",
-  },
   {
     key: "ia",
     label: "Entrenador IA",
@@ -41,11 +39,6 @@ export const MODULE_INFO: { key: ModuleKey; label: string; hint: string }[] = [
     key: "rutas",
     label: "Rutas",
     hint: "Oculta Plan → Rutas y las rutas asociadas a las sesiones.",
-  },
-  {
-    key: "nutricion",
-    label: "Nutrición",
-    hint: "Aún no está disponible: de momento solo es el interruptor.",
   },
 ];
 
