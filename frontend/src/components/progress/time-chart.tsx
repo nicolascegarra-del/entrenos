@@ -45,6 +45,8 @@ interface TimeChartProps {
   refLine?: { y: number; label: string };
   /** Eje Y invertido (ritmos: más rápido = más arriba). */
   reversed?: boolean;
+  /** Escala Y fija (small multiples: la misma en todos para poder compararlos). */
+  yDomain?: [number, number];
 }
 
 const shortDate = (t: number) =>
@@ -67,6 +69,7 @@ export function TimeChart({
   band,
   refLine,
   reversed,
+  yDomain,
 }: TimeChartProps) {
   const times = data.map((d) => d.t as number);
   const [min, max] = [Math.min(...times), Math.max(...times)];
@@ -102,7 +105,7 @@ export function TimeChart({
           <YAxis
             width={44}
             reversed={reversed}
-            domain={["auto", "auto"]}
+            domain={yDomain ?? ["auto", "auto"]}
             tickFormatter={format}
             tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
             axisLine={false}
