@@ -11,6 +11,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import {
@@ -67,6 +69,13 @@ const SECTIONS: {
 
 /** Ajustes como lista de secciones con su estado (como en una app de móvil). */
 export default function AjustesPage() {
+  const router = useRouter();
+  // Oura vuelve a /ajustes?oura=ok|error: su tarjeta (y el aviso) está en Conexiones.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("oura"))
+      router.replace(`/ajustes/conexiones?${params.toString()}#reloj-oura`);
+  }, [router]);
   const { data: garmin } = useGarminStatus();
   const { data: ai } = useAiProviders();
   const { data: notifications } = useNotifications();

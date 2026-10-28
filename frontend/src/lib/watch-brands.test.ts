@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { GarminStatus, SourcesStatus } from "@/types/api";
+import type { GarminStatus, OuraStatus, SourcesStatus } from "@/types/api";
 
 import { connectedBrands, mergeBrands, parseBrands } from "./watch-brands";
 
@@ -26,6 +26,20 @@ const sources = (patch: Partial<SourcesStatus> = {}): SourcesStatus => ({
 });
 
 describe("connectedBrands", () => {
+  it("marca Oura conectado o caducado", () => {
+    const oura = (connected: boolean, status: "ok" | "expired" | null) =>
+      ({ connected, status }) as OuraStatus;
+    expect(
+      connectedBrands(undefined, sources(), null, oura(true, "ok")),
+    ).toEqual(["oura"]);
+    expect(
+      connectedBrands(undefined, sources(), null, oura(false, "expired")),
+    ).toEqual(["oura"]);
+    expect(
+      connectedBrands(undefined, sources(), null, oura(false, null)),
+    ).toEqual([]);
+  });
+
   it("sin nada conectado no marca ninguna", () => {
     expect(connectedBrands(garmin(false, "none"), sources(), null)).toEqual([]);
   });

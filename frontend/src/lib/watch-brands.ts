@@ -1,6 +1,12 @@
-import type { AppleImport, GarminStatus, SourcesStatus } from "@/types/api";
+import type {
+  AppleImport,
+  GarminStatus,
+  OuraStatus,
+  SourcesStatus,
+} from "@/types/api";
 
-export type WatchBrand = "garmin" | "apple" | "coros" | "android" | "files";
+export type WatchBrand =
+  "garmin" | "apple" | "coros" | "android" | "oura" | "files";
 
 /** Marcas de reloj y cómo se conecta cada una (en el orden en que se muestran). */
 export const WATCH_BRANDS: {
@@ -21,6 +27,11 @@ export const WATCH_BRANDS: {
     how: "Desde el móvil Android con Health Connect",
   },
   {
+    key: "oura",
+    label: "Oura Ring",
+    how: "Anillo: sueño, recuperación y actividad",
+  },
+  {
     key: "files",
     label: "Suunto, Polar, Wahoo y otros",
     how: "Importando ficheros FIT, GPX o TCX",
@@ -32,6 +43,7 @@ export function connectedBrands(
   garmin: GarminStatus | undefined,
   sources: SourcesStatus | undefined,
   apple: AppleImport | null | undefined,
+  oura?: OuraStatus,
 ): WatchBrand[] {
   const out: WatchBrand[] = [];
   if (garmin?.connected || garmin?.connection.status === "expired")
@@ -39,6 +51,7 @@ export function connectedBrands(
   if (sources?.apple_last_at || apple?.status === "done") out.push("apple");
   if (sources?.coros || sources?.coros_official) out.push("coros");
   if (sources?.health_connect?.last_used_at) out.push("android");
+  if (oura?.connected || oura?.status === "expired") out.push("oura");
   return out;
 }
 

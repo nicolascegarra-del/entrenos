@@ -230,7 +230,7 @@ function Wizard() {
       {step === "reloj" && (
         <section className="space-y-3">
           <h1 className="font-heading text-2xl font-bold">Conecta tu reloj</h1>
-          <Intro text="Elige la marca de tu reloj y te decimos cómo traer tus entrenos. Nunca guardamos tus contraseñas." />
+          <Intro text="Elige la marca de tu reloj (y tu anillo Oura, si lo tienes) y te decimos cómo traer tus datos. Nunca guardamos tus contraseñas." />
           <WatchConnections />
         </section>
       )}

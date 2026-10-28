@@ -7,6 +7,7 @@ import { GarminWorkoutsCard } from "@/components/plan/send-to-watch";
 import { AppleWatch } from "@/components/settings/apple-watch";
 import { CorosOfficial } from "@/components/settings/coros-official";
 import { GarminCard } from "@/components/settings/garmin-card";
+import { OuraCard } from "@/components/settings/oura-card";
 import {
   Coros,
   HealthConnect,
@@ -21,7 +22,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAppleImport, useGarminStatus, useSources } from "@/hooks/use-api";
+import {
+  useAppleImport,
+  useGarminStatus,
+  useOuraEnabled,
+  useOuraStatus,
+  useSources,
+} from "@/hooks/use-api";
 import { cn } from "@/lib/utils";
 import {
   connectedBrands,
@@ -38,17 +45,33 @@ function useChosenBrands() {
   const garmin = useGarminStatus();
   const sources = useSources();
   const apple = useAppleImport();
+  const ouraOn = useOuraEnabled();
+  const oura = useOuraStatus(ouraOn);
   const [chosen, setChosen] = useState<WatchBrand[]>([]);
   useEffect(() => {
+    let saved: WatchBrand[] = [];
     try {
-      setChosen(parseBrands(localStorage.getItem(STORAGE_KEY)));
+      saved = parseBrands(localStorage.getItem(STORAGE_KEY));
     } catch {
-      setChosen([]);
+      saved = [];
     }
+    // Vuelta de la web de Oura: su tarjeta tiene que verse para enseñar el aviso.
+    if (
+      new URLSearchParams(window.location.search).has("oura") &&
+      !saved.includes("oura")
+    )
+      saved = [...saved, "oura"];
+    setChosen(saved);
   }, []);
   const connected = useMemo(
-    () => connectedBrands(garmin.data, sources.data, apple.data),
-    [garmin.data, sources.data, apple.data],
+    () =>
+      connectedBrands(
+        garmin.data,
+        sources.data,
+        apple.data,
+        ouraOn ? oura.data : undefined,
+      ),
+    [garmin.data, sources.data, apple.data, oura.data, ouraOn],
   );
   const toggle = (key: WatchBrand) => {
     const next = chosen.includes(key)
@@ -61,8 +84,13 @@ function useChosenBrands() {
       // Sin almacenamiento (modo privado): la selección dura lo que la página.
     }
   };
+  // Con el módulo de Oura apagado, el anillo no se ofrece.
+  const brands = WATCH_BRANDS.filter((b) => ouraOn || b.key !== "oura");
   return {
-    selected: mergeBrands(chosen, connected),
+    brands,
+    selected: mergeBrands(chosen, connected).filter(
+      (k) => ouraOn || k !== "oura",
+    ),
     connected,
     toggle,
     sources,
@@ -85,7 +113,9 @@ function BrandPanel({
     );
   const info = WATCH_BRANDS.find((b) => b.key === brand)!;
   const body =
-    brand === "files" ? (
+    brand === "oura" ? (
+      <OuraCard />
+    ) : brand === "files" ? (
       <ImportFiles />
     ) : sources.isPending ? (
       <Skeleton className="h-40" />
@@ -127,14 +157,15 @@ function BrandPanel({
  * Se usa en la bienvenida y en Ajustes → Conexiones.
  */
 export function WatchConnections() {
-  const { selected, connected, toggle, sources } = useChosenBrands();
+  const { brands, selected, connected, toggle, sources } = useChosenBrands();
+  const ring = brands.some((b) => b.key === "oura");
   return (
     <div className="space-y-4">
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 font-heading text-lg">
-            <Watch className="size-5 text-klyp-accent" aria-hidden /> ¿Qué reloj
-            usas?
+            <Watch className="size-5 text-klyp-accent" aria-hidden />
+            {ring ? "¿Qué reloj o anillo usas?" : "¿Qué reloj usas?"}
           </CardTitle>
           <CardDescription>
             Elige uno o varios. Si un entreno llega por dos sitios, solo se
@@ -143,7 +174,7 @@ export function WatchConnections() {
         </CardHeader>
         <CardContent>
           <ul className="grid gap-2 sm:grid-cols-2">
-            {WATCH_BRANDS.map((b) => {
+            {brands.map((b) => {
               const on = selected.includes(b.key);
               const linked = connected.includes(b.key);
               return (
