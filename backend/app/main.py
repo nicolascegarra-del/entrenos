@@ -18,6 +18,7 @@ from app.api import (
     goals,
     modules,
     notifications,
+    oura,
     performance,
     planned_routes,
     plans,
@@ -111,6 +112,9 @@ app.include_router(workouts.router, prefix="/api/v1")
 app.include_router(coach.router, prefix="/api/v1")
 app.include_router(reviews.router, prefix="/api/v1")
 app.include_router(modules.router, prefix="/api/v1")
+app.include_router(oura.public_router, prefix="/api/v1")
+app.include_router(oura.router, prefix="/api/v1")
+app.include_router(oura.health_router, prefix="/api/v1")
 
 
 @app.get("/health", summary="Estado del servicio", tags=["infra"])

@@ -354,6 +354,80 @@ CATALOG: list[MetricDefinition] = [
 ]
 
 
+def _daily(key: str, label: str, unit: str = "", better: bool | None = None) -> MetricDefinition:
+    """Métrica diaria sin ruta de Garmin (la rellenan otras fuentes, p. ej. el anillo Oura)."""
+    return MetricDefinition(key=key, scope=_D, label=label, unit=unit, higher_is_better=better, sources={})
+
+
+# ── Diarias de Oura (y de cualquier fuente que las dé) ─────────────────────
+OURA_DAILY: list[MetricDefinition] = [
+    _daily("readiness_score", "Preparación (readiness)", "", True),
+    _daily("temperature_deviation", "Desviación de temperatura", "°C"),
+    _daily("temperature_trend_deviation", "Tendencia de temperatura", "°C"),
+    _daily("active_calories", "Calorías activas", "kcal"),
+    _daily("total_calories", "Calorías totales", "kcal"),
+    _daily("spo2_avg", "SpO2 media nocturna", "%", True),
+    _daily("breathing_disturbance_index", "Índice de alteraciones respiratorias", "", False),
+    _daily("stress_high_s", "Tiempo con estrés alto", "s", False),
+    _daily("recovery_high_s", "Tiempo en recuperación alta", "s", True),
+    _daily("resilience_level", "Resiliencia (1 limitada – 5 excepcional)", "", True),
+    _daily("vo2max_oura", "VO2max (Oura)", "ml/kg/min", True),
+    _daily("cardio_age", "Edad cardiovascular", "años", False),
+    _daily("pulse_wave_velocity", "Velocidad de onda de pulso", "m/s", False),
+    _daily("sleep_deep_s", "Sueño profundo", "s", True),
+    _daily("sleep_rem_s", "Sueño REM", "s", True),
+    _daily("sleep_light_s", "Sueño ligero", "s"),
+    _daily("sleep_awake_s", "Despierto en la cama", "s", False),
+    _daily("sleep_latency_s", "Tiempo en dormirse", "s", False),
+    _daily("sleep_efficiency", "Eficiencia del sueño", "%", True),
+    _daily("time_in_bed_s", "Tiempo en la cama", "s"),
+    _daily("restless_periods", "Periodos inquietos", "", False),
+    _daily("breath_rate", "Respiración nocturna", "rpm"),
+    _daily("avg_hr_sleep", "FC media durmiendo", "ppm", False),
+    _daily("naps_s", "Siestas", "s"),
+    _daily("activity_score", "Puntuación de actividad", "", True),
+    _daily("high_activity_time_s", "Actividad alta", "s"),
+    _daily("medium_activity_time_s", "Actividad media", "s"),
+    _daily("low_activity_time_s", "Actividad baja", "s"),
+    _daily("sedentary_time_s", "Tiempo sedentario", "s", False),
+    _daily("high_activity_met_min", "MET-min de actividad alta", "MET-min"),
+    _daily("medium_activity_met_min", "MET-min de actividad media", "MET-min"),
+    _daily("low_activity_met_min", "MET-min de actividad baja", "MET-min"),
+    _daily("sedentary_met_min", "MET-min sedentarios", "MET-min"),
+    _daily("non_wear_s", "Tiempo sin el anillo", "s"),
+    _daily("inactivity_alerts", "Avisos de inactividad", "", False),
+    _daily("equivalent_walking_distance", "Distancia equivalente andando", "m"),
+]
+# Contribuidores (0–100) de cada puntuación de Oura.
+OURA_CONTRIBUTORS: dict[str, dict[str, str]] = {
+    "readiness": {
+        "activity_balance": "equilibrio de actividad", "body_temperature": "temperatura corporal",
+        "hrv_balance": "equilibrio de HRV", "previous_day_activity": "actividad del día anterior",
+        "previous_night": "noche anterior", "recovery_index": "índice de recuperación",
+        "resting_heart_rate": "FC en reposo", "sleep_balance": "equilibrio de sueño",
+        "sleep_regularity": "regularidad del sueño",
+    },
+    "sleep": {
+        "deep_sleep": "sueño profundo", "efficiency": "eficiencia", "latency": "latencia", "rem_sleep": "sueño REM",
+        "restfulness": "descanso", "timing": "horario", "total_sleep": "sueño total",
+    },
+    "activity": {
+        "meet_daily_targets": "objetivos diarios", "move_every_hour": "moverse cada hora",
+        "recovery_time": "tiempo de recuperación", "stay_active": "mantenerse activo",
+        "training_frequency": "frecuencia de entreno", "training_volume": "volumen de entreno",
+    },
+    "resilience": {"sleep_recovery": "recuperación nocturna", "daytime_recovery": "recuperación diurna",
+                   "stress": "estrés"},
+}  # fmt: skip
+_SCORE_LABEL = {"readiness": "Preparación", "sleep": "Sueño", "activity": "Actividad", "resilience": "Resiliencia"}
+OURA_DAILY += [
+    _daily(f"oura_{group}_{key}", f"{_SCORE_LABEL[group]} · {label}", "", True)
+    for group, items in OURA_CONTRIBUTORS.items()
+    for key, label in items.items()
+]
+CATALOG += OURA_DAILY
+
+
 def seed_catalog(session: Session) -> int:
     """
     Inserta o actualiza (idempotente) el catálogo de métricas.

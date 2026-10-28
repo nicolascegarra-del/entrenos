@@ -60,6 +60,16 @@ class Settings(BaseSettings):
     # Carpeta de las copias de seguridad (solo lectura) para mostrar la última en Admin → Sistema.
     backup_dir: str = "/backups"
 
+    # Anillo Oura (OAuth2 de https://cloud.ouraring.com/oauth/applications). Sin id/secreto, desactivado.
+    oura_client_id: str = ""
+    oura_client_secret: str = ""
+    # Token que Oura devuelve al verificar la URL de los webhooks (lo elegimos nosotros). Sin él, sin webhooks.
+    oura_webhook_token: str = ""
+
+    @property
+    def oura_configured(self) -> bool:
+        return bool(self.oura_client_id and self.oura_client_secret)
+
     @property
     def fernet_key(self) -> str:
         return self.secrets_key or self.garmin_token_key

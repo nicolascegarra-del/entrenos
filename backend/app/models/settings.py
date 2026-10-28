@@ -3,6 +3,8 @@ from enum import StrEnum
 from sqlalchemy import Column, String
 from sqlmodel import Field, SQLModel
 
+RECOVERY_SOURCES = ("auto", "watch", "oura")
+
 
 class SyncMode(StrEnum):
     AUTO = "auto"  # el worker sincroniza solo cada `sync_interval_min`
@@ -25,3 +27,5 @@ class UserSettings(SQLModel, table=True):
     weekly_goal_sessions: int = Field(default=3, ge=1, le=14)  # racha: semanas con al menos N entrenos
     # Enviar solas a Garmin las sesiones de los próximos 7 días (y sus cambios).
     garmin_workouts_auto: bool = Field(default=False, sa_column_kwargs={"server_default": "false"})
+    # Fuente del sueño y la recuperación: auto (Oura si está conectado) | watch (el reloj) | oura.
+    recovery_source: str = Field(default="auto", max_length=8, sa_column_kwargs={"server_default": "auto"})

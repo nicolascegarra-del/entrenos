@@ -149,6 +149,18 @@ def shoes_check(shoes: list[dict]) -> Check:
     return Check("shoes", GOOD, "Zapatillas en buen estado", "Ninguna está cerca de su límite de kilómetros.", ev)
 
 
+def rest_mode_check(start: date | None, end: date | None) -> Check:
+    """Modo descanso activo (Oura): cualquier carga de la semana se lee con prudencia."""
+    until = f" hasta el {end.strftime('%d/%m')}" if end else ""
+    return Check(
+        "rest_mode",
+        WATCH,
+        "Modo descanso activo",
+        f"Tienes el modo descanso activado desde el {start.strftime('%d/%m') if start else '—'}{until}: "
+        "baja la carga y vuelve poco a poco cuando te encuentres bien.",
+    )
+
+
 def injury_report(session: Session, user_id: int, today: date | None = None) -> dict:
     """Todas las comprobaciones con su estado y el peor como resumen."""
     today = today or date.today()
@@ -175,6 +187,11 @@ def injury_report(session: Session, user_id: int, today: date | None = None) -> 
         long_run_share(longest, last7),
         shoes_check(list_gear(session, user_id)),
     ]
+    from app.services.health_views import active_rest_period
+
+    rest = active_rest_period(session, user_id, today)
+    if rest is not None:
+        checks.insert(0, rest_mode_check(rest.start_date, rest.end_date))
     rank = {GOOD: 0, WATCH: 1, ALERT: 2}
     worst = max(checks, key=lambda c: rank[c.status])
     return {
@@ -182,5 +199,6 @@ def injury_report(session: Session, user_id: int, today: date | None = None) -> 
         "summary": worst.title if worst.status != GOOD else "Sin señales de riesgo esta semana",
         "checks": [asdict(c) for c in checks],
         "week_km": round(last7, 1),
+        "rest_mode": {"start_date": rest.start_date, "end_date": rest.end_date} if rest else None,
         "disclaimer": "Orientativo: no sustituye la valoración de un profesional sanitario.",
     }

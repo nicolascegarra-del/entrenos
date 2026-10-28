@@ -26,6 +26,7 @@ SOURCE_NAMES = {
     "coros": "Actividad de COROS",
     "health_connect": "Actividad de Health Connect",
     "apple": "Entreno de Apple Watch",
+    "oura": "Entreno de Oura",
 }
 DEDUP_START_S = 120
 DEDUP_DURATION = 0.05

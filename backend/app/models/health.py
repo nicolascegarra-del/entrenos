@@ -17,6 +17,8 @@ class DailyMetric(SQLModel, table=True):
     day: date
     metrics: dict = jsonb_field()
     raw: dict = jsonb_field()
+    # Fuente de cada clave de `metrics` (garmin, oura, apple…): ver `services/daily_sources`.
+    metric_sources: dict = jsonb_field()
 
 
 class AthleteZones(SQLModel, table=True):

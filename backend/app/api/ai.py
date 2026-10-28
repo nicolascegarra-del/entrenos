@@ -192,7 +192,16 @@ def _gather(session: Session, user: User) -> dict:
                 for z in current.zones.get("hr", [])
             ],
         }
+    from app.services.health_views import active_rest_period
+
+    rest = active_rest_period(session, user.id, today)
     return {
+        "rest_mode": {
+            "start_date": rest.start_date.isoformat(),
+            "end_date": rest.end_date.isoformat() if rest.end_date else None,
+        }
+        if rest
+        else None,  # fmt: skip
         "profile": {
             "age": age_on(profile.birth_date, today) if profile.birth_date else None,
             "sex": profile.sex,

@@ -15,6 +15,7 @@ class ModulesOut(BaseModel):
     reloj: bool
     rutas: bool
     nutricion: bool
+    oura: bool
 
 
 class ModulesIn(BaseModel):
@@ -25,6 +26,7 @@ class ModulesIn(BaseModel):
     reloj: bool | None = None
     rutas: bool | None = None
     nutricion: bool | None = None
+    oura: bool | None = None
 
 
 @router.get(
@@ -33,8 +35,8 @@ class ModulesIn(BaseModel):
     description=(
         "Qué partes de la app tiene activadas tu cuenta (el valor general del administrador o el que haya "
         "fijado para ti): `entrenadores`, `ia` (entrenador IA), "
-        "`reloj` (envío de sesiones a Garmin y COROS), `rutas` y `nutricion`. La interfaz oculta lo apagado "
-        "y su API responde 404 con el código `MODULE_DISABLED`."
+        "`reloj` (envío de sesiones a Garmin y COROS), `rutas`, `nutricion` y `oura` (conexión con el anillo "
+        "Oura). La interfaz oculta lo apagado y su API responde 404 con el código `MODULE_DISABLED`."
     ),
     responses={401: {"description": "No autenticado"}},
 )

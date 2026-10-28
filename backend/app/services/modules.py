@@ -31,6 +31,7 @@ DEFAULTS: dict[str, bool] = {
     "reloj": True,
     "rutas": True,
     "nutricion": False,
+    "oura": True,
 }
 LABELS: dict[str, str] = {
     "entrenadores": "Entrenadores",
@@ -38,6 +39,7 @@ LABELS: dict[str, str] = {
     "reloj": "Envío al reloj",
     "rutas": "Rutas",
     "nutricion": "Nutrición",
+    "oura": "Oura Ring",
 }
 
 

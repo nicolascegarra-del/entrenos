@@ -333,7 +333,12 @@ class Daily:
 
 
 def save_daily(session: Session, user_id: int, days: dict[date, dict[str, float]]) -> int:
-    """Rellena métricas diarias sin pisar lo que ya hubiera (de Garmin, por ejemplo). Devuelve los días tocados."""
+    """
+    Guarda las métricas diarias de Apple como su propia fuente (`daily_sources`): no pisan las del reloj
+    principal (Garmin…), que manda si tiene el mismo dato. Devuelve los días con algún valor nuevo.
+    """
+    from app.services.daily_sources import by_source, preferences, set_source_metrics
+
     if not days:
         return 0
     rows = {
@@ -342,15 +347,14 @@ def save_daily(session: Session, user_id: int, days: dict[date, dict[str, float]
             select(DailyMetric).where(DailyMetric.user_id == user_id, DailyMetric.day.in_(list(days)))  # type: ignore[attr-defined]
         ).all()
     }
+    prefs = preferences(session, user_id)
     touched = 0
     for day, values in days.items():
-        row = rows.get(day) or DailyMetric(user_id=user_id, day=day)
-        metrics = dict(row.metrics or {})
-        new = {k: v for k, v in values.items() if metrics.get(k) is None}
-        if new:
-            row.metrics = {**metrics, **new}
-            session.add(row)
-            touched += 1
+        before = by_source(rows[day]).get("apple", {}) if day in rows else {}
+        if all(before.get(k) == v for k, v in values.items()):
+            continue
+        set_source_metrics(session, user_id, day, "apple", values, replace=False, prefs=prefs)
+        touched += 1
     session.commit()
     return touched
 

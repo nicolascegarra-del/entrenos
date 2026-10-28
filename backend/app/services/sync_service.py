@@ -12,7 +12,6 @@ from app.models import (
     Activity,
     ActivityRaw,
     ActivityStream,
-    DailyMetric,
     Device,
     Lap,
     SyncRun,
@@ -168,17 +167,21 @@ def sync_activities(
 
 
 def sync_daily(session: Session, user_id: int, source: GarminSource, days: int = 7) -> int:
-    """Actualiza las métricas diarias de los últimos `days` días (Garmin las corrige a posteriori)."""
+    """
+    Actualiza las métricas diarias de los últimos `days` días (Garmin las corrige a posteriori).
+
+    Solo sustituye los valores de Garmin: lo que hayan dejado otras fuentes (Oura, Apple…) se conserva y
+    se recombina con `daily_sources`.
+    """
+    from app.services.daily_sources import preferences, set_source_metrics
+
     today = date.today()
+    prefs = preferences(session, user_id)
     for offset in range(days):
         day = today - timedelta(days=offset)
         raw = source.get_daily(day.isoformat())
-        row = session.exec(
-            select(DailyMetric).where(DailyMetric.user_id == user_id, DailyMetric.day == day)
-        ).first() or DailyMetric(user_id=user_id, day=day)
-        row.raw = {k: v for k, v in raw.items() if v is not None}
-        row.metrics = parser.parse_daily(raw)
-        session.add(row)
+        set_source_metrics(session, user_id, day, "garmin", parser.parse_daily(raw),
+                           raw={k: v for k, v in raw.items() if v is not None}, prefs=prefs)  # fmt: skip
     session.commit()
     return days
 

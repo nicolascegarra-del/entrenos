@@ -117,6 +117,14 @@ def format_context(data: dict, today: date) -> str:
             parts.append(f"{num(profile['height_cm'], 0)} cm")
         lines.append("\n## Perfil\n" + ", ".join(parts))
 
+    rest = data.get("rest_mode")
+    if rest:
+        until = f" hasta el {rest['end_date']}" if rest.get("end_date") else " (sin fecha de fin)"
+        lines.append(
+            f"\n## Modo descanso ACTIVO\nDesde el {rest['start_date']}{until} (enfermedad, lesión o viaje): no "
+            "propongas cargas exigentes; prioriza recuperarse y pregunta cómo se encuentra."
+        )
+
     summary = data.get("summary") or {}
     if summary:
         r = summary.get("readiness") or {}

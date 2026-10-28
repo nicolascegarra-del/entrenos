@@ -29,17 +29,21 @@ from app.models import (
     ChatMessage,
     CoachMemory,
     DailyMetric,
+    DailySeries,
     Device,
     EmailVerification,
     Gear,
+    HealthTag,
     Lap,
     NotificationPrefs,
+    OuraConnection,
     PasswordReset,
     PerformanceTest,
     PlannedBlock,
     PlannedSession,
     PlanProposal,
     RaceGoal,
+    RestPeriod,
     StrengthSet,
     SyncRun,
     TrainingPlan,
@@ -49,6 +53,7 @@ from app.models import (
     UserStatus,
     WeeklyCheckin,
     WeightLog,
+    WellnessSession,
 )
 
 MIN_PASSWORD_LENGTH = 10
@@ -206,7 +211,7 @@ def _dump(rows: list, exclude: set[str] | None = None) -> list[dict]:
 def export_user_data(session: Session, user: User) -> dict:
     """
     Todos los datos de la persona en un JSON (derecho de acceso y portabilidad, RGPD).
-    No incluye secretos: ni la contraseña, ni los tokens de Garmin, ni las claves de IA.
+    No incluye secretos: ni la contraseña, ni los tokens de Garmin u Oura, ni las claves de IA.
     """
     uid = user.id
     activities = session.exec(select(Activity).where(Activity.user_id == uid).order_by(Activity.start_time)).all()
@@ -257,6 +262,13 @@ def export_user_data(session: Session, user: User) -> dict:
             session.exec(select(AiProviderConfig).where(AiProviderConfig.user_id == uid)).all(), exclude={"key_enc"}
         ),
         "chat_conversations": _dump(conversations),
+        "oura_connection": _dump(
+            [c for c in [session.get(OuraConnection, uid)] if c], exclude={"access_token_enc", "refresh_token_enc"}
+        ),
+        "daily_series": _dump(session.exec(select(DailySeries).where(DailySeries.user_id == uid)).all()),
+        "wellness_sessions": _dump(session.exec(select(WellnessSession).where(WellnessSession.user_id == uid)).all()),
+        "health_tags": _dump(session.exec(select(HealthTag).where(HealthTag.user_id == uid)).all()),
+        "rest_periods": _dump(session.exec(select(RestPeriod).where(RestPeriod.user_id == uid)).all()),
         "chat_messages": _dump(
             session.exec(select(ChatMessage).where(col(ChatMessage.conversation_id).in_(conversation_ids))).all()
         ),
@@ -275,7 +287,8 @@ def delete_user(session: Session, user: User) -> None:
     session.exec(delete(PlannedSession).where(PlannedSession.user_id == uid))
     # Laps, series, raw, sensaciones y fuerza caen en cascada con la actividad.
     session.exec(delete(Activity).where(col(Activity.id).in_(activity_ids)))
-    for model in (Device, DailyMetric, AthleteZones, SyncRun):
+    for model in (Device, DailyMetric, AthleteZones, SyncRun, DailySeries, WellnessSession, HealthTag, RestPeriod,
+                  OuraConnection):  # fmt: skip
         session.exec(delete(model).where(model.user_id == uid))
     session.delete(user)
     session.commit()

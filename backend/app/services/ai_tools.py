@@ -628,7 +628,60 @@ def dia_de_carrera(session: Session, user_id: int, args: dict) -> tuple[str, dic
     )
 
 
+# Clave del catálogo → nombre para la IA. Las «_min» se pasan de segundos a minutos.
+SALUD_NAMES = {
+    "resting_hr": "fc_reposo",
+    "hrv_last_night": "hrv_ms",
+    "sleep_seconds": "sueno_h",
+    "sleep_score": "nota_sueno",
+    "body_battery_max": "body_battery",
+    "stress_avg": "estres",
+    "steps_daily": "pasos",
+    "lt_speed": "umbral_garmin",
+    "lt_hr": "fc_umbral_garmin",
+    "readiness_score": "preparacion",
+    "temperature_deviation": "temp_desviacion_c",
+    "temperature_trend_deviation": "temp_tendencia_c",
+    "sleep_deep_s": "profundo_min",
+    "sleep_rem_s": "rem_min",
+    "sleep_light_s": "ligero_min",
+    "sleep_awake_s": "despierto_min",
+    "sleep_latency_s": "latencia_min",
+    "sleep_efficiency": "eficiencia_sueno",
+    "naps_s": "siestas_min",
+    "avg_hr_sleep": "fc_media_noche",
+    "breath_rate": "respiracion_rpm",
+    "spo2_avg": "spo2",
+    "breathing_disturbance_index": "alteraciones_respiratorias",
+    "stress_high_s": "estres_alto_min",
+    "recovery_high_s": "recuperacion_alta_min",
+    "resilience_level": "resiliencia_1a5",
+    "activity_score": "nota_actividad",
+    "active_calories": "kcal_activas",
+    "high_activity_time_s": "actividad_alta_min",
+    "medium_activity_time_s": "actividad_media_min",
+    "sedentary_time_s": "sedentario_min",
+    "vo2max_oura": "vo2max_oura",
+    "cardio_age": "edad_cardiovascular",
+}
+
+
+def _salud_value(key: str, v: float) -> float | str | None:
+    if key == "sleep_seconds":
+        return round(v / 3600, 1)
+    if key == "lt_speed":
+        return _speed_pace(v)
+    if SALUD_NAMES[key].endswith("_min"):
+        return round(v / 60)
+    if key in ("temperature_deviation", "temperature_trend_deviation", "breathing_disturbance_index"):
+        return _r(v, 2)
+    return _r(v, 0)
+
+
 def salud_diaria(session: Session, user_id: int, args: dict) -> tuple[str, dict]:
+    from app.models import HealthTag, User
+    from app.services.health_views import rest_periods
+
     today = date.today()
     hasta = _day(args.get("hasta"), today)
     desde = _day(args.get("desde"), hasta - timedelta(days=14))
@@ -639,31 +692,96 @@ def salud_diaria(session: Session, user_id: int, args: dict) -> tuple[str, dict]
         .where(DailyMetric.user_id == user_id, DailyMetric.day >= desde, DailyMetric.day <= hasta)
         .order_by(DailyMetric.day)
     ).all()
-    names = {
-        "resting_hr": "fc_reposo",
-        "hrv_last_night": "hrv_ms",
-        "sleep_seconds": "sueno_h",
-        "sleep_score": "nota_sueno",
-        "body_battery_max": "body_battery",
-        "stress_avg": "estres",
-        "steps_daily": "pasos",
-        "lt_speed": "umbral_garmin",
-        "lt_hr": "fc_umbral_garmin",
-    }
     days = []
     for r in rows:
         m = r.metrics or {}
-        d = {"dia": str(r.day)}
-        for key in DAILY_KEYS:
-            if m.get(key) is None:
-                continue
-            v = m[key]
-            d[names[key]] = (
-                round(v / 3600, 1) if key == "sleep_seconds" else (_speed_pace(v) if key == "lt_speed" else _r(v, 0))
-            )
+        d: dict = {"dia": str(r.day)}
+        for key, name in SALUD_NAMES.items():
+            if m.get(key) is not None:
+                d[name] = _salud_value(key, m[key])
         if len(d) > 1:
             days.append(d)
-    return f"Salud diaria del {_ddmm(desde)} al {_ddmm(hasta)}", {"dias": days}
+    out: dict = {"dias": days}
+    tags = session.exec(
+        select(HealthTag).where(HealthTag.user_id == user_id, HealthTag.day >= desde, HealthTag.day <= hasta)
+    ).all()
+    if tags:
+        out["etiquetas"] = [_clean({"dia": str(t.day), "etiqueta": t.label, "nota": t.comment}) for t in tags[:60]]
+    user = session.get(User, user_id)
+    rest = rest_periods(session, user, desde, hasta) if user is not None else []
+    if rest:
+        out["modo_descanso"] = [{"desde": str(p["start_date"]), "hasta": str(p["end_date"] or "activo")} for p in rest]
+    return f"Salud diaria del {_ddmm(desde)} al {_ddmm(hasta)}", out
+
+
+def _curve(sample: dict | None) -> dict | None:
+    """Curva nocturna resumida: mínimo, máximo, media y media de cada tercio de la noche."""
+    values = [v for v in (sample or {}).get("items") or [] if isinstance(v, int | float)]
+    if not values:
+        return None
+    third = max(1, len(values) // 3)
+    parts = [values[:third], values[third : 2 * third], values[2 * third :]]
+    return {
+        "min": _r(min(values), 0),
+        "max": _r(max(values), 0),
+        "media": _r(sum(values) / len(values), 0),
+        "por_tercios": [_r(sum(p) / len(p), 0) for p in parts if p],
+    }
+
+
+def _phases_summary(phases: str) -> dict:
+    """Minutos por fase y despertares del hipnograma de 5 min (1 profundo, 2 ligero, 3 REM, 4 despierto)."""
+    names = {"1": "profundo_min", "2": "ligero_min", "3": "rem_min", "4": "despierto_min"}
+    out = {name: phases.count(code) * 5 for code, name in names.items()}
+    out["despertares"] = sum(1 for a, b in zip(phases, phases[1:], strict=False) if b == "4" and a != "4")
+    first_deep = phases.find("1")
+    if first_deep >= 0:
+        out["primer_profundo_min"] = first_deep * 5
+    return out
+
+
+def _night_period(p: dict) -> dict:
+    def mins(key: str) -> int | None:
+        return round(p[key] / 60) if isinstance(p.get(key), int | float) else None
+
+    return _clean({
+        "inicio": p.get("bedtime_start"), "fin": p.get("bedtime_end"), "sueno_min": mins("total_sleep_s"),
+        "profundo_min": mins("deep_s"), "rem_min": mins("rem_s"), "ligero_min": mins("light_s"),
+        "despierto_min": mins("awake_s"), "latencia_min": mins("latency_s"), "eficiencia": p.get("efficiency"),
+        "fc_media": _r(p.get("avg_hr"), 0), "fc_minima": p.get("lowest_hr"), "hrv_media": _r(p.get("avg_hrv"), 0),
+        "respiracion": _r(p.get("avg_breath"), 1), "periodos_inquietos": p.get("restless_periods"),
+    })  # fmt: skip
+
+
+def noche_detalle(session: Session, user_id: int, args: dict) -> tuple[str, dict]:
+    from app.models import User
+    from app.services.health_views import night
+
+    user = session.get(User, user_id)
+    day = _day(args.get("dia"), date.today())
+    if user is None:
+        raise ToolError("Usuario no encontrado.")
+    n = night(session, user, day)
+    if n["main"] is None and not n["naps"]:
+        return f"Noche del {_ddmm(day)}", {"error": "No hay datos de sueño de esa noche."}
+    readiness = n["readiness"] or {}
+    data = _clean({
+        "fuente": n["source"],
+        "principal": _night_period(n["main"]) if n["main"] else None,
+        "fases": _phases_summary(n["hypnogram"]["phases"]) if n["hypnogram"] else None,
+        "fc_noche": _curve(n["hr"]),
+        "hrv_noche": _curve(n["hrv"]),
+        "siestas": [_night_period(p) for p in n["naps"]],
+        "nota_sueno": n["sleep_score"],
+        "contribuidores_sueno": n["sleep_contributors"],
+        "preparacion": readiness.get("score"),
+        "temp_desviacion_c": readiness.get("temperature_deviation"),
+        "contribuidores_preparacion": readiness.get("contributors"),
+        "spo2": (n["spo2"] or {}).get("average"),
+        "hora_optima": (n["sleep_time"] or {}).get("recommendation"),
+        "etiquetas": [t["label"] for t in n["tags"]],
+    })  # fmt: skip
+    return f"Noche del {_ddmm(day)}", data
 
 
 def lesiones_y_material(session: Session, user_id: int, args: dict) -> tuple[str, dict]:
@@ -789,9 +907,17 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         "salud_diaria",
-        "Métricas diarias entre dos fechas (por defecto 14 días): FC en reposo, HRV, sueño, Body Battery, estrés, "
-        "pasos y umbral de Garmin.",
+        "Métricas diarias entre dos fechas (por defecto 14 días): FC en reposo, HRV, sueño y sus fases, siestas, "
+        "preparación y temperatura (Oura), SpO2, Body Battery, estrés, resiliencia, actividad, pasos, umbral de "
+        "Garmin, etiquetas (alcohol, enfermedad…) y periodos de modo descanso.",
         {"type": "object", "properties": {"desde": _DATE, "hasta": _DATE}},
+    ),
+    ToolSpec(
+        "noche_detalle",
+        "Detalle de una noche (por defecto la última): fases (profundo, REM, ligero, despierto, despertares), FC y "
+        "HRV nocturnas resumidas, siestas, nota de sueño y de preparación con sus contribuidores, SpO2 y etiquetas. "
+        "Fuente: la elegida por la persona (Oura o el reloj).",
+        {"type": "object", "properties": {"dia": _DATE}},
     ),
     ToolSpec(
         "lesiones_y_material",
@@ -924,6 +1050,7 @@ _HANDLERS: dict[str, Callable[[Session, int, dict], tuple[str, dict]]] = {
     "dia_de_carrera": dia_de_carrera,
     "ruta_planificada": ruta_planificada,
     "salud_diaria": salud_diaria,
+    "noche_detalle": noche_detalle,
     "lesiones_y_material": lesiones_y_material,
     "memoria_del_atleta": coach.tool_memoria,
     "guardar_en_memoria": coach.tool_guardar,

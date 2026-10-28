@@ -18,10 +18,18 @@ from app.models.goal import RaceGoal
 from app.models.health import AthleteZones, DailyMetric
 from app.models.metric import MetricDefinition, MetricScope
 from app.models.notification import NotificationLog, NotificationPrefs, PushSubscription
+from app.models.oura import (
+    DailySeries,
+    HealthTag,
+    OuraConnection,
+    OuraWebhookSubscription,
+    RestPeriod,
+    WellnessSession,
+)
 from app.models.performance import PerformanceTest
 from app.models.plan import BlockKind, MatchMode, PlannedBlock, PlannedSession
 from app.models.planned_route import PlannedRoute
-from app.models.settings import SYNC_INTERVALS, SyncMode, UserSettings
+from app.models.settings import RECOVERY_SOURCES, SYNC_INTERVALS, SyncMode, UserSettings
 from app.models.sources import AppleImport, CorosCredential, CorosOAuth, IngestToken, OAuthClient, OAuthState
 from app.models.strength import ActivityFeedback, StrengthSet
 from app.models.sync import SyncRun, SyncStatus
@@ -29,6 +37,13 @@ from app.models.training import TrainingPlan, TrainingPlanWeek
 from app.models.user import AccountTier, User, UserStatus
 
 __all__ = [
+    "DailySeries",
+    "HealthTag",
+    "OuraConnection",
+    "OuraWebhookSubscription",
+    "RECOVERY_SOURCES",
+    "RestPeriod",
+    "WellnessSession",
     "ActivityReview",
     "AiReviewSettings",
     "AppleImport",

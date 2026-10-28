@@ -21,6 +21,7 @@ celery_app = Celery(
         "app.tasks.ai",
         "app.tasks.workouts",
         "app.tasks.coach",
+        "app.tasks.oura",
     ],
 )
 celery_app.conf.update(
@@ -46,6 +47,9 @@ celery_app.conf.update(
         "coros-official-sync": {"task": "coros.official_sync_all", "schedule": 6 * 3600},
         # Revisión semanal con el entrenador IA (el domingo desde las 18:00 locales).
         "coach-weekly": {"task": "coach.weekly_tick", "schedule": 3600},
+        # Anillo Oura: últimos 3 días (los webhooks traen el resto al momento) y suscripciones a webhooks.
+        "oura-sync": {"task": "oura.sync_recent", "schedule": 6 * 3600},
+        "oura-subscriptions": {"task": "oura.ensure_subscriptions", "schedule": 24 * 3600},
     },
 )
 

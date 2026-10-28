@@ -52,12 +52,14 @@ def _time(value: str | None) -> datetime | None:
 
 
 def _set_daily(session: Session, user_id: int, day: date, key: str, value: float, keep_max: bool = False) -> None:
-    row = session.exec(select(DailyMetric).where(DailyMetric.user_id == user_id, DailyMetric.day == day)).first()
-    row = row or DailyMetric(user_id=user_id, day=day)
-    metrics = dict(row.metrics or {})
-    metrics[key] = max(value, metrics.get(key) or 0) if keep_max else value
-    row.metrics = metrics
-    session.add(row)
+    """Valor de Health Connect para ese día como su propia fuente (`daily_sources`); se combina con las demás."""
+    from app.services.daily_sources import set_source_metrics, source_value
+
+    if keep_max:
+        row = session.exec(select(DailyMetric).where(DailyMetric.user_id == user_id, DailyMetric.day == day)).first()
+        value = max(value, source_value(row, "health_connect", key) or 0)
+    set_source_metrics(session, user_id, day, "health_connect", {key: value}, replace=False)
+    session.flush()
 
 
 def ingest(session: Session, user_id: int, payload: dict) -> dict:

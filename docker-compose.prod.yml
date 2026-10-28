@@ -36,6 +36,9 @@ x-backend: &backend
     BACKUP_DIR: /backups
     TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
     TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
+    OURA_CLIENT_ID: ${OURA_CLIENT_ID:-}  # anillo Oura (opcional): app de cloud.ouraring.com
+    OURA_CLIENT_SECRET: ${OURA_CLIENT_SECRET:-}
+    OURA_WEBHOOK_TOKEN: ${OURA_WEBHOOK_TOKEN:-}
     CORS_ORIGINS: ${CORS_ORIGINS:?}
     STORAGE_DIR: /data/storage
   volumes:
