@@ -1334,12 +1334,37 @@ export interface ActivityAnalysis {
     /** Pasos por minuto (media sin paradas). */
     avg_cadence: number | null;
     elevation_gain_m: number;
+    /** Ritmo equivalente en llano (s/km); null sin altitud. */
+    gap_s_km?: number | null;
   }[];
   decoupling: {
     pct: number;
     first_ef: number;
     second_ef: number;
     level: "bien" | "alta" | "muy alta";
+  } | null;
+  /** Carrera: metros/min por pulsación y comparación con tu media de 60 días. */
+  efficiency?: {
+    value: number;
+    baseline: number | null;
+    baseline_runs: number;
+    delta_pct: number | null;
+    by_km: { km: number; value: number | null }[];
+  } | null;
+  /** La del reloj (−20 a +20) o estimada con tu eficiencia de los minutos 6–20. */
+  performance_condition?: {
+    source: "reloj" | "estimado";
+    initial: number;
+    final: number | null;
+    min: number | null;
+    series: [number, number][];
+  } | null;
+  gap?: { pace_s_km: number; gap_s_km: number | null; factor: number } | null;
+  load?: {
+    load: number;
+    watch_load: number | null;
+    intensity: number | null;
+    recovery_h: [number, number];
   } | null;
 }
 

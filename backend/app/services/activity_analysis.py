@@ -16,6 +16,7 @@ from sqlmodel import Session, select
 
 from app.models import Activity, ActivityStream, DailyMetric, UserProfile
 from app.services import progress as prog
+from app.services import run_metrics
 from app.services.zones import hr_zones, latest_zones
 
 MAX_GAP_S = 30
@@ -149,12 +150,24 @@ def _current_vo2max(session: Session, user_id: int) -> tuple[float | None, str |
     return None, None
 
 
+def _gap_by_km(km_splits: list[dict], dist: list, alt: list) -> None:
+    """Añade a cada parcial su ritmo ajustado a pendiente (`gap_s_km`; None sin altitud)."""
+    pts = [(d, a) for d, a in zip(dist, alt, strict=False) if d is not None and a is not None]
+    start = 0.0
+    for s in km_splits:
+        end = start + s["distance_m"]
+        seg = [p for p in pts if start <= p[0] <= end]
+        factor = run_metrics.gap_factor([p[0] for p in seg], [p[1] for p in seg])
+        s["gap_s_km"] = run_metrics.gap_pace(s["pace_s_km"], factor)
+        start = end
+
+
 def analysis(session: Session, activity: Activity) -> dict:
     """Todo el análisis de la página de la actividad (las partes sin datos van vacías)."""
     from app.services.plan_steps import sport_family
     from app.services.profile import age_on, vo2max_percentile
 
-    ch = load_streams(session, activity.id, ("time", "distance", "hr", "altitude", "cadence"))
+    ch = load_streams(session, activity.id, ("time", "distance", "hr", "altitude", "cadence", "performance_condition"))
     time, dist, hr, alt, cad = (ch.get(k) or [] for k in ("time", "distance", "hr", "altitude", "cadence"))
     zones, lthr, zone_source = _zones_for(session, activity.user_id, activity.sport)
     family = sport_family(activity.sport)
@@ -170,6 +183,9 @@ def analysis(session: Session, activity: Activity) -> dict:
     if (current or value) and profile and profile.birth_date and profile.sex:
         percentile = vo2max_percentile(current or value, age_on(profile.birth_date, activity.start_time.date()),
                                        profile.sex)  # fmt: skip
+    km_splits = splits(time, dist, hr, alt, cad) if on_foot and dist else []
+    _gap_by_km(km_splits, dist, alt)
+    load = prog.activity_load(activity, thr)
     return {
         "hr_zones": {
             "zones": time_in_zones(time, hr, zones) if zones and hr else [],
@@ -183,6 +199,12 @@ def analysis(session: Session, activity: Activity) -> dict:
             "current_day": current_day,
             "percentile": percentile,
         },
-        "splits": splits(time, dist, hr, alt, cad) if on_foot and dist else [],
+        "splits": km_splits,
         "decoupling": decoupling(time, dist, hr) if dist and hr else None,
+        # Carga de cualquier sesión; en carrera, además eficiencia, condición de rendimiento y GAP.
+        **(
+            run_metrics.summary(session, activity, ch, km_splits, load)
+            if family == "running"
+            else run_metrics.empty(activity, load)
+        ),
     }

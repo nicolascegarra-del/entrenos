@@ -1,12 +1,22 @@
 "use client";
 
-import { Activity as ActivityIcon, Gauge, HeartPulse } from "lucide-react";
+import {
+  Activity as ActivityIcon,
+  Battery,
+  Gauge,
+  HeartPulse,
+  Mountain,
+  TrendingUp,
+} from "lucide-react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
   LabelList,
+  Line,
+  LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -23,6 +33,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useActivityAnalysis } from "@/hooks/use-api";
 import { formatDate, formatDuration } from "@/lib/format";
+import {
+  conditionText,
+  efficiencyText,
+  intensityText,
+} from "@/lib/run-metrics";
 import type { ActivityAnalysis } from "@/types/api";
 
 const axisTick = { fontSize: 11, fill: "var(--muted-foreground)" };
@@ -225,6 +240,7 @@ function SplitsCard({ data }: { data: ActivityAnalysis }) {
   const best = Math.min(...rows.map((r) => r.pace_s_km));
   const hasCadence = rows.some((r) => r.avg_cadence);
   const drift = data.decoupling;
+  const hasGap = rows.some((r) => r.gap_s_km != null);
   return (
     <Card className="shadow-sm">
       <CardHeader>
@@ -346,6 +362,9 @@ function SplitsCard({ data }: { data: ActivityAnalysis }) {
                 <tr>
                   <th className="py-1 pr-2 font-normal">Km</th>
                   <th className="py-1 pr-2 font-normal">Ritmo</th>
+                  {hasGap && (
+                    <th className="py-1 pr-2 font-normal">En llano</th>
+                  )}
                   <th className="py-1 pr-2 font-normal">Acum.</th>
                   <th className="py-1 pr-2 font-normal">FC</th>
                   {hasCadence && (
@@ -359,6 +378,11 @@ function SplitsCard({ data }: { data: ActivityAnalysis }) {
                   <tr key={r.km} className="border-t">
                     <td className="py-1 pr-2">{r.label}</td>
                     <td className="py-1 pr-2">{formatDuration(r.pace_s_km)}</td>
+                    {hasGap && (
+                      <td className="py-1 pr-2">
+                        {r.gap_s_km ? formatDuration(r.gap_s_km) : "—"}
+                      </td>
+                    )}
                     <td className="py-1 pr-2">{formatDuration(r.elapsed_s)}</td>
                     <td className="py-1 pr-2">{r.avg_hr ?? "—"}</td>
                     {hasCadence && (
@@ -371,12 +395,226 @@ function SplitsCard({ data }: { data: ActivityAnalysis }) {
             </table>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Ritmo en min/km · acumulado desde la salida · FC en ppm
+            Ritmo en min/km
+            {hasGap && " · en llano: el ritmo equivalente sin cuestas"} ·
+            acumulado desde la salida · FC en ppm
             {hasCadence && " · cadencia en pasos/min"}.
             {rows.some((r) => r.distance_m < 990) &&
               " * Último tramo, de menos de 1 km."}
           </p>
         </details>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Eficiencia de carrera: metros/min por pulsación frente a tu media y su evolución km a km. */
+function EfficiencyCard({
+  data,
+}: {
+  data: NonNullable<ActivityAnalysis["efficiency"]>;
+}) {
+  const rows = data.by_km.filter((r) => r.value != null);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <TrendingUp className="size-4" aria-hidden /> Eficiencia de carrera
+        </CardTitle>
+        <CardDescription>
+          Metros por minuto por cada pulsación: más alto, más rápido con el
+          mismo esfuerzo.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-2xl font-semibold tabular-nums">
+          {data.value.toLocaleString("es-ES", { maximumFractionDigits: 2 })}
+          <span className="ml-1 text-sm font-normal text-muted-foreground">
+            m/min por ppm
+          </span>
+        </p>
+        <p className="text-sm">{efficiencyText(data)}</p>
+        {rows.length > 2 && (
+          <figure aria-label="Eficiencia por kilómetro" className="h-36">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={rows} margin={{ left: 0, right: 8, top: 4 }}>
+                <CartesianGrid stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="km" tick={axisTick} tickLine={false} />
+                <YAxis
+                  width={40}
+                  tick={axisTick}
+                  tickLine={false}
+                  axisLine={false}
+                  domain={["auto", "auto"]}
+                />
+                {data.baseline && (
+                  <ReferenceLine
+                    y={data.baseline}
+                    stroke="var(--muted-foreground)"
+                    strokeDasharray="4 4"
+                    label={{
+                      value: "tu media",
+                      fontSize: 10,
+                      fill: "var(--muted-foreground)",
+                      position: "insideTopRight",
+                    }}
+                  />
+                )}
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  labelFormatter={(km) => `Km ${km}`}
+                  formatter={(v) => [Number(v).toFixed(2), "Eficiencia"]}
+                />
+                <Line
+                  dataKey="value"
+                  stroke="var(--chart-1)"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </figure>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Condición de rendimiento: la del reloj (con su curva) o la estimada por KTrain. */
+function ConditionCard({
+  data,
+}: {
+  data: NonNullable<ActivityAnalysis["performance_condition"]>;
+}) {
+  const series = data.series.map(([t, v]) => ({ min: Math.round(t / 60), v }));
+  const sign = (v: number) => (v > 0 ? `+${v}` : `${v}`);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Gauge className="size-4" aria-hidden /> Condición de rendimiento
+        </CardTitle>
+        <CardDescription>
+          {data.source === "reloj"
+            ? "La de tu reloj: cómo rindes hoy frente a tu nivel habitual (−20 a +20)."
+            : "Estimada por KTrain con tu eficiencia de los minutos 6–20 frente a tu media (−20 a +20)."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-2xl font-semibold tabular-nums">
+          {sign(data.initial)}
+          {data.final != null && (
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              al final {sign(data.final)}
+            </span>
+          )}
+        </p>
+        <p className="text-sm">{conditionText(data)}</p>
+        {series.length > 2 && (
+          <figure aria-label="Condición durante la carrera" className="h-36">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={series} margin={{ left: 0, right: 8, top: 4 }}>
+                <CartesianGrid stroke="var(--border)" vertical={false} />
+                <XAxis
+                  dataKey="min"
+                  tick={axisTick}
+                  tickLine={false}
+                  unit=" min"
+                />
+                <YAxis
+                  width={32}
+                  tick={axisTick}
+                  tickLine={false}
+                  axisLine={false}
+                  domain={[-20, 20]}
+                />
+                <ReferenceLine y={0} stroke="var(--muted-foreground)" />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  labelFormatter={(m) => `Minuto ${m}`}
+                  formatter={(v) => [v, "Condición"]}
+                />
+                <Line
+                  dataKey="v"
+                  stroke="var(--chart-1)"
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </figure>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Carga de la sesión, intensidad frente al umbral, recuperación orientativa y ritmo en llano. */
+function LoadCard({
+  load,
+  gap,
+}: {
+  load: NonNullable<ActivityAnalysis["load"]>;
+  gap: ActivityAnalysis["gap"];
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Battery className="size-4" aria-hidden /> Carga y esfuerzo
+        </CardTitle>
+        <CardDescription>
+          Carga estilo TSS: una hora justo en tu umbral son 100.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <dl className="grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <dt className="text-xs text-muted-foreground">Carga</dt>
+            <dd className="text-xl font-semibold tabular-nums">
+              {Math.round(load.load)}
+            </dd>
+            {load.watch_load != null && (
+              <dd className="text-xs text-muted-foreground">
+                Según tu reloj: {Math.round(load.watch_load)}
+              </dd>
+            )}
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Intensidad</dt>
+            <dd className="text-xl font-semibold tabular-nums">
+              {load.intensity != null
+                ? `${Math.round(load.intensity * 100)} %`
+                : "—"}
+            </dd>
+            <dd className="text-xs text-muted-foreground">
+              {intensityText(load.intensity)}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">
+              Recuperación orientativa
+            </dt>
+            <dd className="font-medium">
+              {load.recovery_h[0]}–{load.recovery_h[1]} h
+            </dd>
+          </div>
+          {gap?.gap_s_km ? (
+            <div>
+              <dt className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Mountain className="size-3" aria-hidden /> Ritmo en llano
+              </dt>
+              <dd className="font-medium tabular-nums">
+                {formatDuration(gap.gap_s_km)} /km
+              </dd>
+              <dd className="text-xs text-muted-foreground">
+                Real {formatDuration(gap.pace_s_km)} /km
+              </dd>
+            </div>
+          ) : null}
+        </dl>
       </CardContent>
     </Card>
   );
@@ -399,6 +637,11 @@ export function ActivityAnalysisCards({ activityId }: { activityId: number }) {
       <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
         {hasZones && <HrZonesCard data={data.hr_zones} />}
         <Vo2maxCard data={data.vo2max} />
+        {data.efficiency && <EfficiencyCard data={data.efficiency} />}
+        {data.performance_condition && (
+          <ConditionCard data={data.performance_condition} />
+        )}
+        {data.load && <LoadCard load={data.load} gap={data.gap ?? null} />}
       </div>
       {data.splits.length > 1 && <SplitsCard data={data} />}
     </>
