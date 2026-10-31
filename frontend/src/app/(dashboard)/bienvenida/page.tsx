@@ -201,7 +201,7 @@ function Wizard() {
               {
                 icon: Watch,
                 title: "Conectar tu reloj",
-                text: "Garmin, Apple Watch, COROS, Samsung, Xiaomi, Huawei, Suunto, Polar…: tus entrenos y métricas diarias.",
+                text: "Garmin, COROS, Suunto, Amazfit, Xiaomi, Samsung, Huawei, Polar…: tus entrenos y métricas diarias.",
               },
               {
                 icon: UserRound,

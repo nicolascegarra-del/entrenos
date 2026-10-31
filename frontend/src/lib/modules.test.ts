@@ -28,6 +28,7 @@ const ALL_ON: Modules = {
   suunto: true,
   zepp: true,
   xiaomi: true,
+  samsung: true,
 };
 const off = (...keys: (keyof Modules)[]): Modules => ({
   ...ALL_ON,

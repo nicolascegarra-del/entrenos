@@ -2,6 +2,7 @@
 
 import {
   CircleAlert,
+  ExternalLink,
   Loader2,
   QrCode,
   RefreshCw,
@@ -18,6 +19,8 @@ import {
   useConnectDevice,
   useBrandAccounts,
   useDisconnectDevice,
+  useSamsungFinish,
+  useSamsungStart,
   useSyncDevice,
   useXiaomiQr,
 } from "@/hooks/use-api";
@@ -40,6 +43,10 @@ const BRAND: Record<DeviceProvider, { name: string; note: string }> = {
   xiaomi: {
     name: "Xiaomi",
     note: "Xiaomi no permite entrar con contraseña desde otras apps: se conecta con un QR que apruebas en el móvil. En beta: de momento se trae el resumen de cada entreno (sin el detalle segundo a segundo).",
+  },
+  samsung: {
+    name: "Samsung",
+    note: "Inicias sesión en la propia web de Samsung (tu contraseña no pasa por aquí). En beta: se trae el resumen de cada entreno. Si tienes activado el cifrado de datos en Samsung Health, no se podrán leer.",
   },
 };
 
@@ -237,6 +244,84 @@ function XiaomiForm({ pending }: { pending: boolean }) {
 }
 
 /**
+ * Samsung: se abre su web para iniciar sesión y, al terminar, el navegador no sabe abrir el enlace
+ * «ms-app://…» al que vuelve Samsung: solo aparece en la consola (F12). La persona lo copia y lo pega aquí.
+ */
+function SamsungForm({ pending }: { pending: boolean }) {
+  const start = useSamsungStart();
+  const finish = useSamsungFinish();
+  const [redirect, setRedirect] = useState("");
+  return (
+    <div className="space-y-3">
+      <ol className="list-decimal space-y-1 pl-5 text-sm">
+        <li>
+          Pulsa «Iniciar sesión en Samsung» y entra con tu cuenta en la pestaña
+          que se abre.
+        </li>
+        <li>
+          Al terminar, la página se queda parada. Pulsa <strong>F12</strong> →
+          pestaña <strong>Consola</strong> y copia el enlace que empieza por{" "}
+          <code>ms-app://</code> (sale en un error en rojo).
+        </li>
+        <li>Pégalo abajo y pulsa «Conectar». Tienes 15 minutos.</li>
+      </ol>
+      <Button
+        className="min-h-11 md:min-h-9"
+        disabled={start.isPending}
+        onClick={() =>
+          start.mutate(undefined, {
+            onSuccess: ({ login_url }) =>
+              window.open(login_url, "_blank", "noopener"),
+            onError: (err) => toast.error(errorText(err)),
+          })
+        }
+      >
+        {start.isPending ? (
+          <Loader2 className="animate-spin" aria-hidden />
+        ) : (
+          <ExternalLink aria-hidden />
+        )}
+        Iniciar sesión en Samsung
+      </Button>
+      {pending && (
+        <form
+          className="space-y-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            finish.mutate(redirect.trim(), {
+              onSuccess: () => {
+                setRedirect("");
+                toast.success("Samsung conectado. Importando tus entrenos…");
+              },
+              onError: (err) => toast.error(errorText(err)),
+            });
+          }}
+        >
+          <Label htmlFor="samsung-redirect">Enlace «ms-app://…»</Label>
+          <Input
+            id="samsung-redirect"
+            required
+            placeholder="ms-app://s-1-15-2-…"
+            value={redirect}
+            onChange={(e) => setRedirect(e.target.value)}
+          />
+          <Button
+            type="submit"
+            className="min-h-11 md:min-h-9"
+            disabled={finish.isPending || !redirect.trim()}
+          >
+            {finish.isPending && (
+              <Loader2 className="animate-spin" aria-hidden />
+            )}
+            Conectar
+          </Button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+/**
  * Conexión con la cuenta de Suunto, Amazfit (Zepp) o Xiaomi. No oficial: si la marca la rompe, se ve el
  * error aquí y el administrador puede apagarla en Admin → Módulos.
  */
@@ -258,6 +343,8 @@ export function DeviceCard({ provider }: { provider: DeviceProvider }) {
       {(!live || conn.status === "expired") &&
         (provider === "xiaomi" ? (
           <XiaomiForm pending={conn?.status === "pending"} />
+        ) : provider === "samsung" ? (
+          <SamsungForm pending={conn?.status === "pending"} />
         ) : (
           <PasswordForm provider={provider} />
         ))}

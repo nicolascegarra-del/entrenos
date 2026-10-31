@@ -39,7 +39,7 @@ const FEATURES: Feature[] = [
   {
     icon: Watch,
     title: "Todos tus relojes, en un sitio",
-    text: `Garmin, COROS, Apple Watch, Suunto, Amazfit y las pulseras Xiaomi con tu cuenta de la marca y, vía Health Connect, Samsung, Huawei o Wear OS. También el anillo Oura, con tu sueño, recuperación y actividad. Y ficheros FIT, GPX y TCX de Polar, Wahoo… sin duplicados.`,
+    text: `Garmin, COROS, Suunto, Amazfit y las pulseras Xiaomi con tu cuenta de la marca y, vía Health Connect, Samsung, Huawei o Wear OS. También el anillo Oura, con tu sueño, recuperación y actividad. Y ficheros FIT, GPX y TCX de Polar, Wahoo… sin duplicados.`,
   },
   {
     icon: MapPinned,
@@ -68,7 +68,7 @@ const STEPS = [
   },
   {
     title: "Conecta tu reloj",
-    text: "Garmin, COROS, Apple Watch, Android… y se traen tus entrenos.",
+    text: "Garmin, COROS, Suunto, Amazfit, Xiaomi, Android… y se traen tus entrenos.",
   },
   {
     title: "Conoce a tu entrenador",
@@ -128,10 +128,10 @@ export function Landing() {
                 <span className="text-[#7FB2EE]">sea cual sea tu reloj</span>
               </h1>
               <p className="max-w-xl text-lg text-white/80">
-                KTrain junta tus entrenos de Garmin, COROS, Apple Watch o
-                Android, te los explica con métricas avanzadas y pone a tu lado
-                un entrenador con IA que planifica contigo y manda las sesiones
-                a tu reloj.
+                KTrain junta tus entrenos de Garmin, COROS, Suunto, Amazfit,
+                Xiaomi o Android, te los explica con métricas avanzadas y pone a
+                tu lado un entrenador con IA que planifica contigo y manda las
+                sesiones a tu reloj.
               </p>
               <div className="flex flex-wrap gap-3">
                 {signup ? (

@@ -192,7 +192,7 @@ export const TOURS: Tour[] = [
       {
         target: "import",
         title: "Importar",
-        body: "Conecta tu reloj (Garmin, COROS, Apple Watch…) o sube ficheros FIT, GPX o TCX.",
+        body: "Conecta tu reloj (Garmin, COROS, Suunto, Amazfit…) o sube ficheros FIT, GPX o TCX.",
       },
     ],
   },
@@ -358,7 +358,7 @@ export const TOURS: Tour[] = [
       },
       {
         title: "Conexiones",
-        body: "En Conexiones eliges tu reloj (Garmin, COROS, Apple Watch, Android o ficheros) y el envío automático de sesiones.",
+        body: "En Conexiones eliges tu reloj (Garmin, COROS, Suunto, Amazfit, Xiaomi, Android o ficheros) y el envío automático de sesiones.",
       },
     ],
   },

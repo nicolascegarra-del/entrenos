@@ -47,7 +47,7 @@ const SECTIONS: {
     key: "conexiones",
     label: "Conexiones",
     icon: Link2,
-    hint: "Tu reloj: Garmin, Apple Watch, COROS, Suunto…",
+    hint: "Tu reloj: Garmin, COROS, Suunto, Amazfit…",
   },
   {
     key: "notificaciones",

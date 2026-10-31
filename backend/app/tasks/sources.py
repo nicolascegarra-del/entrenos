@@ -1,4 +1,5 @@
 import logging
+from datetime import UTC, datetime
 
 from sqlmodel import Session, select
 
@@ -18,16 +19,20 @@ def coros_sync_task(user_id: int) -> int:
 
 @celery_app.task(name="coros.sync_all")
 def coros_sync_all_task() -> int:
-    """Sincroniza cada hora a quien tenga COROS conectado (y la cuenta activa)."""
+    """A quien tenga COROS conectado (y la cuenta activa) cuando le toque según Ajustes → Conexiones."""
+    from app.services.sync_schedule import connection_due
+
     total = 0
+    now = datetime.now(UTC)
     with Session(engine) as session:
-        users = session.exec(
-            select(CorosCredential.user_id)
+        rows = session.exec(
+            select(CorosCredential.user_id, CorosCredential.last_sync_at)
             .join(User, User.id == CorosCredential.user_id)
             .where(CorosCredential.status != "expired", User.status == UserStatus.ACTIVE)
         ).all()
-        for uid in users:
-            total += coros.sync(session, uid)
+        for uid, last in rows:
+            if connection_due(session, uid, last, now):
+                total += coros.sync(session, uid)
     logger.info("COROS: %s actividades nuevas", total)
     return total
 
@@ -108,15 +113,21 @@ def coros_official_sync_task(user_id: int, days: int | None = None) -> int:
 
 @celery_app.task(name="coros.official_sync_all")
 def coros_official_sync_all_task() -> int:
-    """Cada 6 h (COROS limita a 50 ficheros al día): a quien tenga la conexión oficial activa."""
+    """
+    A quien tenga la conexión oficial activa, cuando le toque según Ajustes → Conexiones (COROS limita a 50
+    ficheros al día: cada vez solo se piden los últimos días).
+    """
     from app.models import CorosOAuth
+    from app.services.sync_schedule import connection_due
 
+    now = datetime.now(UTC)
     with Session(engine) as session:
-        users = session.exec(
-            select(CorosOAuth.user_id)
+        rows = session.exec(
+            select(CorosOAuth.user_id, CorosOAuth.last_sync_at)
             .join(User, User.id == CorosOAuth.user_id)
             .where(CorosOAuth.status == "ok", User.status == UserStatus.ACTIVE)
         ).all()
+        users = [uid for uid, last in rows if connection_due(session, uid, last, now)]
     for uid in users:
         coros_official_sync_task.apply_async(args=[uid], argsrepr="(usuario)")
     return len(users)

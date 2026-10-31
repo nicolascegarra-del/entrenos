@@ -7,13 +7,13 @@ RECOVERY_SOURCES = ("auto", "watch", "oura")
 
 
 class SyncMode(StrEnum):
-    AUTO = "auto"  # el worker sincroniza solo cada `sync_interval_min`
+    AUTO = "auto"  # el worker sincroniza solo cada `sync_interval_min` (todas las conexiones)
     MANUAL = "manual"  # solo con el botón «Sincronizar ahora»
 
 
-# Intervalos ofrecidos en Ajustes (minutos).
-SYNC_INTERVALS = (15, 30, 60, 120, 360, 720, 1440)
-DEFAULT_SYNC_INTERVAL = 30
+# Intervalos ofrecidos en Ajustes → Conexiones (minutos): 1, 4, 8, 16 y 24 h. Valen para todas las conexiones.
+SYNC_INTERVALS = (60, 240, 480, 960, 1440)
+DEFAULT_SYNC_INTERVAL = 240
 
 
 class UserSettings(SQLModel, table=True):

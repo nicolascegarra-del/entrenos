@@ -1,6 +1,7 @@
-"""Tareas de Suunto, Amazfit (Zepp) y Xiaomi: sincronizar, la espera del QR de Xiaomi y la ronda periódica."""
+"""Tareas de Suunto, Amazfit (Zepp), Xiaomi y Samsung: sincronizar, la espera del QR de Xiaomi y la ronda periódica."""
 
 import logging
+from datetime import UTC, datetime
 
 from sqlmodel import Session, select
 
@@ -45,16 +46,22 @@ def xiaomi_wait_qr_task(user_id: int) -> str:
 
 @celery_app.task(name="devices.sync_all")
 def devices_sync_all_task() -> int:
-    """Cada 6 h: quien tenga Suunto, Amazfit o Xiaomi conectado (cuenta activa y módulo encendido)."""
+    """
+    Quien tenga Suunto, Amazfit, Xiaomi o Samsung conectado (cuenta activa y módulo encendido), cuando le
+    toque según Ajustes → Conexiones.
+    """
+    from app.services.sync_schedule import connection_due
+
     total = 0
+    now = datetime.now(UTC)
     with Session(engine) as session:
         rows = session.exec(
-            select(DeviceConnection.user_id, DeviceConnection.provider)
+            select(DeviceConnection.user_id, DeviceConnection.provider, DeviceConnection.last_sync_at)
             .join(User, User.id == DeviceConnection.user_id)
             .where(DeviceConnection.status.in_(("ok", "error")), User.status == UserStatus.ACTIVE)
         ).all()
-        for uid, provider in rows:
-            if modules.enabled(session, provider, uid):
+        for uid, provider, last in rows:
+            if modules.enabled(session, provider, uid) and connection_due(session, uid, last, now):
                 total += devices.sync(session, uid, provider)
     logger.info("Relojes por cuenta de marca: %s actividades nuevas", total)
     return total

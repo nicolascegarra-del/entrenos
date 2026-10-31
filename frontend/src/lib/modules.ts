@@ -13,7 +13,8 @@ export type ModuleKey =
   | "oura"
   | "suunto"
   | "zepp"
-  | "xiaomi";
+  | "xiaomi"
+  | "samsung";
 
 export type Modules = Record<ModuleKey, boolean>;
 
@@ -31,6 +32,7 @@ export const LOADING_MODULES: Modules = {
   suunto: true,
   zepp: true,
   xiaomi: true,
+  samsung: true,
 };
 
 /**
@@ -72,6 +74,11 @@ export const MODULE_INFO: { key: ModuleKey; label: string; hint: string }[] = [
     key: "xiaomi",
     label: "Xiaomi (Mi Fitness)",
     hint: "Oculta la conexión por QR con la cuenta de Xiaomi para Smart Band y Redmi Watch (no oficial, beta).",
+  },
+  {
+    key: "samsung",
+    label: "Samsung Health",
+    hint: "Oculta la conexión con la cuenta de Samsung para Galaxy Watch (no oficial, beta).",
   },
 ];
 

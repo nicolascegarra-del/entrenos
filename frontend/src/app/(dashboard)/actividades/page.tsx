@@ -363,7 +363,7 @@ export default function ActividadesPage() {
             >
               <Link
                 href="/ajustes/conexiones"
-                title="Importar entrenos de tu reloj (Apple Watch, ficheros FIT/GPX/TCX…)"
+                title="Importar entrenos de tu reloj (ficheros FIT, GPX o TCX)"
               >
                 <FileUp aria-hidden /> Importar
               </Link>

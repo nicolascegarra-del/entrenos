@@ -9,11 +9,11 @@ from pydantic import BaseModel, Field
 from app.api.deps import CurrentUser, SessionDep
 from app.core.rate_limit import limiter
 from app.services import devices, modules
-from app.services.devices import xiaomi
+from app.services.devices import samsung, xiaomi
 
 router = APIRouter(tags=["otros relojes"])
 
-Provider = Literal["suunto", "zepp", "xiaomi"]
+Provider = Literal["suunto", "zepp", "xiaomi", "samsung"]
 PasswordProvider = Literal["suunto", "zepp"]
 
 
@@ -98,6 +98,55 @@ def xiaomi_qr(request: Request, body: QrIn, session: SessionDep, user: CurrentUs
 
     xiaomi_wait_qr_task.apply_async(args=[user.id], argsrepr="(usuario)")
     return QrOut(login_url=pending["login_url"], qr=pending["qr"])
+
+
+class SamsungStartOut(BaseModel):
+    login_url: str = Field(description="Página de Samsung donde se inicia sesión")
+
+
+class SamsungFinishIn(BaseModel):
+    redirect: str = Field(min_length=20, max_length=8000, description="Enlace «ms-app://…» al que vuelve Samsung")
+
+
+@router.post(
+    "/sources/devices/samsung/start",
+    summary="Empezar a conectar Samsung Health",
+    description=(
+        "Devuelve la página de Samsung donde iniciar sesión. Al terminar, Samsung intenta abrir un enlace "
+        "`ms-app://…` que el navegador no sabe abrir: se copia y se envía a `/sources/devices/samsung/finish` "
+        "(caduca a los 15 minutos)."
+    ),
+    responses={400: {"description": "Samsung no respondió"}, 404: {"description": "Módulo desactivado"}},
+)
+@limiter.limit("6/minute")
+def samsung_start(request: Request, session: SessionDep, user: CurrentUser) -> SamsungStartOut:
+    _check(session, user, "samsung")
+    try:
+        url, pending = samsung.start_login()
+    except devices.DeviceError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    devices.save_session(session, user.id, "samsung", pending, "", status="pending")
+    return SamsungStartOut(login_url=url)
+
+
+@router.post(
+    "/sources/devices/samsung/finish",
+    summary="Terminar de conectar Samsung Health con el enlace «ms-app://…»",
+    responses={400: {"description": "Enlace no válido o caducado"}, 409: {"description": "Sin login empezado"}},
+)
+@limiter.limit("10/minute")
+def samsung_finish(request: Request, body: SamsungFinishIn, session: SessionDep, user: CurrentUser) -> DevicesOut:
+    _check(session, user, "samsung")
+    conn = devices.get_connection(session, user.id, "samsung")
+    if conn is None or conn.status != "pending":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Empieza primero el inicio de sesión en Samsung.")
+    try:
+        sess, account = samsung.finish_login(devices.read_session(conn), body.redirect)
+    except devices.DeviceError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    devices.save_session(session, user.id, "samsung", sess, account)
+    _queue_sync(user.id, "samsung")
+    return _status(session, user)
 
 
 @router.post(

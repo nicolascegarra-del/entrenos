@@ -30,6 +30,7 @@ SOURCE_NAMES = {
     "suunto": "Entreno de Suunto",
     "zepp": "Entreno de Amazfit",
     "xiaomi": "Entreno de Xiaomi",
+    "samsung": "Entreno de Samsung Health",
 }
 DEDUP_START_S = 120
 DEDUP_DURATION = 0.05

@@ -47,22 +47,22 @@ def test_next_sync_at_cuando_auto_entonces_ultima_mas_intervalo_o_ahora():
 
 def test_get_sync_settings_cuando_nunca_guardadas_entonces_valores_por_defecto(client, user):
     res = client.get("/api/v1/settings/sync", headers=auth(user)).json()
-    assert res["mode"] == "auto" and res["interval_min"] == 30
-    assert res["intervals"] == [15, 30, 60, 120, 360, 720, 1440]
+    assert res["mode"] == "auto" and res["interval_min"] == 240
+    assert res["intervals"] == [60, 240, 480, 960, 1440]
     assert res["next_sync_at"] is not None
 
 
 def test_put_sync_settings_cuando_manual_entonces_sin_proxima(client, session, user):
-    res = client.put("/api/v1/settings/sync", json={"mode": "manual", "interval_min": 120}, headers=auth(user))
+    res = client.put("/api/v1/settings/sync", json={"mode": "manual", "interval_min": 480}, headers=auth(user))
     assert res.status_code == 200
     assert res.json()["mode"] == "manual" and res.json()["next_sync_at"] is None
-    assert session.get(UserSettings, user.id).sync_interval_min == 120
+    assert session.get(UserSettings, user.id).sync_interval_min == 480
 
 
 def test_put_sync_settings_cuando_intervalo_no_permitido_entonces_422(client, user):
     res = client.put("/api/v1/settings/sync", json={"mode": "auto", "interval_min": 7}, headers=auth(user))
     assert res.status_code == 422
-    assert "15, 30, 60" in res.json()["error"]["message"]
+    assert "60, 240, 480" in res.json()["error"]["message"]
 
 
 def test_users_due_cuando_varios_usuarios_entonces_solo_auto_con_intervalo_cumplido(session: Session, monkeypatch):
@@ -83,3 +83,38 @@ def test_users_due_cuando_varios_usuarios_entonces_solo_auto_con_intervalo_cumpl
     session.commit()
     monkeypatch.setattr(sync_tasks, "has_tokens", lambda uid: uid != no_garmin)
     assert sync_tasks.users_due(now) == [auto_due]
+
+
+def test_connection_due_cuando_auto_manual_o_reciente_entonces_respeta_el_ajuste_general(session: Session, user):
+    from app.services.sync_schedule import connection_due
+
+    now = datetime.now(UTC)
+    session.add(UserSettings(user_id=user.id, sync_interval_min=240))
+    session.commit()
+    assert connection_due(session, user.id, None, now)
+    assert connection_due(session, user.id, now - timedelta(hours=5), now)
+    assert not connection_due(session, user.id, now - timedelta(hours=1), now)
+    row = session.get(UserSettings, user.id)
+    row.sync_mode = SyncMode.MANUAL
+    session.add(row)
+    session.commit()
+    assert not connection_due(session, user.id, None, now)
+
+
+def test_devices_sync_all_cuando_no_toca_entonces_no_sincroniza(session: Session, user, monkeypatch):
+    import contextlib
+
+    from app.services import devices
+    from app.tasks import devices as device_tasks
+
+    session.add(UserSettings(user_id=user.id, sync_interval_min=960))
+    devices.save_session(session, user.id, "suunto", {"session_key": "SK"}, "yo")
+    conn = devices.get_connection(session, user.id, "suunto")
+    conn.last_sync_at = datetime.now(UTC) - timedelta(hours=2)
+    session.add(conn)
+    session.commit()
+    calls: list = []
+    monkeypatch.setattr(device_tasks, "Session", lambda _engine: contextlib.nullcontext(session))
+    monkeypatch.setattr(devices, "sync", lambda s, uid, p: calls.append(p) or 0)
+    device_tasks.devices_sync_all_task()
+    assert calls == []  # cada 16 h y hace 2 h: aún no toca

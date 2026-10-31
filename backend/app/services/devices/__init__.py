@@ -1,6 +1,6 @@
 """
-Relojes y pulseras que se conectan con la cuenta de su marca (APIs no oficiales): Suunto, Amazfit (Zepp)
-y Xiaomi (Mi Fitness). Cada marca es un módulo con la misma forma (`Provider`); aquí está lo común:
+Relojes y pulseras que se conectan con la cuenta de su marca (APIs no oficiales): Suunto, Amazfit (Zepp),
+Xiaomi (Mi Fitness) y Samsung Health. Cada marca es un módulo con la misma forma (`Provider`); aquí está lo común:
 conectar, guardar la sesión cifrada y sincronizar los entrenos sin duplicarlos.
 
 Ninguna contraseña se guarda: se usa una vez para entrar y solo queda la sesión (cifrada). Todas estas
@@ -54,9 +54,9 @@ class Provider:
 
 
 def providers() -> dict[str, Provider]:
-    from app.services.devices import suunto, xiaomi, zepp
+    from app.services.devices import samsung, suunto, xiaomi, zepp
 
-    return {p.key: p for p in (suunto.PROVIDER, zepp.PROVIDER, xiaomi.PROVIDER)}
+    return {p.key: p for p in (suunto.PROVIDER, zepp.PROVIDER, xiaomi.PROVIDER, samsung.PROVIDER)}
 
 
 def get_connection(session: Session, user_id: int, provider: str) -> DeviceConnection | None:
@@ -127,8 +127,11 @@ def sync(session: Session, user_id: int, provider: str, days: int | None = None,
     first = conn.last_sync_at is None
     since = datetime.now(UTC) - timedelta(days=days or (FIRST_SYNC_DAYS if first else RECENT_DAYS))
     created = 0
+    sess = read_session(conn)
+    before = json.dumps(sess, sort_keys=True)
     try:
-        for remote in providers()[provider].workouts(read_session(conn), since):
+        # La marca puede apuntar datos en la sesión (p. ej. el registro de Samsung): se guardan al final.
+        for remote in providers()[provider].workouts(sess, since):
             if remote.start_time < since:
                 break
             if _imported(session, user_id, provider, remote.external_id):
@@ -151,6 +154,8 @@ def sync(session: Session, user_id: int, provider: str, days: int | None = None,
     except DeviceError as exc:
         conn.status, conn.last_error = "error", str(exc)[:255]
     conn.last_sync_at = datetime.now(UTC)
+    if json.dumps(sess, sort_keys=True) != before:
+        conn.session_enc = encrypt_secret(json.dumps(sess))
     session.add(conn)
     session.commit()
     if created:

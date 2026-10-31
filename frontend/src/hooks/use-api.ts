@@ -1998,6 +1998,32 @@ export function useXiaomiQr() {
   });
 }
 
+/** Samsung: empieza el inicio de sesión en su web (devuelve la página a abrir). */
+export function useSamsungStart() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ login_url: string }>("/api/v1/sources/devices/samsung/start", {
+        method: "POST",
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["brand-accounts"] }),
+  });
+}
+
+/** Samsung: termina el inicio de sesión con el enlace «ms-app://…» copiado. */
+export function useSamsungFinish() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (redirect: string) =>
+      apiFetch<DevicesStatus>("/api/v1/sources/devices/samsung/finish", {
+        method: "POST",
+        body: JSON.stringify({ redirect }),
+      }),
+    onSuccess: (data) => queryClient.setQueryData(["brand-accounts"], data),
+  });
+}
+
 export function useSyncDevice(provider: DeviceProvider) {
   return useMutation({
     mutationFn: () =>

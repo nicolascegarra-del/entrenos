@@ -1609,7 +1609,7 @@ export interface OuraAppSettingsInput {
 }
 
 /** Marcas que se conectan con la cuenta de su marca (APIs no oficiales). */
-export type DeviceProvider = "suunto" | "zepp" | "xiaomi";
+export type DeviceProvider = "suunto" | "zepp" | "xiaomi" | "samsung";
 
 export interface DeviceConnection {
   provider: DeviceProvider;

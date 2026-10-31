@@ -1,7 +1,7 @@
 """Tareas del anillo Oura: histórico, sincronización periódica, webhooks y suscripciones."""
 
 import logging
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from sqlmodel import Session, select
 
@@ -87,15 +87,21 @@ def oura_sync_user_task(user_id: int) -> dict:
 
 
 def sync_recent(session: Session) -> int:
-    """Últimos 3 días a quien tenga Oura conectado (no caducado), la cuenta activa y el módulo encendido."""
+    """
+    Últimos 3 días a quien tenga Oura conectado (no caducado), la cuenta activa, el módulo encendido y le
+    toque según Ajustes → Conexiones. Los webhooks de Oura siguen trayendo lo nuevo al momento.
+    """
+    from app.services.sync_schedule import connection_due
+
+    now = datetime.now(UTC)
     rows = session.exec(
-        select(OuraConnection.user_id)
+        select(OuraConnection.user_id, OuraConnection.last_sync_at)
         .join(User, User.id == OuraConnection.user_id)
         .where(OuraConnection.status != "expired", User.status == UserStatus.ACTIVE)
     ).all()
     done = 0
-    for uid in rows:
-        if oura_sync.oura_enabled(session, uid):
+    for uid, last in rows:
+        if oura_sync.oura_enabled(session, uid) and connection_due(session, uid, last, now):
             sync_user(session, uid)
             done += 1
     return done

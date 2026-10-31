@@ -37,7 +37,7 @@ def _out(session: SessionDep, user_id: int) -> SyncSettingsOut:
     )
 
 
-@router.get("/sync", summary="Preferencias de sincronización con Garmin")
+@router.get("/sync", summary="Preferencias de sincronización (todas las conexiones)")
 def get_sync_settings(session: SessionDep, user: CurrentUser) -> SyncSettingsOut:
     return _out(session, user.id)
 
@@ -45,7 +45,10 @@ def get_sync_settings(session: SessionDep, user: CurrentUser) -> SyncSettingsOut
 @router.put(
     "/sync",
     summary="Cambiar modo e intervalo de sincronización",
-    description="`auto`: el worker sincroniza cada `interval_min`. `manual`: solo con «Sincronizar ahora».",
+    description=(
+        "General para todas las conexiones (Garmin, COROS, Oura, Suunto, Amazfit, Xiaomi, Samsung). `auto`: se "
+        "sincroniza cada `interval_min` (60, 240, 480, 960 o 1440). `manual`: solo con «Sincronizar ahora»."
+    ),
     responses={422: {"description": "Intervalo no permitido."}},
 )
 def update_sync_settings(body: SyncSettingsIn, session: SessionDep, user: CurrentUser) -> SyncSettingsOut:

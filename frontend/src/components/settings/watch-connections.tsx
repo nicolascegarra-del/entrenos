@@ -9,6 +9,7 @@ import { CorosOfficial } from "@/components/settings/coros-official";
 import { DeviceCard } from "@/components/settings/device-card";
 import { GarminCard } from "@/components/settings/garmin-card";
 import { OuraCard } from "@/components/settings/oura-card";
+import { SyncSettingsCard } from "@/components/settings/sync-settings-card";
 import {
   Coros,
   HealthConnect,
@@ -34,6 +35,7 @@ import {
 } from "@/hooks/use-api";
 import { moduleOn } from "@/lib/modules";
 import { cn } from "@/lib/utils";
+import type { DeviceProvider } from "@/types/api";
 import {
   connectedBrands,
   connectedDevices,
@@ -93,13 +95,16 @@ function useChosenBrands() {
       // Sin almacenamiento (modo privado): la selección dura lo que la página.
     }
   };
-  // Con el módulo de una marca apagado (Oura, Suunto, Amazfit, Xiaomi), no se ofrece.
+  // Con el módulo de una marca apagado (Oura, Suunto, Amazfit, Xiaomi), no se ofrece. Apple Watch ya no se
+  // ofrece (Apple no deja leer Salud desde fuera del iPhone): solo lo ve quien ya lo tenía, para gestionarlo.
   const offered = (k: WatchBrand) =>
     k === "oura"
       ? ouraOn
-      : (DEVICE_BRANDS as readonly string[]).includes(k)
-        ? moduleOn(modules, k as (typeof DEVICE_BRANDS)[number])
-        : true;
+      : k === "apple"
+        ? connected.includes("apple")
+        : (DEVICE_BRANDS as readonly string[]).includes(k)
+          ? moduleOn(modules, k as (typeof DEVICE_BRANDS)[number])
+          : true;
   const brands = WATCH_BRANDS.filter((b) => offered(b.key));
   const summary = connectedDevices({
     garmin: garmin.data,
@@ -136,8 +141,8 @@ function BrandPanel({
   const body =
     brand === "oura" ? (
       <OuraCard />
-    ) : brand === "suunto" || brand === "zepp" || brand === "xiaomi" ? (
-      <DeviceCard provider={brand} />
+    ) : (DEVICE_BRANDS as readonly string[]).includes(brand) ? (
+      <DeviceCard provider={brand as DeviceProvider} />
     ) : brand === "files" ? (
       <ImportFiles />
     ) : sources.isPending ? (
@@ -258,6 +263,7 @@ export function WatchConnections() {
       {selected.map((brand) => (
         <BrandPanel key={brand} brand={brand} sources={sources} />
       ))}
+      {connected.length > 0 && <SyncSettingsCard />}
     </div>
   );
 }

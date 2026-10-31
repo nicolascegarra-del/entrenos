@@ -40,19 +40,20 @@ celery_app.conf.update(
         "plans-adapt": {"task": "plans.adapt_due", "schedule": 6 * 3600},
         # Notificación «hoy toca…» a la hora que elige cada persona.
         "notifications-daily": {"task": "notifications.daily", "schedule": 15 * 60},
-        # Otros relojes: COROS cada hora (Health Connect llega solo por webhook).
-        "coros-sync": {"task": "coros.sync_all", "schedule": 3600},
+        # Otras conexiones: se revisan cada 15 min y se sincroniza a quien le toque según su intervalo
+        # (Ajustes → Conexiones, general para todas). Health Connect llega solo por webhook.
+        "coros-sync": {"task": "coros.sync_all", "schedule": 15 * 60},
         # Sesiones de los próximos 7 días a Garmin (quien tenga el envío automático activado).
         "garmin-workouts": {"task": "garmin.send_workouts_all", "schedule": 6 * 3600},
         # COROS por la conexión oficial (límite de 50 .FIT al día): actividades de hoy y ayer.
-        "coros-official-sync": {"task": "coros.official_sync_all", "schedule": 6 * 3600},
+        "coros-official-sync": {"task": "coros.official_sync_all", "schedule": 15 * 60},
         # Revisión semanal con el entrenador IA (el domingo desde las 18:00 locales).
         "coach-weekly": {"task": "coach.weekly_tick", "schedule": 3600},
         # Anillo Oura: últimos 3 días (los webhooks traen el resto al momento) y suscripciones a webhooks.
-        "oura-sync": {"task": "oura.sync_recent", "schedule": 6 * 3600},
+        "oura-sync": {"task": "oura.sync_recent", "schedule": 15 * 60},
         "oura-subscriptions": {"task": "oura.ensure_subscriptions", "schedule": 24 * 3600},
         # Suunto, Amazfit (Zepp) y Xiaomi por la cuenta de su marca (APIs no oficiales).
-        "devices-sync": {"task": "devices.sync_all", "schedule": 6 * 3600},
+        "devices-sync": {"task": "devices.sync_all", "schedule": 15 * 60},
     },
 )
 

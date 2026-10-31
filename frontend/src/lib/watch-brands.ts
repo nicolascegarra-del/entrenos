@@ -13,12 +13,13 @@ export type WatchBrand =
   | "suunto"
   | "zepp"
   | "xiaomi"
+  | "samsung"
   | "android"
   | "oura"
   | "files";
 
 /** Marcas que se conectan con la cuenta de su marca (cada una con su módulo). */
-export const DEVICE_BRANDS = ["suunto", "zepp", "xiaomi"] as const;
+export const DEVICE_BRANDS = ["suunto", "zepp", "xiaomi", "samsung"] as const;
 
 /** Marcas de reloj y cómo se conecta cada una (en el orden en que se muestran). */
 export const WATCH_BRANDS: {
@@ -41,8 +42,13 @@ export const WATCH_BRANDS: {
     how: "Con un QR desde la app de Xiaomi (beta)",
   },
   {
+    key: "samsung",
+    label: "Samsung Galaxy Watch",
+    how: "Con tu cuenta de Samsung (beta)",
+  },
+  {
     key: "android",
-    label: "Samsung, Huawei, Wear OS",
+    label: "Huawei, Wear OS y otros Android",
     how: "Desde el móvil Android con Health Connect",
   },
   {
@@ -117,6 +123,7 @@ const DEVICE_NAMES: Record<(typeof DEVICE_BRANDS)[number], string> = {
   suunto: "Suunto",
   zepp: "Amazfit",
   xiaomi: "Xiaomi",
+  samsung: "Samsung",
 };
 
 export interface ConnectedDevices {
@@ -164,4 +171,9 @@ export function connectedDevices({
       ? "Ningún dispositivo conectado"
       : `${n} ${n === 1 ? "dispositivo conectado" : "dispositivos conectados"}: ${connected.join(", ")}`;
   return { connected, broken, label };
+}
+
+/** Intervalo de sincronización legible: «1 h», «4 h», «24 h» (o «30 min» si es menor de una hora). */
+export function intervalLabel(minutes: number): string {
+  return minutes < 60 ? `${minutes} min` : `${minutes / 60} h`;
 }
