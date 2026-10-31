@@ -233,7 +233,7 @@ def summary(session: SessionDep, user: CurrentUser) -> SummaryResponse:
         fitness=current,
         form_label=svc.form_label(current.tsb) if current else None,
         readiness=ReadinessOut(**asdict(readiness(current.tsb if current else None, acwr)), acwr=acwr),
-        vo2max=latest("vo2max") or latest("vo2max_running"),
+        vo2max=latest("vo2max") or latest("vo2max_running") or latest("vo2max_oura"),
         resting_hr=latest("resting_hr"),
         planned_this_week=[PlannedBrief.model_validate(p, from_attributes=True) for p in planned],
         compliance_avg=round(sum(scores) / len(scores), 1) if scores else None,

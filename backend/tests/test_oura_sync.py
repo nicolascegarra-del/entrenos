@@ -1,8 +1,18 @@
 from datetime import UTC, date, datetime, timedelta
 
+import pytest
 from sqlmodel import select
 
-from app.models import Activity, DailyMetric, DailySeries, HealthTag, OuraConnection, RestPeriod, WellnessSession
+from app.models import (
+    Activity,
+    ActivityStream,
+    DailyMetric,
+    DailySeries,
+    HealthTag,
+    OuraConnection,
+    RestPeriod,
+    WellnessSession,
+)  # fmt: skip
 from app.services import oura_sync
 from app.services.file_import import ImportedActivity, save_imported
 from app.tasks import oura as tasks
@@ -258,3 +268,133 @@ def test_sincronizar_cuando_faltan_campos_o_tipos_raros_entonces_no_falla(sessio
     oura.collections["daily_activity"] = [{"id": "a1", "day": "2026-10-20", "steps": "muchos", "class_5_min": 12}]
     counts = oura_sync.sync_range(session, user.id, date(2026, 10, 19), date(2026, 10, 21))
     assert counts is not None
+
+
+# ─── Entrenos completos: serie de FC, MET, zonas, intensidad ─────────────────
+
+
+def _workout_hr(start: datetime, minutes: int = 45, every_s: int = 5) -> list[dict]:
+    """FC de entreno cada 5 s que sube de 120 a 165 ppm (y una muestra suelta despierto fuera del entreno)."""
+    n = minutes * 60 // every_s
+    rows = [{"timestamp": (start + timedelta(seconds=i * every_s)).isoformat(), "bpm": 120 + round(45 * i / n),
+             "source": "workout"} for i in range(n)]  # fmt: skip
+    return [*rows, {"timestamp": (start - timedelta(hours=2)).isoformat(), "bpm": 60, "source": "awake"}]
+
+
+def test_workout_activity_cuando_hay_fc_y_met_entonces_series_alineadas_y_metricas():
+    start = START
+    hr = [(int(start.timestamp()) + s, b) for s, b in ((0, 100.0), (30, 120.0), (65, 140.0), (130, 130.0))]
+    met = [(int(start.timestamp()), 4.0), (int(start.timestamp()) + 60, 8.0)]
+    act = oura_sync.workout_activity(workout_doc(start, minutes=3) | {"intensity": "hard"}, hr, met)
+    assert act.streams["time"] == [0, 30, 65, 130] and act.streams["hr"] == [100, 120, 140, 130]
+    # Cada muestra de FC lleva el MET de su minuto; pasados 2 min sin MET, nada.
+    assert act.streams["met"] == [4.0, 4.0, 8.0, 8.0]
+    assert (act.avg_hr, act.max_hr) == (122, 140)
+    m = act.metrics
+    assert m["min_hr"] == 100 and m["avg_met"] == 6.0 and m["max_met"] == 8.0
+    assert m["oura_intensity"] == 3 and m["oura_origin"] == 2 and m["avg_speed"] == 50.0
+    assert m["oura"]["intensity"] == "hard" and m["oura"]["source"] == "autodetected"
+    assert act.timezone == "+00:00" and act.calories == 450
+
+
+def test_workout_activity_cuando_no_hay_datos_entonces_sin_series():
+    act = oura_sync.workout_activity(workout_doc(START) | {"distance": None, "intensity": None}, [], [])
+    assert act.streams == {} and act.avg_hr is None and act.distance_m is None
+    assert "oura_intensity" not in act.metrics and "avg_speed" not in act.metrics
+    assert oura_sync.workout_activity(workout_doc(START) | {"end_datetime": START.isoformat()}, [], []) is None
+
+
+def test_sync_range_cuando_entreno_con_fc_entonces_guarda_series_zonas_e_intensidad(session, user, oura):
+    connect(session, user)
+    # FC máx. conocida (de otro entreno): da las zonas de la app.
+    save_imported(session, user.id, ImportedActivity(sport="running", start_time=START - timedelta(days=3),
+                                                     duration_s=1800, max_hr=190), "fit")  # fmt: skip
+    oura.collections["heartrate"] = _workout_hr(START)
+    activity_doc = daily_docs()["daily_activity"][0]
+    activity_doc["met"] = {"interval": 60.0, "items": [3.0] * 60 * 24, "timestamp": f"{DAY}T00:00:00+00:00"}
+    oura.collections["daily_activity"] = [activity_doc]
+    oura.collections["workout"] = [workout_doc(START)]
+    oura_sync.sync_range(session, user.id, DAY, DAY)
+    act = session.exec(select(Activity).where(Activity.source == "oura")).one()
+    streams = {s.channel: s.values for s in session.exec(select(ActivityStream))}
+    assert len(streams["time"]) == len(streams["hr"]) == len(streams["met"]) == 540
+    assert streams["time"][:2] == [0, 5] and streams["hr"][0] == 120 and set(streams["met"]) == {3.0}
+    assert act.metrics["min_hr"] == 120
+    assert act.max_hr == 165 and act.metrics["avg_met"] == 3.0 and act.metrics["oura_intensity"] == 2
+    zones = [act.metrics.get(f"hr_zone_{i}_s") for i in range(1, 6)]
+    assert all(z is not None for z in zones) and sum(zones) == pytest.approx(2695, abs=5)
+
+
+def test_sync_range_cuando_el_entreno_cambia_en_oura_entonces_se_actualiza_sin_duplicar(session, user, oura):
+    connect(session, user)
+    oura.collections["workout"] = [workout_doc(START)]
+    oura_sync.sync_range(session, user.id, DAY, DAY)
+    act = session.exec(select(Activity)).one()
+    assert act.avg_hr is None and act.metrics["oura_intensity"] == 2
+    act.name = "Mi paseo"
+    session.add(act)
+    session.commit()
+    oura.collections["heartrate"] = _workout_hr(START)
+    oura.collections["workout"] = [workout_doc(START) | {"intensity": "easy", "calories": 300.0}]
+    oura_sync.sync_range(session, user.id, DAY, DAY)
+    session.expire_all()
+    act = session.exec(select(Activity)).one()
+    assert act.name == "Mi paseo" and act.calories == 300 and act.metrics["oura_intensity"] == 1
+    assert act.avg_hr == 142 and len(session.exec(select(ActivityStream)).all()) == 2  # time y hr
+
+
+def test_workout_sin_fc_de_entreno_entonces_usa_la_fc_de_ese_rato(session, user, oura):
+    connect(session, user)
+    oura.collections["heartrate"] = [
+        {"timestamp": (START + timedelta(minutes=m)).isoformat(), "bpm": 90 + m, "source": "awake"} for m in (0, 5, 10)
+    ]
+    oura.collections["workout"] = [workout_doc(START, minutes=12)]
+    oura_sync.sync_range(session, user.id, DAY, DAY)
+    act = session.exec(select(Activity)).one()
+    assert (act.avg_hr, act.max_hr, act.metrics["min_hr"]) == (95, 100, 90)
+
+
+def test_reprocess_workouts_cuando_entreno_antiguo_entonces_lo_completa_con_lo_guardado(session, user, oura):
+    connect(session, user)
+    oura.collections["heartrate"] = _workout_hr(START)
+    oura_sync.sync_range(session, user.id, DAY, DAY)  # FC continua guardada; aún sin entrenos
+    old, _ = save_imported(session, user.id, ImportedActivity(
+        sport="running", start_time=START, duration_s=2700, distance_m=9000, calories=450, name="Carrera · Oura",
+        timezone="+02:00"), "oura", "w-old")  # fmt: skip
+    assert oura_sync.reprocess_workouts(session) == 1
+    session.expire_all()
+    act = session.get(Activity, old.id)
+    assert act.avg_hr == 142 and act.max_hr == 165 and act.metrics["min_hr"] == 120
+    assert act.timezone == "+02:00" and act.start_time == START and act.name == "Carrera · Oura"
+    assert {s.channel for s in session.exec(select(ActivityStream))} == {"time", "hr"}
+    assert oura_sync.reprocess_workouts(session, user.id) == 1  # idempotente
+    assert len(session.exec(select(ActivityStream)).all()) == 2
+
+
+def test_analisis_de_entreno_oura_cuando_hay_fc_entonces_pulso_trimp_y_vo2max_de_oura(session, user, oura):
+    from app.services import activity_analysis
+
+    connect(session, user)
+    oura.collections["heartrate"] = _workout_hr(START)
+    oura.collections["vO2_max"] = daily_docs()["vO2_max"]
+    oura.collections["workout"] = [workout_doc(START, activity="cycling") | {"distance": None}]
+    oura_sync.sync_range(session, user.id, DAY, DAY)
+    act = session.exec(select(Activity)).one()
+    data = activity_analysis.analysis(session, act)
+    hr = data["heart_rate"]
+    assert (hr["min"], hr["avg"], hr["max"]) == (120, 142, 165)
+    assert hr["drift"]["pct"] > 5 and hr["drift"]["first_hr"] < hr["drift"]["second_hr"]
+    assert hr["trimp"] and hr["trimp"] > 0
+    assert data["vo2max"]["current"] == 51 and data["vo2max"]["current_source"] == "oura"
+    assert data["decoupling"] is None and data["splits"] == []
+
+
+def test_despike_cuando_el_anillo_mete_un_valor_fijo_imposible_entonces_lo_quita():
+    # Como en un entreno real: 208 ppm cada 5 s mezclado con la FC buena (~100) y luego minutos solo de 208.
+    bad = [(t, 208.0) for t in range(3, 400, 5)]
+    good = [(t, 100.0 + (t // 100)) for t in range(0, 200, 10)] + [(t, 105.0 + (t % 3)) for t in range(403, 1400, 5)]
+    clean = oura_sync.despike(sorted(bad + good))
+    assert max(b for _, b in clean) < 120 and len(clean) == len(good)
+    # Subidas reales (de 100 a 170 en 2 min) y huecos largos se respetan.
+    ramp = [(t, 100.0 + t * 0.6) for t in range(0, 120, 5)] + [(600, 90.0), (605, 91.0)]
+    assert oura_sync.despike(ramp) == ramp

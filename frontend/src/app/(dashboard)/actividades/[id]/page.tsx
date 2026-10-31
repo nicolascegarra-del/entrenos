@@ -57,10 +57,27 @@ const RouteMap = dynamic(() => import("@/components/activity/route-map"), {
   loading: () => <Skeleton className="h-64 w-full md:h-80" />,
 });
 
+// Métricas que se guardan como código numérico (las de Oura) y se leen como texto.
+const METRIC_TEXT: Record<string, Record<number, string>> = {
+  oura_intensity: { 1: "Suave", 2: "Moderada", 3: "Alta" },
+  oura_origin: {
+    1: "Añadido a mano",
+    2: "Detectado solo",
+    3: "Detectado y confirmado",
+    4: "Con FC de entreno",
+  },
+};
+
+// Unidades pequeñas en las que el decimal importa (6,3 MET no es 6).
+const DECIMAL_UNITS = new Set(["MET"]);
+
 /** Valor de una métrica del catálogo: tiempos (unidad "s") como m:ss; enteros sin decimales. */
 function metricValue(m: MetricDefinition, value: number): string {
+  const text = METRIC_TEXT[m.key]?.[value];
+  if (text) return text;
   if (m.unit === "s") return formatDuration(value);
-  const decimals = Number.isInteger(value) || m.unit ? 0 : 1;
+  const decimals =
+    Number.isInteger(value) || (m.unit && !DECIMAL_UNITS.has(m.unit)) ? 0 : 1;
   return `${formatNumber(value, decimals)}${m.unit ? ` ${m.unit}` : ""}`;
 }
 
@@ -133,7 +150,11 @@ function StatsGrid({
           <Stat
             label="FC media"
             value={`${formatNumber(activity.avg_hr)} ppm`}
-            sub={`máx. ${formatNumber(activity.max_hr)}`}
+            sub={`${
+              activity.metrics.min_hr != null
+                ? `mín. ${formatNumber(activity.metrics.min_hr)} · `
+                : ""
+            }máx. ${formatNumber(activity.max_hr)}`}
           />
         ) : null}
         {activity.elevation_gain_m != null ? (
@@ -245,6 +266,15 @@ export default function ActivityDetailPage() {
                 · <Watch className="size-3" aria-hidden />{" "}
                 {activity.device.name}
               </span>
+            )}
+            {activity.metrics.oura_intensity != null && (
+              <Badge variant="secondary">
+                Intensidad{" "}
+                {METRIC_TEXT.oura_intensity[
+                  activity.metrics.oura_intensity
+                ]?.toLowerCase() ?? "—"}{" "}
+                (Oura)
+              </Badge>
             )}
             {activity.is_race && (
               <Badge variant="secondary">Carrera a tope</Badge>

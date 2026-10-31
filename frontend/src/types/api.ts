@@ -1316,6 +1316,8 @@ export interface ActivityAnalysis {
     source: "reloj" | "estimado" | null;
     current: number | null;
     current_day: string | null;
+    /** De dónde sale el VO2max actual: el reloj o el anillo Oura. */
+    current_source?: "reloj" | "oura" | null;
     percentile: {
       percentile: number;
       bound: "below" | "above" | null;
@@ -1342,6 +1344,23 @@ export interface ActivityAnalysis {
     first_ef: number;
     second_ef: number;
     level: "bien" | "alta" | "muy alta";
+  } | null;
+  /** Pulso de la sesión con la serie de FC (cualquier deporte, también los entrenos de Oura). */
+  heart_rate?: {
+    avg: number;
+    min: number;
+    max: number;
+    avg_pct_max: number | null;
+    max_pct_max: number | null;
+    /** FC media de la 2.ª mitad frente a la 1.ª (≥ 20 min). */
+    drift: {
+      pct: number;
+      first_hr: number;
+      second_hr: number;
+      level: "bien" | "alta" | "muy alta";
+    } | null;
+    /** TRIMP de Banister. */
+    trimp: number | null;
   } | null;
   /** Carrera: metros/min por pulsación y comparación con tu media de 60 días. */
   efficiency?: {

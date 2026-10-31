@@ -75,6 +75,13 @@ function chartSpecs(pace: boolean): ChartSpec[] {
       color: "var(--chart-4)",
       format: (v) => formatNumber(v),
     },
+    {
+      channel: "met",
+      label: "Intensidad (MET)",
+      unit: "MET",
+      color: "var(--chart-5)",
+      format: (v) => formatNumber(v, 1),
+    },
   ];
 }
 
@@ -87,6 +94,7 @@ export function chartChannels(available: string[]): string[] {
     "power",
     "altitude",
     "cadence",
+    "met",
   ];
   return wanted.filter((c) => available.includes(c));
 }

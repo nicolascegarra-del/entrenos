@@ -10,11 +10,16 @@ Análisis de una actividad para su página: tiempo en zonas de FC, VO2max, parci
 - **Parciales por km** (deportes a pie): tiempo, ritmo, FC media y desnivel positivo de cada km.
 - **Deriva cardiaca** (Pa:HR): eficiencia (velocidad / FC) de la segunda mitad frente a la primera; por
   encima del 5 % suele indicar falta de base aeróbica, calor o deshidratación (Friel).
+- **Pulso de la sesión** (cualquier actividad con serie de FC, también las del anillo Oura): FC mín./media/
+  máx., % de la FC máx., deriva de la FC (2.ª mitad frente a la 1.ª, la útil sin distancia) y TRIMP de
+  Banister (minutos × reserva de FC × 0,64·e^(1,92·reserva); en mujeres 0,86·e^(1,67·reserva)).
 """
+
+import math
 
 from sqlmodel import Session, select
 
-from app.models import Activity, ActivityStream, DailyMetric, UserProfile
+from app.models import Activity, ActivityStream, DailyMetric, Sex, UserProfile
 from app.services import progress as prog
 from app.services import run_metrics
 from app.services.zones import hr_zones, latest_zones
@@ -23,6 +28,9 @@ MAX_GAP_S = 30
 MIN_VO2_SECONDS = 900
 FLAT_GAIN_PER_KM = 15
 MIN_DECOUPLING_S = 1800
+MIN_DRIFT_S = 1200
+# Vo2max actual: el del reloj (Garmin) y, si no hay, el del anillo Oura.
+VO2MAX_DAILY = (("vo2max_running", "reloj"), ("vo2max_oura", "oura"))
 
 
 def load_streams(session: Session, activity_id: int, channels: tuple[str, ...]) -> dict[str, list]:
@@ -35,7 +43,7 @@ def load_streams(session: Session, activity_id: int, channels: tuple[str, ...]) 
     return {r.channel: r.values for r in rows}
 
 
-def _zones_for(session: Session, user_id: int, sport: str) -> tuple[list[dict], float | None, str]:
+def zones_for(session: Session, user_id: int, sport: str) -> tuple[list[dict], float | None, str]:
     from app.services.plan_steps import sport_family
     from app.services.test_results import active_test
 
@@ -137,17 +145,66 @@ def estimate_vo2max(activity: Activity, hr_rest: float, hr_max: float | None) ->
     return round(value, 1) if 25 <= value <= 85 else None
 
 
-def _current_vo2max(session: Session, user_id: int) -> tuple[float | None, str | None]:
-    row = session.exec(
+def _current_vo2max(session: Session, user_id: int) -> tuple[float | None, str | None, str | None]:
+    """Último VO2max diario (120 días): primero el del reloj y, si no hay, el de Oura. (valor, día, fuente)."""
+    rows = session.exec(
         select(DailyMetric)
         .where(DailyMetric.user_id == user_id)
         .order_by(DailyMetric.day.desc())  # type: ignore[attr-defined]
         .limit(120)
     ).all()
-    for r in row:
-        if (v := (r.metrics or {}).get("vo2max_running")) is not None:
-            return float(v), r.day.isoformat()
-    return None, None
+    for key, source in VO2MAX_DAILY:
+        for r in rows:
+            if (v := (r.metrics or {}).get(key)) is not None:
+                return float(v), r.day.isoformat(), source
+    return None, None, None
+
+
+def hr_drift(time: list, hr: list) -> dict | None:
+    """Deriva de la FC: % que sube la FC media de la 2.ª mitad frente a la 1.ª (al menos 20 min con pulso)."""
+    pts = [(t, h) for t, h in zip(time, hr, strict=False) if t is not None and h]
+    if len(pts) < 10 or pts[-1][0] - pts[0][0] < MIN_DRIFT_S:
+        return None
+    mid = pts[0][0] + (pts[-1][0] - pts[0][0]) / 2
+    first = [h for t, h in pts if t <= mid]
+    second = [h for t, h in pts if t > mid]
+    if not first or not second:
+        return None
+    a, b = sum(first) / len(first), sum(second) / len(second)
+    pct = round((b - a) / a * 100, 1)
+    return {"pct": pct, "first_hr": round(a), "second_hr": round(b),
+            "level": "bien" if pct <= 5 else "alta" if pct <= 10 else "muy alta"}  # fmt: skip
+
+
+def trimp(time: list, hr: list, hr_rest: float, hr_max: float | None, sex: Sex | None) -> float | None:
+    """TRIMP de Banister con la serie de FC (huecos de más de 30 s fuera)."""
+    if not hr_max or hr_max <= hr_rest:
+        return None
+    a, b = (0.86, 1.67) if sex == Sex.FEMALE else (0.64, 1.92)
+    total = 0.0
+    for i in range(1, min(len(time), len(hr))):
+        h, t0, t1 = hr[i], time[i - 1], time[i]
+        if not h or t0 is None or t1 is None or t1 <= t0 or t1 - t0 > MAX_GAP_S:
+            continue
+        reserve = min(max((h - hr_rest) / (hr_max - hr_rest), 0.0), 1.0)
+        total += (t1 - t0) / 60 * reserve * a * math.exp(b * reserve)
+    return round(total, 1) if total else None
+
+
+def heart_rate(activity: Activity, time: list, hr: list, thr: prog.Thresholds, sex: Sex | None) -> dict | None:
+    """Pulso de la sesión con la serie de FC: mín./media/máx., % de la FC máx., deriva y TRIMP."""
+    values = [h for h in hr if h]
+    if len(values) < 2:
+        return None
+    avg = activity.avg_hr or sum(values) / len(values)
+    peak = activity.max_hr or max(values)
+    return {
+        "avg": round(avg), "min": round(min(values)), "max": round(peak),
+        "avg_pct_max": round(avg / thr.hr_max * 100) if thr.hr_max else None,
+        "max_pct_max": round(peak / thr.hr_max * 100) if thr.hr_max else None,
+        "drift": hr_drift(time, hr),
+        "trimp": trimp(time, hr, thr.hr_rest, thr.hr_max, sex),
+    }  # fmt: skip
 
 
 def _gap_by_km(km_splits: list[dict], dist: list, alt: list) -> None:
@@ -169,14 +226,14 @@ def analysis(session: Session, activity: Activity) -> dict:
 
     ch = load_streams(session, activity.id, ("time", "distance", "hr", "altitude", "cadence", "performance_condition"))
     time, dist, hr, alt, cad = (ch.get(k) or [] for k in ("time", "distance", "hr", "altitude", "cadence"))
-    zones, lthr, zone_source = _zones_for(session, activity.user_id, activity.sport)
+    zones, lthr, zone_source = zones_for(session, activity.user_id, activity.sport)
     family = sport_family(activity.sport)
     on_foot = family == "running" or activity.sport in ("walking", "hiking")
     thr = prog.user_thresholds(session, activity.user_id)
 
     watch = (activity.metrics or {}).get("vo2max")
     estimate = estimate_vo2max(activity, thr.hr_rest, thr.hr_max) if family == "running" and not watch else None
-    current, current_day = _current_vo2max(session, activity.user_id)
+    current, current_day, current_source = _current_vo2max(session, activity.user_id)
     value = watch or estimate
     percentile = None
     profile = session.get(UserProfile, activity.user_id)
@@ -197,10 +254,12 @@ def analysis(session: Session, activity: Activity) -> dict:
             "source": "reloj" if watch else "estimado" if estimate else None,
             "current": current,
             "current_day": current_day,
+            "current_source": current_source,
             "percentile": percentile,
         },
         "splits": km_splits,
         "decoupling": decoupling(time, dist, hr) if dist and hr else None,
+        "heart_rate": heart_rate(activity, time, hr, thr, profile.sex if profile else None) if hr else None,
         # Carga de cualquier sesión; en carrera, además eficiencia, condición de rendimiento y GAP.
         **(
             run_metrics.summary(session, activity, ch, km_splits, load)

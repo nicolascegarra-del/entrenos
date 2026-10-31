@@ -595,6 +595,18 @@ WATCH_DAILY: list[MetricDefinition] = [
     ),
 ]
 CATALOG += WATCH_DAILY
+# ── De una sesión: las que dan el anillo Oura (y cualquier fuente que las tenga) ──
+SESSION_EXTRA: list[MetricDefinition] = [
+    MetricDefinition(key="min_hr", scope=_A, label="FC mínima", unit="ppm"),
+    MetricDefinition(key="avg_met", scope=_A, label="MET medio", unit="MET"),
+    MetricDefinition(key="max_met", scope=_A, label="MET máximo", unit="MET"),
+    # 1 suave · 2 moderada · 3 alta (la intensidad que asigna Oura al entreno).
+    MetricDefinition(key="oura_intensity", scope=_A, label="Intensidad según Oura", unit=""),
+    # 1 a mano · 2 detectado solo · 3 detectado y confirmado · 4 con FC de entreno.
+    MetricDefinition(key="oura_origin", scope=_A, label="Registro en Oura", unit=""),
+    MetricDefinition(key="met", scope=_S, label="Intensidad (MET)", unit="MET"),
+]
+CATALOG += SESSION_EXTRA
 # Contribuidores (0–100) de cada puntuación de Oura.
 OURA_CONTRIBUTORS: dict[str, dict[str, str]] = {
     "readiness": {

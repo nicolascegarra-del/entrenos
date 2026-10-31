@@ -13,19 +13,21 @@ Sueño: el periodo `long_sleep` más largo (o, si no hay, el más largo) da las 
 periodos válidos son siestas (`naps_s` y en el raw). Los `deleted` y `rest` (descartados) no cuentan.
 """
 
+import bisect
 import contextlib
 import logging
 import re
 import statistics
 from collections import defaultdict
 from collections.abc import Callable
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, timezone
 from typing import Any
 
 from sqlmodel import Session, col, delete, select
 
 from app.models import (
     Activity,
+    ActivityStream,
     DailyMetric,
     DailySeries,
     HealthTag,
@@ -35,7 +37,7 @@ from app.models import (
     WellnessSession,
 )
 from app.services import daily_sources
-from app.services.file_import import ImportedActivity, after_import, save_imported, sport_name
+from app.services.file_import import ImportedActivity, _floats, after_import, save_imported, sport_name
 from app.services.oura_client import OuraAuthError, OuraClient, OuraError, OuraScopeError
 
 logger = logging.getLogger(__name__)
@@ -76,6 +78,15 @@ TAG_LABELS = {
     "meditation": "Meditación", "headache": "Dolor de cabeza", "period": "Menstruación", "jet_lag": "Jet lag",
     "workout": "Entreno", "medication": "Medicación", "injury": "Lesión", "vacation": "Vacaciones",
 }  # fmt: skip
+# Intensidad y forma de registro del entreno: códigos numéricos para guardarlos como métricas del catálogo.
+WORKOUT_INTENSITY = {"easy": 1, "moderate": 2, "hard": 3}
+WORKOUT_ORIGIN = {"manual": 1, "autodetected": 2, "confirmed": 3, "workout_heart_rate": 4}
+WORKOUT_KEYS = ("id", "activity", "intensity", "label", "source", "day", "start_datetime", "end_datetime",
+                "distance", "calories")  # fmt: skip
+WORKOUT_CHANNELS = ("time", "hr", "met")
+WORKOUT_METRICS = ("min_hr", "avg_met", "max_met", "avg_speed", "oura_intensity", "oura_origin", SOURCE)
+MET_HOLD_S = 120  # un valor de MET por minuto: vale para las muestras de FC de ese minuto
+HR_JUMP_BASE, HR_JUMP_PER_S, HR_JUMP_MAX, HR_RESET_GAP_S = 10, 2, 40, 120  # filtro de lecturas imposibles
 
 
 def oura_enabled(session: Session, user: User | int | None) -> bool:
@@ -436,42 +447,249 @@ def store_ring(conn: OuraConnection, configs: list[dict], battery: list[dict]) -
     conn.ring = ring
 
 
-def _workout_hr(session: Session, user_id: int, start: datetime, end: datetime) -> tuple[float | None, float | None]:
-    """FC media y máxima de la FC continua con origen `workout` dentro del entreno."""
-    days = {start.astimezone(UTC).date(), end.astimezone(UTC).date()}
+def _hr_in_window(session: Session, user_id: int, start: datetime, end: datetime) -> list[tuple[int, float]]:
+    """
+    FC continua guardada dentro del entreno: la de origen `workout` (la que mide el anillo en modo entreno,
+    cada pocos segundos) y, si no hay, la que haya en ese rato (despierto, cada ~5 min).
+    """
+    first, last = start.astimezone(UTC).date(), end.astimezone(UTC).date()
+    days = [first + timedelta(days=i) for i in range((last - first).days + 1)]
     rows = session.exec(select(DailySeries).where(
         DailySeries.user_id == user_id, DailySeries.source == SOURCE, DailySeries.kind == "heartrate",
         col(DailySeries.day).in_(days),
     )).all()  # fmt: skip
     t0, t1 = start.timestamp(), end.timestamp()
-    bpm = [p[1] for r in rows for p in (r.data or {}).get("points") or []
-           if len(p) >= 3 and p[2] == "workout" and t0 <= p[0] <= t1]  # fmt: skip
-    return (round(statistics.fmean(bpm)), max(bpm)) if bpm else (None, None)
+    points = sorted(
+        (int(p[0]), float(p[1]), str(p[2]) if len(p) > 2 else "")
+        for r in rows for p in (r.data or {}).get("points") or []
+        if len(p) >= 2 and _num(p[1]) and t0 <= p[0] <= t1
+    )  # fmt: skip
+    workout = [(t, bpm) for t, bpm, origin in points if origin == "workout"]
+    return despike(workout or [(t, bpm) for t, bpm, _ in points])
+
+
+def despike(points: list[tuple[int, float]]) -> list[tuple[int, float]]:
+    """
+    Quita lecturas imposibles de la FC del anillo: a veces mete minutos de un valor fijo (p. ej. 208 ppm
+    caminando) entre las buenas. Se parte de la muestra más cercana a la mediana y se avanza hacia los dos
+    lados aceptando solo saltos creíbles (10 ppm + 2 ppm/s, como mucho 40) frente a la última aceptada;
+    tras un hueco de más de 2 min sin muestras se vuelve a confiar en la siguiente.
+    """
+    if len(points) < 3:
+        return points
+    median = statistics.median(b for _, b in points)
+    anchor = min(range(len(points)), key=lambda i: abs(points[i][1] - median))
+    keep = {anchor}
+    for order in (range(anchor + 1, len(points)), range(anchor - 1, -1, -1)):
+        ref_t, ref_b = points[anchor]
+        prev_t = ref_t
+        for i in order:
+            t, b = points[i]
+            gap = abs(t - ref_t)
+            if abs(t - prev_t) > HR_RESET_GAP_S or abs(b - ref_b) <= min(
+                HR_JUMP_BASE + HR_JUMP_PER_S * gap, HR_JUMP_MAX
+            ):
+                keep.add(i)
+                ref_t, ref_b = t, b
+            prev_t = t
+    return [points[i] for i in sorted(keep)]
+
+
+def _met_in_window(session: Session, user_id: int, start: datetime, end: datetime) -> list[tuple[int, float]]:
+    """MET minuto a minuto del resumen de actividad diaria de Oura dentro del entreno."""
+    first, last = start.date() - timedelta(days=1), end.date() + timedelta(days=1)
+    rows = session.exec(select(DailySeries).where(
+        DailySeries.user_id == user_id, DailySeries.source == SOURCE, DailySeries.kind == "met",
+        col(DailySeries.day) >= first, col(DailySeries.day) <= last,
+    )).all()  # fmt: skip
+    t0, t1 = start.timestamp(), end.timestamp()
+    out: dict[int, float] = {}
+    for r in rows:
+        data = r.data or {}
+        begin, step = parse_time(data.get("start")), _num(data.get("interval")) or 60.0
+        if begin is None:
+            continue
+        for i, value in enumerate(data.get("items") or []):
+            t = int(begin.timestamp() + i * step)
+            if (met := _num(value)) is not None and t0 <= t < t1:
+                out[t] = met
+    return sorted(out.items())
+
+
+def workout_streams(start: datetime, hr: list[tuple[int, float]], met: list[tuple[int, float]]) -> dict[str, list]:
+    """
+    Series del entreno alineadas por índice, como las de un reloj: `time` (s desde el inicio), `hr` y `met`.
+
+    La base es la FC (una muestra cada pocos segundos); el MET (uno por minuto) se repite en cada muestra
+    de su minuto. Sin FC, la base es el MET.
+    """
+    base = [t for t, _ in hr] or [t for t, _ in met]
+    if not base:
+        return {}
+    t0 = start.timestamp()
+    streams: dict[str, list] = {"time": [round(t - t0, 1) for t in base]}
+    if hr:
+        streams["hr"] = [bpm for _, bpm in hr]
+    if met:
+        times = [t for t, _ in met]
+        values = []
+        for t in base:
+            i = bisect.bisect_right(times, t) - 1
+            values.append(met[i][1] if i >= 0 and t - times[i] < MET_HOLD_S else None)
+        if any(v is not None for v in values):
+            streams["met"] = values
+    return streams
+
+
+def workout_activity(doc: dict, hr: list[tuple[int, float]], met: list[tuple[int, float]]) -> ImportedActivity | None:
+    """
+    Documento `workout` de Oura (+ FC y MET de ese rato) → actividad con series y métricas del catálogo.
+
+    Oura da por entreno: deporte, inicio/fin, calorías, distancia, intensidad (easy/moderate/hard), etiqueta y
+    cómo se registró (manual, detectado, confirmado, con FC de entreno). La FC y el MET salen de las series.
+    Función pura.
+    """
+    start, end = parse_time(doc.get("start_datetime")), parse_time(doc.get("end_datetime"))
+    if not doc.get("id") or start is None or end is None or end <= start:
+        return None
+    sport = workout_sport(doc.get("activity"))
+    duration = (end - start).total_seconds()
+    distance = _num(doc.get("distance")) or None
+    offset = start.utcoffset()
+    tz = None
+    if offset is not None:
+        minutes = int(offset.total_seconds() // 60)
+        tz = f"{'+' if minutes >= 0 else '-'}{abs(minutes) // 60:02d}:{abs(minutes) % 60:02d}"
+    bpm = [b for _, b in hr]
+    mets = [m for _, m in met]
+    metrics: dict[str, Any] = {}
+    if bpm:
+        metrics["min_hr"] = min(bpm)
+    if mets:
+        metrics["avg_met"] = round(statistics.fmean(mets), 1)
+        metrics["max_met"] = max(mets)
+    if distance:
+        metrics["avg_speed"] = round(distance / duration, 3)
+    if (code := WORKOUT_INTENSITY.get(str(doc.get("intensity") or ""))) is not None:
+        metrics["oura_intensity"] = code
+    if (code := WORKOUT_ORIGIN.get(str(doc.get("source") or ""))) is not None:
+        metrics["oura_origin"] = code
+    # El documento (pequeño) para reprocesar sin volver a llamar a Oura; al no ser numérico, la API no lo
+    # enseña como métrica.
+    metrics[SOURCE] = {k: doc[k] for k in WORKOUT_KEYS if doc.get(k) is not None}
+    return ImportedActivity(
+        sport=sport, start_time=start.astimezone(UTC), duration_s=duration, distance_m=distance,
+        calories=_num(doc.get("calories")),
+        avg_hr=round(statistics.fmean(bpm)) if bpm else None, max_hr=max(bpm) if bpm else None,
+        name=str(doc.get("label") or f"{SPORT_LABELS.get(sport, 'Entreno')} · Oura")[:255], timezone=tz,
+        streams=workout_streams(start, hr, met), metrics=metrics,
+    )  # fmt: skip
+
+
+def _zone_metrics(session: Session, user_id: int, act: ImportedActivity) -> dict[str, float]:
+    """Tiempo en cada zona de FC de la app (`hr_zone_N_s`, como Garmin: cuenta en la distribución de intensidad)."""
+    from app.services.activity_analysis import time_in_zones, zones_for
+
+    zones = zones_for(session, user_id, act.sport)[0]
+    if not zones or not act.streams.get("hr"):
+        return {}
+    spent = time_in_zones(act.streams["time"], act.streams["hr"], zones)
+    if not any(z["seconds"] for z in spent):
+        return {}
+    return {f"hr_zone_{i}_s": float(z["seconds"]) for i, z in enumerate(spent[:5], start=1)}
+
+
+def _replace_streams(session: Session, activity: Activity, streams: dict[str, list]) -> None:
+    session.exec(delete(ActivityStream).where(
+        ActivityStream.activity_id == activity.id, col(ActivityStream.channel).in_(WORKOUT_CHANNELS)
+    ))  # fmt: skip
+    for channel, values in streams.items():
+        if any(v is not None for v in values):
+            session.add(ActivityStream(activity_id=activity.id, channel=channel, values=_floats(values)))
+
+
+def save_workout(session: Session, user_id: int, doc: dict) -> tuple[Activity | None, bool]:
+    """
+    Crea o actualiza (mismo id de Oura) un entreno con sus series y métricas. Si el mismo entreno ya vino de
+    un reloj, no se duplica ni se toca. Al actualizar se conservan el nombre y el deporte (se pueden editar).
+
+    Returns:
+        (actividad, creada)
+    """
+    start, end = parse_time(doc.get("start_datetime")), parse_time(doc.get("end_datetime"))
+    if start is None or end is None:
+        return None, False
+    hr, met = _hr_in_window(session, user_id, start, end), _met_in_window(session, user_id, start, end)
+    act = workout_activity(doc, hr, met)
+    if act is None:
+        return None, False
+    act.metrics |= _zone_metrics(session, user_id, act)
+    activity = session.exec(select(Activity).where(
+        Activity.user_id == user_id, Activity.source == SOURCE, Activity.external_id == str(doc["id"])
+    )).first()  # fmt: skip
+    if activity is None:
+        return save_imported(session, user_id, act, SOURCE, str(doc["id"]))
+    activity.start_time, activity.duration_s = act.start_time, act.duration_s
+    activity.timezone = act.timezone or activity.timezone
+    activity.distance_m, activity.calories = act.distance_m, act.calories
+    activity.avg_hr, activity.max_hr = act.avg_hr, act.max_hr
+    stale = (*WORKOUT_METRICS, *(f"hr_zone_{i}_s" for i in range(1, 6)))
+    activity.metrics = {**{k: v for k, v in (activity.metrics or {}).items() if k not in stale}, **act.metrics}
+    _replace_streams(session, activity, act.streams)
+    session.add(activity)
+    session.commit()
+    session.refresh(activity)
+    return activity, False
 
 
 def store_workouts(session: Session, user_id: int, docs: list[dict]) -> int:
-    """Entrenos de Oura sin duplicar los del reloj (mismo inicio ±2 min y duración ±5 %)."""
+    """Entrenos de Oura sin duplicar los del reloj (mismo inicio ±2 min y duración ±5 %). Returns: creados."""
     created = 0
     for doc in docs:
-        start, end = parse_time(doc.get("start_datetime")), parse_time(doc.get("end_datetime"))
-        if not doc.get("id") or start is None or end is None or end <= start:
+        if not doc.get("id"):
             continue
-        sport = workout_sport(doc.get("activity"))
-        avg_hr, max_hr = _workout_hr(session, user_id, start, end)
-        offset = start.utcoffset()
-        tz = None
-        if offset is not None:
-            minutes = int(offset.total_seconds() // 60)
-            tz = f"{'+' if minutes >= 0 else '-'}{abs(minutes) // 60:02d}:{abs(minutes) % 60:02d}"
-        act = ImportedActivity(
-            sport=sport, start_time=start.astimezone(UTC), duration_s=(end - start).total_seconds(),
-            distance_m=_num(doc.get("distance")), calories=_num(doc.get("calories")), avg_hr=avg_hr, max_hr=max_hr,
-            name=str(doc.get("label") or f"{SPORT_LABELS.get(sport, 'Entreno')} · Oura")[:255], timezone=tz,
-        )  # fmt: skip
-        activity, new = save_imported(session, user_id, act, SOURCE, str(doc["id"]))
+        activity, new = save_workout(session, user_id, doc)
         if new and activity is not None:
             created += 1
     return created
+
+
+def timezone_of(offset: str | None) -> timezone:
+    """«+02:00» → zona fija (UTC si no hay o no se entiende)."""
+    match = re.fullmatch(r"([+-])(\d{2}):(\d{2})", offset or "")
+    if not match:
+        return UTC
+    minutes = int(match[2]) * 60 + int(match[3])
+    return timezone(timedelta(minutes=-minutes if match[1] == "-" else minutes))
+
+
+def reprocess_workouts(session: Session, user_id: int | None = None) -> int:
+    """
+    Vuelve a montar los entrenos de Oura ya importados con lo guardado (documento del entreno, FC continua y
+    MET del día): series, FC mín./media/máx., zonas, MET, intensidad… No llama a Oura.
+
+    Returns:
+        Entrenos reprocesados.
+    """
+    query = select(Activity).where(Activity.source == SOURCE, col(Activity.external_id).is_not(None))
+    if user_id is not None:
+        query = query.where(Activity.user_id == user_id)
+    count = 0
+    for activity in session.exec(query).all():
+        stored = (activity.metrics or {}).get(SOURCE)
+        doc = dict(stored) if isinstance(stored, dict) else {}
+        if not doc.get("start_datetime"):
+            # Importado antes de guardar el documento: se reconstruye con lo que tiene la actividad.
+            start = activity.start_time.astimezone(timezone_of(activity.timezone))
+            doc |= {
+                "start_datetime": start.isoformat(),
+                "end_datetime": (start + timedelta(seconds=activity.duration_s)).isoformat(),
+                "distance": activity.distance_m, "calories": activity.calories, "activity": activity.sport,
+            }  # fmt: skip
+        doc["id"] = activity.external_id
+        save_workout(session, activity.user_id, doc)
+        count += 1
+    return count
 
 
 def store(session: Session, user_id: int, data_type: str, docs: list[dict], prefs: daily_sources.Prefs,

@@ -204,7 +204,8 @@ function Vo2maxCard({ data }: { data: ActivityAnalysis["vo2max"] }) {
                 maximumFractionDigits: 1,
               })}
             </strong>
-            {data.current_day ? ` (${formatDate(data.current_day)})` : ""}.
+            {data.current_day ? ` (${formatDate(data.current_day)})` : ""}
+            {data.current_source === "oura" ? ", según tu anillo Oura" : ""}.
           </p>
         )}
         {p && (
@@ -229,6 +230,97 @@ const DRIFT_TEXT: Record<string, string> = {
   "muy alta":
     "La FC se disparó en la 2.ª mitad: el ritmo fue alto para tu base aeróbica actual (o hizo mucho calor).",
 };
+
+const HR_DRIFT_TEXT: Record<string, string> = {
+  bien: "Tu pulso se mantuvo estable de principio a fin.",
+  alta: "Tu pulso subió en la 2.ª mitad: normal si apretaste al final; si no, cansancio, calor o poca hidratación.",
+  "muy alta":
+    "Tu pulso se disparó en la 2.ª mitad: el esfuerzo fue creciendo (o hizo calor, o ibas deshidratado).",
+};
+
+function HrTile({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: number;
+  sub?: string | null;
+}) {
+  return (
+    <div className="rounded-lg bg-muted/60 p-3">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="text-xl font-semibold tabular-nums">
+        {value}
+        <span className="ml-1 text-xs font-normal text-muted-foreground">
+          ppm
+        </span>
+      </dd>
+      {sub && (
+        <dd className="text-xs text-muted-foreground tabular-nums">{sub}</dd>
+      )}
+    </div>
+  );
+}
+
+/** Pulso de la sesión: FC mín./media/máx. (y % de tu FC máx.), deriva de la FC y TRIMP. */
+function HeartRateCard({
+  data,
+  showDrift,
+}: {
+  data: NonNullable<ActivityAnalysis["heart_rate"]>;
+  showDrift: boolean;
+}) {
+  const pct = (v: number | null) => (v != null ? `${v} % de tu máx.` : null);
+  const drift = showDrift ? data.drift : null;
+  return (
+    <Card className="shadow-sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 font-heading text-lg">
+          <HeartPulse className="size-5 text-klyp-accent" aria-hidden /> Pulso
+          de la sesión
+        </CardTitle>
+        <CardDescription>
+          Calculado con la serie de frecuencia cardiaca.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <dl className="grid grid-cols-3 gap-2">
+          <HrTile label="Mínima" value={data.min} />
+          <HrTile label="Media" value={data.avg} sub={pct(data.avg_pct_max)} />
+          <HrTile label="Máxima" value={data.max} sub={pct(data.max_pct_max)} />
+        </dl>
+        {drift && (
+          <div className="rounded-lg bg-muted/60 p-3">
+            <p className="text-sm">
+              <span className="font-medium">Deriva de la FC:</span>{" "}
+              <span className="font-heading text-lg font-semibold tabular-nums">
+                {drift.pct > 0 ? "+" : ""}
+                {drift.pct.toLocaleString("es-ES")} %
+              </span>{" "}
+              <span className="text-muted-foreground tabular-nums">
+                ({drift.first_hr} → {drift.second_hr} ppm, {drift.level})
+              </span>
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {HR_DRIFT_TEXT[drift.level]}
+            </p>
+          </div>
+        )}
+        {data.trimp != null && (
+          <p className="text-sm">
+            <span className="font-medium">TRIMP:</span>{" "}
+            <strong className="tabular-nums">{Math.round(data.trimp)}</strong>{" "}
+            <span className="text-muted-foreground">
+              (carga por pulso de Banister: minutos ponderados por lo alto que
+              va tu FC; un rodaje suave de 1 h ronda 60–90).
+            </span>
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 /** Parciales por km: ritmo (barra más larga = km más rápido) y tiempo acumulado; tabla con FC y cadencia. */
 function SplitsCard({ data }: { data: ActivityAnalysis }) {
@@ -636,6 +728,12 @@ export function ActivityAnalysisCards({ activityId }: { activityId: number }) {
     <>
       <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
         {hasZones && <HrZonesCard data={data.hr_zones} />}
+        {data.heart_rate && (
+          <HeartRateCard
+            data={data.heart_rate}
+            showDrift={!(data.decoupling && data.splits.length > 1)}
+          />
+        )}
         <Vo2maxCard data={data.vo2max} />
         {data.efficiency && <EfficiencyCard data={data.efficiency} />}
         {data.performance_condition && (
