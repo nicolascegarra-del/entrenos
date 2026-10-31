@@ -32,6 +32,9 @@ DEFAULTS: dict[str, bool] = {
     "rutas": True,
     "nutricion": False,
     "oura": True,
+    "suunto": True,
+    "zepp": True,
+    "xiaomi": True,
 }
 LABELS: dict[str, str] = {
     "entrenadores": "Entrenadores",
@@ -40,6 +43,9 @@ LABELS: dict[str, str] = {
     "rutas": "Rutas",
     "nutricion": "Nutrición",
     "oura": "Oura Ring",
+    "suunto": "Suunto",
+    "zepp": "Amazfit (Zepp)",
+    "xiaomi": "Xiaomi (Mi Fitness)",
 }
 
 

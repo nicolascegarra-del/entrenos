@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { AiProviders, GarminStatus } from "@/types/api";
+import type { AiProviders, GarminStatus, OuraStatus } from "@/types/api";
 
 import { settingsStatus } from "./settings-sections";
 
@@ -23,12 +23,27 @@ describe("settingsStatus", () => {
   it("estado de la conexión, con aviso si hace falta", () => {
     expect(settingsStatus({ garmin: garmin("ok", "Nico") }).conexiones).toEqual(
       {
-        text: "Garmin conectado (Nico)",
+        text: "1 dispositivo conectado: Garmin",
+        warn: false,
       },
     );
     expect(settingsStatus({ garmin: garmin("expired") }).conexiones?.warn).toBe(
       true,
     );
+  });
+
+  it("cuando no hay Garmin pero sí Oura, entonces no dice «Garmin desconectado»", () => {
+    const oura = { connected: true, status: "ok" } as OuraStatus;
+    expect(settingsStatus({ garmin: garmin("none"), oura }).conexiones).toEqual(
+      {
+        text: "1 dispositivo conectado: Oura",
+        warn: false,
+      },
+    );
+    expect(settingsStatus({ garmin: garmin("none") }).conexiones).toEqual({
+      text: "Ningún dispositivo conectado",
+      warn: true,
+    });
   });
 
   it("asistente predeterminado y notificaciones", () => {

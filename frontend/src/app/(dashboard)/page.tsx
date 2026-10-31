@@ -32,6 +32,7 @@ import {
   useAchievements,
   useAiProviders,
   useCoachSettings,
+  useBrandAccounts,
   useGarminStatus,
   useGear,
   useGoals,
@@ -101,7 +102,8 @@ const pct = (now: number, before: number) =>
 function Notices() {
   const { data: injury } = useInjuryRisk();
   const { data: garmin } = useGarminStatus();
-  const notices = buildNotices({ garmin, injury });
+  const { data: devices } = useBrandAccounts();
+  const notices = buildNotices({ garmin, injury, devices });
   if (!notices.length) return null;
   const [first, ...rest] = notices;
   const row = (n: Notice) => {
@@ -167,11 +169,13 @@ function SetupCard({ hasActivities }: { hasActivities: boolean }) {
       setHidden(false);
     }
   }, []);
+  const { data: devicesData } = useBrandAccounts();
   const steps = setupSteps({
     garmin,
     goals,
     gear,
     sources,
+    devices: devicesData,
     profile,
     coach,
     hasAi,

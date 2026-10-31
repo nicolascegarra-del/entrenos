@@ -104,3 +104,24 @@ class CorosOAuth(SQLModel, table=True):
     last_error: str = Field(default="", max_length=255)
     last_sync_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True)))
     connected_at: datetime = created_at_field()
+
+
+class DeviceConnection(SQLModel, table=True):
+    """
+    Conexión no oficial con la nube de otra marca de reloj o pulsera (Suunto, Amazfit/Zepp, Xiaomi).
+    Solo se guarda la sesión cifrada (JSON con el token de la marca); la contraseña se usa para entrar y se
+    descarta. `pending` = esperando a que la persona apruebe el QR (Xiaomi).
+    """
+
+    __tablename__ = "device_connection"
+    __table_args__ = (UniqueConstraint("user_id", "provider"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True, ondelete="CASCADE")
+    provider: str = Field(max_length=16)  # suunto | zepp | xiaomi
+    account: str = Field(default="", max_length=255)
+    session_enc: str = Field(default="", sa_column=Column(Text, nullable=False, server_default=""))
+    status: str = Field(default="ok", max_length=16)  # ok | expired | error | pending
+    last_sync_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True)))
+    last_error: str = Field(default="", max_length=255)
+    created_at: datetime = created_at_field()

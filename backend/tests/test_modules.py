@@ -35,7 +35,8 @@ def _off(session: Session, *names: str) -> None:
 
 def test_modulos_cuando_nada_guardado_entonces_valores_por_defecto(session):
     assert modules.all_modules(session) == {
-        "entrenadores": False, "ia": True, "reloj": True, "rutas": True, "nutricion": False, "oura": True}  # fmt: skip
+        "entrenadores": False, "ia": True, "reloj": True, "rutas": True, "nutricion": False, "oura": True,
+        "suunto": True, "zepp": True, "xiaomi": True}  # fmt: skip
     assert modules.enabled(session, "ia") and not modules.enabled(session, "nutricion")
     assert not modules.enabled(session, "inventado")
 
@@ -121,7 +122,8 @@ def test_put_modules_cuando_admin_entonces_guarda_y_audita(client, admin, sessio
     res = client.put("/api/v1/admin/modules", json={"ia": False, "nutricion": True}, headers=auth(admin))
     assert res.status_code == 200
     assert res.json() == {
-        "entrenadores": False, "ia": False, "reloj": True, "rutas": True, "nutricion": True, "oura": True}  # fmt: skip
+        "entrenadores": False, "ia": False, "reloj": True, "rutas": True, "nutricion": True, "oura": True,
+        "suunto": True, "zepp": True, "xiaomi": True}  # fmt: skip
     assert client.get("/api/v1/app/modules", headers=auth(admin)).json()["ia"] is False
     log = session.exec(select(AuditLog).where(AuditLog.action == "settings.modules")).one()
     assert log.actor_id == admin.id and log.detail == {"ia": "desactivado", "nutricion": "activado"}

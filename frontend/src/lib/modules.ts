@@ -5,7 +5,15 @@
  */
 
 export type ModuleKey =
-  "entrenadores" | "ia" | "reloj" | "rutas" | "nutricion" | "oura";
+  | "entrenadores"
+  | "ia"
+  | "reloj"
+  | "rutas"
+  | "nutricion"
+  | "oura"
+  | "suunto"
+  | "zepp"
+  | "xiaomi";
 
 export type Modules = Record<ModuleKey, boolean>;
 
@@ -20,6 +28,9 @@ export const LOADING_MODULES: Modules = {
   rutas: true,
   nutricion: false,
   oura: true,
+  suunto: true,
+  zepp: true,
+  xiaomi: true,
 };
 
 /**
@@ -46,6 +57,21 @@ export const MODULE_INFO: { key: ModuleKey; label: string; hint: string }[] = [
     key: "oura",
     label: "Oura Ring",
     hint: "Oculta la conexión con el anillo Oura.",
+  },
+  {
+    key: "suunto",
+    label: "Suunto",
+    hint: "Oculta la conexión con la cuenta de Suunto (no oficial: apágalo si Suunto la rompe).",
+  },
+  {
+    key: "zepp",
+    label: "Amazfit (Zepp)",
+    hint: "Oculta la conexión con la cuenta de Zepp para relojes Amazfit (no oficial).",
+  },
+  {
+    key: "xiaomi",
+    label: "Xiaomi (Mi Fitness)",
+    hint: "Oculta la conexión por QR con la cuenta de Xiaomi para Smart Band y Redmi Watch (no oficial, beta).",
   },
 ];
 

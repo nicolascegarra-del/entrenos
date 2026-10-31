@@ -14,6 +14,9 @@ import type {
   HealthDay,
   HealthNight,
   OuraStatus,
+  DeviceProvider,
+  DevicesStatus,
+  XiaomiQr,
   RecoverySource,
   RestPeriod,
 } from "@/types/api";
@@ -1952,5 +1955,67 @@ export function useRestPeriods(from: string, to: string, enabled = true) {
       apiFetch<RestPeriod[]>(
         `/api/v1/health/rest-periods?date_from=${from}&date_to=${to}`,
       ),
+  });
+}
+
+/** Suunto, Amazfit y Xiaomi; se refresca solo mientras un QR de Xiaomi espera a aprobarse. */
+export function useBrandAccounts() {
+  return useQuery({
+    queryKey: ["brand-accounts"],
+    retry: 1,
+    queryFn: () => apiFetch<DevicesStatus>("/api/v1/sources/devices"),
+    refetchInterval: (q) =>
+      q.state.data?.connections.some((c) => c.status === "pending")
+        ? 3000
+        : false,
+  });
+}
+
+/** Conectar Suunto o Amazfit con email y contraseña (no se guarda). */
+export function useConnectDevice(provider: "suunto" | "zepp") {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { account: string; password: string }) =>
+      apiFetch<DevicesStatus>(`/api/v1/sources/devices/${provider}`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (data) => queryClient.setQueryData(["brand-accounts"], data),
+  });
+}
+
+/** Pide el QR de Xiaomi; la conexión queda pendiente hasta que se aprueba en el móvil. */
+export function useXiaomiQr() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (region: string) =>
+      apiFetch<XiaomiQr>("/api/v1/sources/devices/xiaomi/qr", {
+        method: "POST",
+        body: JSON.stringify({ region }),
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["brand-accounts"] }),
+  });
+}
+
+export function useSyncDevice(provider: DeviceProvider) {
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ queued: boolean }>(
+        `/api/v1/sources/devices/${provider}/sync`,
+        { method: "POST" },
+      ),
+  });
+}
+
+export function useDisconnectDevice(provider: DeviceProvider) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<void>(`/api/v1/sources/devices/${provider}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["brand-accounts"] }),
   });
 }

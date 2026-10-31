@@ -30,7 +30,15 @@ from app.models.performance import PerformanceTest
 from app.models.plan import BlockKind, MatchMode, PlannedBlock, PlannedSession
 from app.models.planned_route import PlannedRoute
 from app.models.settings import RECOVERY_SOURCES, SYNC_INTERVALS, SyncMode, UserSettings
-from app.models.sources import AppleImport, CorosCredential, CorosOAuth, IngestToken, OAuthClient, OAuthState
+from app.models.sources import (
+    AppleImport,
+    CorosCredential,
+    CorosOAuth,
+    DeviceConnection,
+    IngestToken,
+    OAuthClient,
+    OAuthState,
+)
 from app.models.strength import ActivityFeedback, StrengthSet
 from app.models.sync import SyncRun, SyncStatus
 from app.models.training import TrainingPlan, TrainingPlanWeek
@@ -55,6 +63,7 @@ __all__ = [
     "PerformanceTest",
     "CorosCredential",
     "CorosOAuth",
+    "DeviceConnection",
     "OAuthClient",
     "OAuthState",
     "IngestToken",

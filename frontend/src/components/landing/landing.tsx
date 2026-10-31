@@ -39,7 +39,7 @@ const FEATURES: Feature[] = [
   {
     icon: Watch,
     title: "Todos tus relojes, en un sitio",
-    text: `Garmin, COROS, Apple Watch y, vía Health Connect, Samsung, Xiaomi, Amazfit, Huawei o Wear OS. También el anillo Oura, con tu sueño, recuperación y actividad. Y ficheros FIT, GPX y TCX de Suunto, Polar, Wahoo… sin duplicados.`,
+    text: `Garmin, COROS, Apple Watch, Suunto, Amazfit y las pulseras Xiaomi con tu cuenta de la marca y, vía Health Connect, Samsung, Huawei o Wear OS. También el anillo Oura, con tu sueño, recuperación y actividad. Y ficheros FIT, GPX y TCX de Polar, Wahoo… sin duplicados.`,
   },
   {
     icon: MapPinned,

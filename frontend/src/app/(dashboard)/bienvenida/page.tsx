@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import {
   useAiProviders,
   useFinishOnboarding,
+  useBrandAccounts,
   useGarminStatus,
   useModuleOn,
   useProfile,
@@ -119,7 +120,10 @@ function Summary() {
   const garmin = useGarminStatus();
   const sources = useSources();
   const profile = useProfile();
-  const watch = garmin.data?.connected ? "Garmin" : otherWatch(sources.data);
+  const devices = useBrandAccounts();
+  const watch = garmin.data?.connected
+    ? "Garmin"
+    : otherWatch(sources.data, devices.data);
   const ai = useAiProviders();
   const iaOn = useModuleOn("ia");
   const profileDone =

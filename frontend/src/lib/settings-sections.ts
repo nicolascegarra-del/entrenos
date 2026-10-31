@@ -1,12 +1,14 @@
 import type {
   AiProviders,
+  DevicesStatus,
   GarminStatus,
   Me,
   NotificationConfig,
+  OuraStatus,
   SourcesStatus,
 } from "@/types/api";
 
-import { otherWatch } from "./watch-brands";
+import { connectedDevices } from "./watch-brands";
 
 export type SettingsKey =
   "perfil" | "conexiones" | "notificaciones" | "asistente" | "cuenta";
@@ -24,8 +26,12 @@ export function settingsStatus({
   notifications,
   me,
   sources,
+  oura,
+  devices,
 }: {
   sources?: SourcesStatus;
+  oura?: OuraStatus;
+  devices?: DevicesStatus;
   garmin?: GarminStatus;
   ai?: AiProviders;
   notifications?: NotificationConfig;
@@ -33,16 +39,14 @@ export function settingsStatus({
 }): Partial<Record<SettingsKey, SettingsStatus>> {
   const out: Partial<Record<SettingsKey, SettingsStatus>> = {};
   if (garmin) {
-    const s = garmin.connection.status;
-    const name = garmin.connection.display_name;
-    out.conexiones =
-      s === "ok"
-        ? { text: `Garmin conectado${name ? ` (${name})` : ""}` }
-        : s === "expired"
-          ? { text: "Garmin caducado: vuelve a conectarlo", warn: true }
-          : otherWatch(sources)
-            ? { text: `${otherWatch(sources)} conectado` }
-            : { text: "Sin reloj conectado", warn: true };
+    // Todo lo conectado, no solo Garmin: con un Oura y sin Garmin no se avisa de «Garmin desconectado».
+    const all = connectedDevices({ garmin, sources, oura, devices });
+    out.conexiones = all.broken.length
+      ? {
+          text: `${all.broken.join(" y ")}: conexión caducada, vuelve a conectarla`,
+          warn: true,
+        }
+      : { text: all.label, warn: all.connected.length === 0 };
   }
   if (ai) {
     const active = ai.providers.filter((p) => p.configured && p.enabled);

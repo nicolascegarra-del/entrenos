@@ -31,6 +31,7 @@ from app.models import (
     DailyMetric,
     DailySeries,
     Device,
+    DeviceConnection,
     EmailVerification,
     Gear,
     HealthTag,
@@ -265,6 +266,10 @@ def export_user_data(session: Session, user: User) -> dict:
         "oura_connection": _dump(
             [c for c in [session.get(OuraConnection, uid)] if c], exclude={"access_token_enc", "refresh_token_enc"}
         ),
+        "device_connections": _dump(
+            session.exec(select(DeviceConnection).where(DeviceConnection.user_id == uid)).all(),
+            exclude={"session_enc"},
+        ),
         "daily_series": _dump(session.exec(select(DailySeries).where(DailySeries.user_id == uid)).all()),
         "wellness_sessions": _dump(session.exec(select(WellnessSession).where(WellnessSession.user_id == uid)).all()),
         "health_tags": _dump(session.exec(select(HealthTag).where(HealthTag.user_id == uid)).all()),
@@ -288,7 +293,7 @@ def delete_user(session: Session, user: User) -> None:
     # Laps, series, raw, sensaciones y fuerza caen en cascada con la actividad.
     session.exec(delete(Activity).where(col(Activity.id).in_(activity_ids)))
     for model in (Device, DailyMetric, AthleteZones, SyncRun, DailySeries, WellnessSession, HealthTag, RestPeriod,
-                  OuraConnection):  # fmt: skip
+                  OuraConnection, DeviceConnection):  # fmt: skip
         session.exec(delete(model).where(model.user_id == uid))
     session.delete(user)
     session.commit()

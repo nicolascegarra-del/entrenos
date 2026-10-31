@@ -1,5 +1,6 @@
 import type {
   CoachSettings,
+  DevicesStatus,
   Gear,
   GarminStatus,
   InjuryReport,
@@ -27,15 +28,17 @@ export interface SetupStep {
 }
 
 /**
- * Avisos de Hoy, de más a menos urgente: conexión con Garmin caducada y riesgo de lesión.
- * Se juntan en una sola tarjeta en lugar de banners sueltos.
+ * Avisos de Hoy, de más a menos urgente: conexión caducada (Garmin, Suunto, Amazfit, Xiaomi) y riesgo
+ * de lesión. Se juntan en una sola tarjeta en lugar de banners sueltos.
  */
 export function buildNotices({
   garmin,
   injury,
+  devices,
 }: {
   garmin?: GarminStatus;
   injury?: InjuryReport;
+  devices?: DevicesStatus;
 }): Notice[] {
   const out: Notice[] = [];
   if (garmin?.connection.status === "expired")
@@ -47,6 +50,16 @@ export function buildNotices({
         "La conexión ha caducado: vuelve a conectarla para seguir sincronizando.",
       href: "/ajustes/conexiones",
     });
+  for (const c of devices?.connections ?? [])
+    if (c.status === "expired")
+      out.push({
+        key: c.provider,
+        status: "alert",
+        title: `${c.label} desconectado`,
+        message:
+          "La conexión ha caducado: vuelve a conectarla para seguir sincronizando.",
+        href: `/ajustes/conexiones#reloj-${c.provider}`,
+      });
   if (injury && injury.status !== "good") {
     const worst = injury.checks.filter((c) => c.status === injury.status);
     out.push({
@@ -82,6 +95,7 @@ export function setupSteps({
   goals,
   gear,
   sources,
+  devices,
   profile,
   coach,
   hasAi: hasAiInput,
@@ -89,6 +103,7 @@ export function setupSteps({
   iaModule = true,
 }: {
   sources?: SourcesStatus;
+  devices?: DevicesStatus;
   garmin?: GarminStatus;
   goals?: RaceGoal[];
   gear?: Gear[];
@@ -106,7 +121,7 @@ export function setupSteps({
     !!garmin &&
     garmin.connection.status === "none" &&
     !!sources &&
-    !otherWatch(sources);
+    !otherWatch(sources, devices);
   if (noWatch)
     steps.push({
       key: "watch",

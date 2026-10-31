@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/sheet";
 import {
   useCoachBadge,
+  useBrandAccounts,
   useGarminStatus,
   useMe,
   useModules,
@@ -106,10 +107,14 @@ function Avatar({ email }: { email?: string }) {
   );
 }
 
-/** ¿Hay algo que revisar en Ajustes? (por ahora, el reloj desconectado). */
+/** ¿Hay algo que revisar en Ajustes? (una conexión caducada: Garmin, Suunto, Amazfit o Xiaomi). */
 function useSettingsWarning() {
   const { data } = useGarminStatus();
-  return data?.connection.status === "expired";
+  const { data: devices } = useBrandAccounts();
+  return (
+    data?.connection.status === "expired" ||
+    !!devices?.connections.some((c) => c.status === "expired")
+  );
 }
 
 /** Bloque de cuenta: quién eres, Ajustes, Ayuda, tema y cerrar sesión. */

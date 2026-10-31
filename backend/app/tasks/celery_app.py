@@ -18,6 +18,7 @@ celery_app = Celery(
         "app.tasks.plans",
         "app.tasks.notifications",
         "app.tasks.sources",
+        "app.tasks.devices",
         "app.tasks.ai",
         "app.tasks.workouts",
         "app.tasks.coach",
@@ -50,6 +51,8 @@ celery_app.conf.update(
         # Anillo Oura: últimos 3 días (los webhooks traen el resto al momento) y suscripciones a webhooks.
         "oura-sync": {"task": "oura.sync_recent", "schedule": 6 * 3600},
         "oura-subscriptions": {"task": "oura.ensure_subscriptions", "schedule": 24 * 3600},
+        # Suunto, Amazfit (Zepp) y Xiaomi por la cuenta de su marca (APIs no oficiales).
+        "devices-sync": {"task": "devices.sync_all", "schedule": 6 * 3600},
     },
 )
 

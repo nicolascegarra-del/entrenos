@@ -17,10 +17,13 @@ import { useEffect } from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   useAiProviders,
+  useBrandAccounts,
   useGarminStatus,
   useMe,
   useModules,
   useNotifications,
+  useOuraEnabled,
+  useOuraStatus,
   useSources,
 } from "@/hooks/use-api";
 import { filterByModule, type ModuleKey } from "@/lib/modules";
@@ -44,7 +47,7 @@ const SECTIONS: {
     key: "conexiones",
     label: "Conexiones",
     icon: Link2,
-    hint: "Tu reloj: Garmin, Apple Watch, COROS…",
+    hint: "Tu reloj: Garmin, Apple Watch, COROS, Suunto…",
   },
   {
     key: "notificaciones",
@@ -82,7 +85,17 @@ export default function AjustesPage() {
   const { data: me } = useMe();
   const { data: sources } = useSources();
   const { data: modules } = useModules();
-  const status = settingsStatus({ garmin, ai, notifications, me, sources });
+  const { data: oura } = useOuraStatus(useOuraEnabled());
+  const { data: devices } = useBrandAccounts();
+  const status = settingsStatus({
+    garmin,
+    ai,
+    notifications,
+    me,
+    sources,
+    oura,
+    devices,
+  });
   return (
     <section className="mx-auto max-w-3xl">
       <PageHeader title="Ajustes" hideTitleOnMobile />

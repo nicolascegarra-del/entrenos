@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import type { GarminStatus, OuraStatus, SourcesStatus } from "@/types/api";
+import type {
+  DevicesStatus,
+  GarminStatus,
+  OuraStatus,
+  SourcesStatus,
+} from "@/types/api";
 
-import { connectedBrands, mergeBrands, parseBrands } from "./watch-brands";
+import {
+  connectedBrands,
+  connectedDevices,
+  mergeBrands,
+  otherWatch,
+  parseBrands,
+} from "./watch-brands";
 
 const garmin = (connected: boolean, status: "none" | "ok" | "expired") =>
   ({
@@ -82,5 +93,75 @@ describe("mergeBrands y parseBrands", () => {
     expect(parseBrands('["apple","fitbit",3]')).toEqual(["apple"]);
     expect(parseBrands("no-json")).toEqual([]);
     expect(parseBrands(null)).toEqual([]);
+  });
+});
+
+const devices = (
+  ...rows: [DevicesStatus["connections"][number]["provider"], string][]
+): DevicesStatus => ({
+  enabled: ["suunto", "zepp", "xiaomi"],
+  connections: rows.map(([provider, status]) => ({
+    provider,
+    label: provider,
+    account: "yo",
+    status: status as "ok",
+    last_sync_at: null,
+    last_error: "",
+  })),
+});
+
+const ouraOk = { connected: true, status: "ok" } as OuraStatus;
+
+describe("connectedDevices", () => {
+  it("cuando no hay nada, entonces «Ningún dispositivo conectado»", () => {
+    expect(
+      connectedDevices({ garmin: garmin(false, "none"), sources: sources() })
+        .label,
+    ).toBe("Ningún dispositivo conectado");
+  });
+
+  it("cuando solo hay Oura, entonces lo cuenta y no habla de Garmin", () => {
+    const r = connectedDevices({
+      garmin: garmin(false, "none"),
+      sources: sources(),
+      oura: ouraOk,
+    });
+    expect(r.label).toBe("1 dispositivo conectado: Oura");
+    expect(r.broken).toEqual([]);
+  });
+
+  it("cuando hay varios, entonces los enumera en orden", () => {
+    const r = connectedDevices({
+      garmin: garmin(true, "ok"),
+      sources: sources(),
+      oura: ouraOk,
+      devices: devices(["suunto", "ok"], ["xiaomi", "pending"]),
+    });
+    expect(r.label).toBe("3 dispositivos conectados: Garmin, Suunto, Oura");
+  });
+
+  it("cuando una conexión caduca, entonces va a `broken` y no cuenta", () => {
+    const r = connectedDevices({
+      garmin: garmin(false, "expired"),
+      sources: sources(),
+      devices: devices(["zepp", "ok"]),
+    });
+    expect(r.connected).toEqual(["Amazfit"]);
+    expect(r.broken).toEqual(["Garmin"]);
+  });
+});
+
+describe("otherWatch y connectedBrands con marcas por cuenta", () => {
+  it("cuenta Suunto como reloj y marca su casilla", () => {
+    expect(otherWatch(sources(), devices(["suunto", "ok"]))).toBe("Suunto");
+    expect(
+      connectedBrands(
+        garmin(false, "none"),
+        sources(),
+        null,
+        undefined,
+        devices(["suunto", "ok"], ["xiaomi", "pending"]),
+      ),
+    ).toEqual(["suunto"]);
   });
 });

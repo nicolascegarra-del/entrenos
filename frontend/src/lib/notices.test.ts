@@ -54,6 +54,28 @@ describe("buildNotices", () => {
     expect(n[1].title).toBe("Volumen +35 %");
   });
 
+  it("cuando caduca Suunto, entonces avisa con su nombre", () => {
+    const n = buildNotices({
+      garmin: garmin("none"),
+      devices: {
+        enabled: ["suunto"],
+        connections: [
+          {
+            provider: "suunto",
+            label: "Suunto",
+            account: "yo",
+            status: "expired",
+            last_sync_at: null,
+            last_error: "",
+          },
+        ],
+      },
+    });
+    expect(n.map((x) => [x.key, x.title])).toEqual([
+      ["suunto", "Suunto desconectado"],
+    ]);
+  });
+
   it("sin nada que vigilar, sin avisos", () => {
     expect(
       buildNotices({ garmin: garmin("ok"), injury: injury("good") }),

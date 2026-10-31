@@ -6,6 +6,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { GarminWorkoutsCard } from "@/components/plan/send-to-watch";
 import { AppleWatch } from "@/components/settings/apple-watch";
 import { CorosOfficial } from "@/components/settings/coros-official";
+import { DeviceCard } from "@/components/settings/device-card";
 import { GarminCard } from "@/components/settings/garmin-card";
 import { OuraCard } from "@/components/settings/oura-card";
 import {
@@ -24,14 +25,19 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useAppleImport,
+  useBrandAccounts,
   useGarminStatus,
+  useModules,
   useOuraEnabled,
   useOuraStatus,
   useSources,
 } from "@/hooks/use-api";
+import { moduleOn } from "@/lib/modules";
 import { cn } from "@/lib/utils";
 import {
   connectedBrands,
+  connectedDevices,
+  DEVICE_BRANDS,
   mergeBrands,
   parseBrands,
   WATCH_BRANDS,
@@ -47,6 +53,8 @@ function useChosenBrands() {
   const apple = useAppleImport();
   const ouraOn = useOuraEnabled();
   const oura = useOuraStatus(ouraOn);
+  const devices = useBrandAccounts();
+  const { data: modules } = useModules();
   const [chosen, setChosen] = useState<WatchBrand[]>([]);
   useEffect(() => {
     let saved: WatchBrand[] = [];
@@ -70,8 +78,9 @@ function useChosenBrands() {
         sources.data,
         apple.data,
         ouraOn ? oura.data : undefined,
+        devices.data,
       ),
-    [garmin.data, sources.data, apple.data, oura.data, ouraOn],
+    [garmin.data, sources.data, apple.data, oura.data, ouraOn, devices.data],
   );
   const toggle = (key: WatchBrand) => {
     const next = chosen.includes(key)
@@ -84,16 +93,28 @@ function useChosenBrands() {
       // Sin almacenamiento (modo privado): la selección dura lo que la página.
     }
   };
-  // Con el módulo de Oura apagado, el anillo no se ofrece.
-  const brands = WATCH_BRANDS.filter((b) => ouraOn || b.key !== "oura");
+  // Con el módulo de una marca apagado (Oura, Suunto, Amazfit, Xiaomi), no se ofrece.
+  const offered = (k: WatchBrand) =>
+    k === "oura"
+      ? ouraOn
+      : (DEVICE_BRANDS as readonly string[]).includes(k)
+        ? moduleOn(modules, k as (typeof DEVICE_BRANDS)[number])
+        : true;
+  const brands = WATCH_BRANDS.filter((b) => offered(b.key));
+  const summary = connectedDevices({
+    garmin: garmin.data,
+    sources: sources.data,
+    oura: ouraOn ? oura.data : undefined,
+    devices: devices.data,
+  });
   return {
     brands,
-    selected: mergeBrands(chosen, connected).filter(
-      (k) => ouraOn || k !== "oura",
-    ),
+    selected: mergeBrands(chosen, connected).filter(offered),
     connected,
     toggle,
     sources,
+    summary,
+    loaded: !garmin.isPending && !sources.isPending,
   };
 }
 
@@ -115,6 +136,8 @@ function BrandPanel({
   const body =
     brand === "oura" ? (
       <OuraCard />
+    ) : brand === "suunto" || brand === "zepp" || brand === "xiaomi" ? (
+      <DeviceCard provider={brand} />
     ) : brand === "files" ? (
       <ImportFiles />
     ) : sources.isPending ? (
@@ -157,7 +180,8 @@ function BrandPanel({
  * Se usa en la bienvenida y en Ajustes → Conexiones.
  */
 export function WatchConnections() {
-  const { brands, selected, connected, toggle, sources } = useChosenBrands();
+  const { brands, selected, connected, toggle, sources, summary, loaded } =
+    useChosenBrands();
   const ring = brands.some((b) => b.key === "oura");
   return (
     <div className="space-y-4">
@@ -171,6 +195,24 @@ export function WatchConnections() {
             Elige uno o varios. Si un entreno llega por dos sitios, solo se
             guarda una vez.
           </CardDescription>
+          {loaded && (
+            <p
+              className={cn(
+                "text-sm font-medium",
+                summary.connected.length
+                  ? "text-emerald-700 dark:text-emerald-400"
+                  : "text-muted-foreground",
+              )}
+            >
+              {summary.label}
+              {summary.broken.length > 0 && (
+                <span className="block text-amber-700 dark:text-amber-300">
+                  {summary.broken.join(" y ")}: conexión caducada, vuelve a
+                  conectarla.
+                </span>
+              )}
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           <ul className="grid gap-2 sm:grid-cols-2">

@@ -1607,3 +1607,28 @@ export interface OuraAppSettingsInput {
   client_secret: string | null;
   new_webhook_token: boolean;
 }
+
+/** Marcas que se conectan con la cuenta de su marca (APIs no oficiales). */
+export type DeviceProvider = "suunto" | "zepp" | "xiaomi";
+
+export interface DeviceConnection {
+  provider: DeviceProvider;
+  label: string;
+  account: string;
+  /** `pending` = esperando a que se apruebe el QR de Xiaomi. */
+  status: "ok" | "expired" | "error" | "pending";
+  last_sync_at: string | null;
+  last_error: string;
+}
+
+/** `GET /api/v1/sources/devices`. */
+export interface DevicesStatus {
+  enabled: DeviceProvider[];
+  connections: DeviceConnection[];
+}
+
+/** `POST /api/v1/sources/devices/xiaomi/qr`. */
+export interface XiaomiQr {
+  login_url: string;
+  qr: string;
+}
