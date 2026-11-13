@@ -12,6 +12,7 @@ class AiProvider(StrEnum):
     OPENAI = "openai"
     GEMINI = "gemini"
     ANTHROPIC = "anthropic"
+    NVIDIA = "nvidia"
 
 
 class AiProviderConfig(SQLModel, table=True):

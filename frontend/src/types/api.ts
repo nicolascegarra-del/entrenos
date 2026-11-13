@@ -670,7 +670,7 @@ export interface AuthOptions {
 
 // ─── Asistente IA ────────────────────────────────────────────────────────────
 
-export type AiProviderId = "openai" | "gemini" | "anthropic";
+export type AiProviderId = "openai" | "gemini" | "anthropic" | "nvidia";
 
 export interface AiProviderRow {
   provider: AiProviderId;

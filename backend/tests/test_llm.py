@@ -172,3 +172,36 @@ def test_stream_cuando_no_escribe_nada_entonces_se_le_pide_responder(provider):
     assert text == "¿Qué distancia?" and len(bodies) == 2
     second = json.dumps(bodies[1], ensure_ascii=False)
     assert "no has escrito ninguna respuesta" in second
+
+
+def test_stream_nvidia_cuando_sse_entonces_usa_su_url_y_max_tokens():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        seen["auth"] = request.headers["authorization"]
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, content=_sse(
+            {"choices": [{"delta": {"content": "Hola"}}]},
+            {"choices": [], "usage": {"prompt_tokens": 9, "completion_tokens": 1}},
+            done=True,
+        ))  # fmt: skip
+
+    text, ins, outs = _collect(AiProvider.NVIDIA, handler)
+    assert (text, ins, outs) == ("Hola", 9, 1)
+    assert seen["url"] == "https://integrate.api.nvidia.com/v1/chat/completions"
+    assert seen["auth"] == "Bearer sk-test-1234"
+    assert "max_tokens" in seen["body"] and "max_completion_tokens" not in seen["body"]
+
+
+def test_list_models_cuando_nvidia_entonces_solo_modelos_de_chat():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == "https://integrate.api.nvidia.com/v1/models"
+        ids = ["meta/llama-3.3-70b-instruct", "openai/gpt-oss-120b", "nvidia/nv-embedqa-e5-v5",
+               "nvidia/llama-3.2-nv-rerankqa-1b-v2", "nvidia/llama-guard-4-12b"]  # fmt: skip
+        return httpx.Response(200, json={"data": [{"id": i} for i in ids]})
+
+    assert list_models(AiProvider.NVIDIA, "nvapi-test-1234", client=_client(handler)) == [
+        "openai/gpt-oss-120b",
+        "meta/llama-3.3-70b-instruct",
+    ]

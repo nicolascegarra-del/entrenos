@@ -1,5 +1,5 @@
 """
-Capa aislada de proveedores de IA (ChatGPT, Gemini y Claude) sobre sus API REST con httpx.
+Capa aislada de proveedores de IA (ChatGPT, Gemini, Claude y NVIDIA) sobre sus API REST con httpx.
 
 Cada proveedor es un adaptador con la misma interfaz: `stream_chat` devuelve trozos de
 texto a medida que llegan (SSE) y `list_models` comprueba la clave y lista modelos.
@@ -55,6 +55,19 @@ PROVIDERS: dict[AiProvider, ProviderInfo] = {
         suggested_models=("claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"),
         keys_url="https://console.anthropic.com/settings/keys",
         privacy="Con clave de API, Anthropic no usa tus datos para entrenar sus modelos. Se paga por uso.",
+    ),
+    AiProvider.NVIDIA: ProviderInfo(
+        label="NVIDIA (build.nvidia.com)",
+        default_model="meta/llama-3.3-70b-instruct",
+        suggested_models=(
+            "meta/llama-3.3-70b-instruct",
+            "openai/gpt-oss-120b",
+            "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+            "meta/llama-3.1-8b-instruct",
+        ),
+        keys_url="https://build.nvidia.com/settings/api-keys",
+        privacy="Un solo acceso a muchos modelos abiertos (Llama, Nemotron, gpt-oss…). Tiene créditos gratuitos "
+        "para probar; lo que envías va a la API alojada de NVIDIA, así que revisa sus condiciones.",
     ),
 }
 
@@ -162,19 +175,29 @@ def _openai_tools(tools: list[ToolSpec]) -> list[dict]:
             for t in tools]  # fmt: skip
 
 
+NVIDIA_BASE = "https://integrate.api.nvidia.com/v1"  # compatible con la API de OpenAI
+
+
 def _openai_request(api_key: str, model: str, system: str, native: list[dict], tools: list[ToolSpec] | None,
-                    allow_tools: bool) -> tuple[str, dict, dict]:  # fmt: skip
+                    allow_tools: bool, base: str = "https://api.openai.com/v1",
+                    token_param: str = "max_completion_tokens") -> tuple[str, dict, dict]:  # fmt: skip
     body = {
         "model": model,
         "messages": [{"role": "system", "content": system}, *native],
         "stream": True,
         "stream_options": {"include_usage": True},
-        "max_completion_tokens": MAX_OUTPUT_TOKENS * 4,  # los modelos de razonamiento gastan tokens en pensar
+        token_param: MAX_OUTPUT_TOKENS * 4,  # los modelos de razonamiento gastan tokens en pensar
     }
     if tools:
         body["tools"] = _openai_tools(tools)
         body["tool_choice"] = "auto" if allow_tools else "none"
-    return "https://api.openai.com/v1/chat/completions", {"Authorization": f"Bearer {api_key}"}, body
+    return f"{base}/chat/completions", {"Authorization": f"Bearer {api_key}"}, body
+
+
+def _nvidia_request(api_key: str, model: str, system: str, native: list[dict], tools: list[ToolSpec] | None,
+                    allow_tools: bool) -> tuple[str, dict, dict]:  # fmt: skip
+    """NVIDIA NIM habla el protocolo de OpenAI, pero con `max_tokens` en vez de `max_completion_tokens`."""
+    return _openai_request(api_key, model, system, native, tools, allow_tools, NVIDIA_BASE, "max_tokens")
 
 
 def _openai_chunks(events: Iterator[dict]) -> Iterator[Chunk]:
@@ -385,6 +408,7 @@ class _Adapter:
 
 _ADAPTERS = {
     AiProvider.OPENAI: _Adapter(_plain_history, _openai_request, _openai_chunks, _openai_append, _say_plain),
+    AiProvider.NVIDIA: _Adapter(_plain_history, _nvidia_request, _openai_chunks, _openai_append, _say_plain),
     AiProvider.GEMINI: _Adapter(_gemini_native, _gemini_request, _gemini_chunks, _gemini_append, _say_gemini),
     AiProvider.ANTHROPIC: _Adapter(
         _plain_history, _anthropic_request, _anthropic_chunks, _anthropic_append, _say_plain
@@ -500,13 +524,16 @@ def _keep_chat_model(provider: AiProvider, model_id: str) -> bool:
     """Filtra la lista de modelos a los que sirven para conversar (fuera audio, imagen, embeddings…)."""
     excluded = ("embedding", "audio", "realtime", "tts", "transcribe", "image", "search", "moderation", "dall-e",
                 "whisper", "davinci", "babbage", "live", "aqa", "veo", "imagen", "computer-use", "customtools",
-                "banana", "omni")  # fmt: skip
+                "banana", "omni", "embed", "rerank", "guard", "reward", "safety", "parse", "retriever",
+                "vision", "vlm", "clip", "riva", "deplot", "paligemma", "neva", "fuyu", "kosmos")  # fmt: skip
     if any(word in model_id for word in excluded):
         return False
     if provider is AiProvider.OPENAI:
         return model_id.startswith(("gpt-", "o1", "o3", "o4", "chatgpt"))
     if provider is AiProvider.GEMINI:
         return model_id.startswith("gemini")
+    if provider is AiProvider.NVIDIA:
+        return True  # ids tipo «meta/llama-3.3-70b-instruct»: lo no conversacional ya está excluido arriba
     return model_id.startswith("claude")
 
 
@@ -522,6 +549,8 @@ def list_models(provider: AiProvider, api_key: str, client: httpx.Client | None 
     """
     if provider is AiProvider.OPENAI:
         url, headers = "https://api.openai.com/v1/models", {"Authorization": f"Bearer {api_key}"}
+    elif provider is AiProvider.NVIDIA:
+        url, headers = f"{NVIDIA_BASE}/models", {"Authorization": f"Bearer {api_key}"}
     elif provider is AiProvider.GEMINI:
         url, headers = (
             "https://generativelanguage.googleapis.com/v1beta/models?pageSize=200",
