@@ -8,10 +8,16 @@ import {
   ShieldCheck,
   Sparkles,
   TrendingUp,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 
-import { filterByModule, type ModuleKey, type Modules } from "@/lib/modules";
+import {
+  filterByModule,
+  moduleOn,
+  type ModuleKey,
+  type Modules,
+} from "@/lib/modules";
 
 /** Subsección de una pestaña (pestañas superiores). `paths` = rutas que también le pertenecen. */
 export interface SubSection {
@@ -24,7 +30,7 @@ export interface SubSection {
 
 /** Pestaña principal: barra inferior en el móvil y grupo del sidebar en escritorio. */
 export interface Section {
-  key: "hoy" | "entrenos" | "entrenador" | "plan" | "progreso";
+  key: "hoy" | "entrenos" | "entrenador" | "plan" | "amigos" | "progreso";
   href: string;
   label: string;
   icon: LucideIcon;
@@ -41,8 +47,9 @@ export interface MoreLink {
 }
 
 /**
- * Las 5 pestañas de la app y sus subsecciones. Fuente única para barra inferior, sidebar y pestañas.
- * El entrenador va en el centro de la barra del móvil.
+ * Las pestañas de la app y sus subsecciones. Fuente única para barra inferior, sidebar y pestañas.
+ * El entrenador va en el centro de la barra del móvil. En el móvil caben 5: con Amigos activo,
+ * Amigos ocupa el sitio de Progreso y Progreso pasa al menú de la cuenta (ver `bottomSections`).
  */
 export const SECTIONS: Section[] = [
   { key: "hoy", href: "/", label: "Hoy", icon: LayoutDashboard, children: [] },
@@ -79,6 +86,20 @@ export const SECTIONS: Section[] = [
       },
       { href: "/plan/rutas", label: "Rutas", module: "rutas" },
       { href: "/objetivos", label: "Objetivos" },
+    ],
+  },
+  {
+    key: "amigos",
+    href: "/social",
+    label: "Amigos",
+    icon: Users,
+    module: "social",
+    children: [
+      { href: "/social", label: "Feed" },
+      { href: "/social/ranking", label: "Clasificación" },
+      { href: "/social/duelos", label: "Duelos" },
+      // Los perfiles públicos (/u/@handle) cuelgan de Personas.
+      { href: "/social/personas", label: "Personas", paths: ["/u"] },
     ],
   },
   {
@@ -158,12 +179,42 @@ export const visibleSections = (modules: Modules | undefined): Section[] =>
     children: filterByModule(s.children, modules),
   }));
 
-/** Grupos del menú de cuenta visibles según el rol (Admin solo para administradores). */
-export const accountFor = (isAdmin: boolean) =>
-  ACCOUNT_GROUPS.map((g) => ({
-    ...g,
-    items: g.items.filter((i) => !i.admin || isAdmin),
-  })).filter((g) => g.items.length);
+/**
+ * Pestañas de la barra inferior del móvil (máximo 5): si Amigos está visible ocupa el sitio de
+ * Progreso, que pasa al menú de la cuenta. Con el módulo apagado, Progreso vuelve a la barra.
+ */
+export function bottomSections(modules: Modules | undefined): Section[] {
+  const visible = visibleSections(modules);
+  return visible.some((s) => s.key === "amigos")
+    ? visible.filter((s) => s.key !== "progreso")
+    : visible;
+}
+
+/** ¿Progreso va en el menú de la cuenta del móvil? (cuando Amigos le quita el sitio en la barra). */
+export const progressInMenu = (modules: Modules | undefined) =>
+  moduleOn(modules, "social");
+
+/** Enlace a Progreso para el menú de la cuenta del móvil. */
+export const PROGRESS_LINK: MoreLink = {
+  href: "/progresion",
+  label: "Progreso",
+  icon: TrendingUp,
+};
+
+/**
+ * Grupos del menú de cuenta visibles según el rol (Admin solo para administradores).
+ * `withProgress` añade Progreso al principio (menú del móvil con Amigos en la barra).
+ */
+export const accountFor = (isAdmin: boolean, withProgress = false) =>
+  [
+    ...(withProgress ? [{ title: "Secciones", items: [PROGRESS_LINK] }] : []),
+    ...ACCOUNT_GROUPS,
+  ]
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((i) => !i.admin || isAdmin),
+    }))
+    .filter((g) => g.items.length);
 
 /** Título de la pantalla para la cabecera móvil. */
 export function screenTitle(pathname: string): string {

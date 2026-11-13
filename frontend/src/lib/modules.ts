@@ -14,7 +14,8 @@ export type ModuleKey =
   | "suunto"
   | "zepp"
   | "xiaomi"
-  | "samsung";
+  | "samsung"
+  | "social";
 
 export type Modules = Record<ModuleKey, boolean>;
 
@@ -33,6 +34,7 @@ export const LOADING_MODULES: Modules = {
   zepp: true,
   xiaomi: true,
   samsung: true,
+  social: true,
 };
 
 /**
@@ -80,6 +82,11 @@ export const MODULE_INFO: { key: ModuleKey; label: string; hint: string }[] = [
     label: "Samsung Health",
     hint: "Oculta la conexión con la cuenta de Samsung para Galaxy Watch (no oficial, beta).",
   },
+  {
+    key: "social",
+    label: "Amigos",
+    hint: "Oculta la pestaña Amigos (feed, clasificación, duelos y personas), los perfiles públicos y la privacidad social.",
+  },
 ];
 
 /** ¿Está activo? Sin módulo = siempre; sin datos (cargando o error) = como estaba. */
@@ -104,6 +111,9 @@ const PATH_MODULES: { base: string; module: ModuleKey }[] = [
   { base: "/asistente", module: "ia" },
   { base: "/ajustes/asistente", module: "ia" },
   { base: "/plan/rutas", module: "rutas" },
+  { base: "/social", module: "social" },
+  { base: "/u", module: "social" },
+  { base: "/ajustes/privacidad", module: "social" },
 ];
 
 /** Módulo apagado al que pertenece `pathname` (o null si se puede ver). */

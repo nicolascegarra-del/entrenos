@@ -11,7 +11,12 @@ import type {
 import { connectedDevices } from "./watch-brands";
 
 export type SettingsKey =
-  "perfil" | "conexiones" | "notificaciones" | "asistente" | "cuenta";
+  | "perfil"
+  | "conexiones"
+  | "notificaciones"
+  | "asistente"
+  | "privacidad"
+  | "cuenta";
 
 export interface SettingsStatus {
   text: string;
