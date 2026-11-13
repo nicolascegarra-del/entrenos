@@ -113,3 +113,6 @@ def mail_on(monkeypatch, outbox) -> list[dict]:
 
 # Oura simulado (fixtures `oura` y `queued`).
 from tests.oura_fake import oura, queued  # noqa: E402,F401
+
+# Avisos push simulados de la parte social (fixture `pushes`).
+from tests.social_fixtures import pushes  # noqa: E402,F401
