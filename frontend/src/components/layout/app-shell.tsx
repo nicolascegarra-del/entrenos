@@ -9,8 +9,10 @@ import { useState } from "react";
 import { Logo, LogoMark } from "@/components/brand/logo";
 import {
   accountFor,
+  bottomSections,
   currentLocation,
   isUnder,
+  progressInMenu,
   screenTitle,
   type Section,
   visibleSections,
@@ -60,13 +62,24 @@ function Dot({ className, label }: { className?: string; label: string }) {
   );
 }
 
-/** Grupos del menú de cuenta (Cuenta, Ayuda) con su título. */
-function AccountLinks({ onNavigate }: { onNavigate?: () => void }) {
+/**
+ * Grupos del menú de cuenta (Cuenta, Ayuda) con su título. En el móvil, con Amigos en la barra,
+ * también Progreso (que ya no cabe abajo).
+ */
+function AccountLinks({
+  onNavigate,
+  mobile = false,
+}: {
+  onNavigate?: () => void;
+  mobile?: boolean;
+}) {
   const pathname = usePathname();
   const { data: me } = useMe();
+  const { data: modules } = useModules();
+  const groups = accountFor(!!me?.is_admin, mobile && progressInMenu(modules));
   return (
     <div className="flex flex-col gap-3">
-      {accountFor(!!me?.is_admin).map((group) => (
+      {groups.map((group) => (
         <div key={group.title} className="flex flex-col gap-1">
           <p className="px-3 text-xs font-semibold tracking-wide text-sidebar-foreground/50 uppercase">
             {group.title}
@@ -118,7 +131,13 @@ function useSettingsWarning() {
 }
 
 /** Bloque de cuenta: quién eres, Ajustes, Ayuda, tema y cerrar sesión. */
-function AccountPanel({ onNavigate }: { onNavigate?: () => void }) {
+function AccountPanel({
+  onNavigate,
+  mobile = false,
+}: {
+  onNavigate?: () => void;
+  mobile?: boolean;
+}) {
   const { data: me } = useMe();
   return (
     <div className="flex flex-col gap-3">
@@ -130,7 +149,7 @@ function AccountPanel({ onNavigate }: { onNavigate?: () => void }) {
           </span>
         </div>
       )}
-      <AccountLinks onNavigate={onNavigate} />
+      <AccountLinks onNavigate={onNavigate} mobile={mobile} />
       <div className="border-t border-sidebar-border pt-3">
         <SessionActions />
       </div>
@@ -172,7 +191,7 @@ function AccountMenu() {
         <SheetTitle className="px-3 text-sidebar-foreground">
           Tu cuenta
         </SheetTitle>
-        <AccountPanel onNavigate={() => setOpen(false)} />
+        <AccountPanel onNavigate={() => setOpen(false)} mobile />
       </SheetContent>
     </Sheet>
   );
@@ -316,7 +335,10 @@ function CoachTab({ section, active }: { section: Section; active: boolean }) {
   );
 }
 
-/** Barra de pestañas fija abajo (móvil y tablet): Hoy, Entrenos, Entrenador, Plan y Progreso. */
+/**
+ * Barra de pestañas fija abajo (móvil y tablet): Hoy, Entrenos, Entrenador, Plan y Amigos
+ * (o Progreso si Amigos está apagado).
+ */
 function BottomNav() {
   const pathname = usePathname();
   const { section } = currentLocation(pathname);
@@ -327,7 +349,7 @@ function BottomNav() {
       data-tour="nav"
       className="fixed inset-x-0 bottom-0 z-30 flex border-t border-sidebar-border bg-sidebar pb-[env(safe-area-inset-bottom)] lg:hidden"
     >
-      {visibleSections(modules).map((s) => {
+      {bottomSections(modules).map((s) => {
         const active = section?.key === s.key;
         if (s.key === "entrenador")
           return <CoachTab key={s.key} section={s} active={active} />;

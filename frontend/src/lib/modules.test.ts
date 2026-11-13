@@ -29,6 +29,7 @@ const ALL_ON: Modules = {
   zepp: true,
   xiaomi: true,
   samsung: true,
+  social: true,
 };
 const off = (...keys: (keyof Modules)[]): Modules => ({
   ...ALL_ON,
@@ -85,7 +86,7 @@ describe("disabledModuleFor", () => {
 describe("visibleSections", () => {
   it("cuando la IA está apagada, entonces no hay pestaña del entrenador", () => {
     const keys = visibleSections(off("ia")).map((s) => s.key);
-    expect(keys).toEqual(["hoy", "entrenos", "plan", "progreso"]);
+    expect(keys).toEqual(["hoy", "entrenos", "plan", "amigos", "progreso"]);
   });
 
   it("cuando las rutas están apagadas, entonces Plan no tiene «Rutas»", () => {

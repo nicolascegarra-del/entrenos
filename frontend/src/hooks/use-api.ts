@@ -21,6 +21,27 @@ import type {
   RestPeriod,
 } from "@/types/api";
 import type {
+  ActivityVisibility,
+  Duel,
+  DuelInput,
+  DuelLists,
+  FeedPage,
+  KudosState,
+  Leaderboard,
+  LeaderboardMetric,
+  LeaderboardPeriod,
+  Person,
+  PersonRef,
+  PublicProfile,
+  SocialComment,
+  SocialMe,
+  SocialProfile,
+  SocialProfileInput,
+  SocialSport,
+  SocialSummary,
+} from "@/types/api";
+import { patchFeed, toggledKudos, type FeedPages } from "@/lib/social";
+import type {
   GeoResult,
   PlannedRouteDetail,
   PlannedRoutePage,
@@ -2043,5 +2064,324 @@ export function useDisconnectDevice(provider: DeviceProvider) {
       }),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["brand-accounts"] }),
+  });
+}
+
+// ─── Parte social (Amigos) ───────────────────────────────────────────────────
+
+const SOCIAL = "/api/v1/social";
+
+/** Vuelve a pedir todo lo social (feed, personas, clasificación…) tras seguir, bloquear, etc. */
+function invalidateSocial(queryClient: ReturnType<typeof useQueryClient>) {
+  return queryClient.invalidateQueries({
+    predicate: (q) => String(q.queryKey[0]).startsWith("social-"),
+  });
+}
+
+/** Tu perfil social y contadores; `profile` null = aún no te has dado de alta. */
+export function useSocialMe(enabled = true) {
+  return useQuery({
+    queryKey: ["social-me"],
+    enabled,
+    queryFn: () => apiFetch<SocialMe>(`${SOCIAL}/me`),
+  });
+}
+
+/** Crea o edita tu perfil social (409 `HANDLE_TAKEN` si el @ ya existe). */
+export function useSaveSocialProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SocialProfileInput) =>
+      apiFetch<SocialProfile>(`${SOCIAL}/me`, {
+        method: "PUT",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: (profile) => {
+      queryClient.setQueryData<SocialMe>(["social-me"], (old) => ({
+        counts: old?.counts ?? {
+          followers: 0,
+          following: 0,
+          pending_requests: 0,
+        },
+        profile,
+      }));
+      invalidateSocial(queryClient);
+    },
+  });
+}
+
+export function usePeopleSearch(q: string) {
+  const term = q.trim();
+  return useQuery({
+    queryKey: ["social-search", term],
+    enabled: term.length >= 2,
+    queryFn: () =>
+      apiFetch<Person[]>(
+        `${SOCIAL}/users/search?${new URLSearchParams({ q: term })}`,
+      ),
+  });
+}
+
+export function useSocialUser(handle: string) {
+  return useQuery({
+    queryKey: ["social-user", handle],
+    enabled: !!handle,
+    queryFn: () =>
+      apiFetch<PublicProfile>(`${SOCIAL}/users/${encodeURIComponent(handle)}`),
+  });
+}
+
+/** Mutación social simple que, al acabar, refresca todo lo social. */
+function useSocialAction<TVars, TOut = void>(
+  fn: (vars: TVars) => Promise<TOut>,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => invalidateSocial(queryClient),
+  });
+}
+
+export const useFollow = () =>
+  useSocialAction((userId: number) =>
+    apiFetch<{ status: "pending" | "accepted" }>(`${SOCIAL}/follow/${userId}`, {
+      method: "POST",
+    }),
+  );
+
+/** Dejar de seguir o cancelar una solicitud pendiente. */
+export const useUnfollow = () =>
+  useSocialAction((userId: number) =>
+    apiFetch<void>(`${SOCIAL}/follow/${userId}`, { method: "DELETE" }),
+  );
+
+export function useFollowRequests(enabled = true) {
+  return useQuery({
+    queryKey: ["social-requests"],
+    enabled,
+    queryFn: () => apiFetch<Person[]>(`${SOCIAL}/requests`),
+  });
+}
+
+export const useAnswerRequest = () =>
+  useSocialAction(({ userId, accept }: { userId: number; accept: boolean }) =>
+    apiFetch<void>(
+      `${SOCIAL}/requests/${userId}/${accept ? "accept" : "reject"}`,
+      { method: "POST" },
+    ),
+  );
+
+export function useFollowers(enabled = true) {
+  return useQuery({
+    queryKey: ["social-followers"],
+    enabled,
+    queryFn: () => apiFetch<Person[]>(`${SOCIAL}/followers`),
+  });
+}
+
+export function useFollowing(enabled = true) {
+  return useQuery({
+    queryKey: ["social-following"],
+    enabled,
+    queryFn: () => apiFetch<Person[]>(`${SOCIAL}/following`),
+  });
+}
+
+export const useRemoveFollower = () =>
+  useSocialAction((userId: number) =>
+    apiFetch<void>(`${SOCIAL}/followers/${userId}`, { method: "DELETE" }),
+  );
+
+export const useBlock = () =>
+  useSocialAction(({ userId, block }: { userId: number; block: boolean }) =>
+    apiFetch<void>(`${SOCIAL}/block/${userId}`, {
+      method: block ? "POST" : "DELETE",
+    }),
+  );
+
+export function useBlocked(enabled = true) {
+  return useQuery({
+    queryKey: ["social-blocked"],
+    enabled,
+    queryFn: () => apiFetch<Person[]>(`${SOCIAL}/blocked`),
+  });
+}
+
+/** Feed paginado por fecha (`before`), con scroll infinito. */
+export function useSocialFeed(enabled = true) {
+  return useInfiniteQuery({
+    queryKey: ["social-feed"],
+    enabled,
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: "20" });
+      if (pageParam) params.set("before", pageParam);
+      return apiFetch<FeedPage>(`${SOCIAL}/feed?${params}`);
+    },
+    getNextPageParam: (last) => last.next_before,
+  });
+}
+
+/** Aplica un cambio a una actividad allí donde salga en caché: feed y perfiles públicos. */
+function patchActivityEverywhere(
+  queryClient: ReturnType<typeof useQueryClient>,
+  activityId: number,
+  patch: Parameters<typeof patchFeed>[2],
+) {
+  queryClient.setQueriesData<FeedPages>({ queryKey: ["social-feed"] }, (d) =>
+    patchFeed(d, activityId, patch),
+  );
+  queryClient.setQueriesData<PublicProfile>(
+    { queryKey: ["social-user"] },
+    (d) =>
+      d && {
+        ...d,
+        recent: d.recent.map((i) =>
+          i.activity_id === activityId ? { ...i, ...patch(i) } : i,
+        ),
+      },
+  );
+}
+
+/** 👏 con actualización optimista: se ve al momento y se deshace si la API falla. */
+export function useToggleKudos() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, give }: { id: number; give: boolean }) =>
+      apiFetch<KudosState>(`${SOCIAL}/activities/${id}/kudos`, {
+        method: give ? "POST" : "DELETE",
+      }),
+    onMutate: async ({ id }) => {
+      await queryClient.cancelQueries({ queryKey: ["social-feed"] });
+      patchActivityEverywhere(queryClient, id, toggledKudos);
+    },
+    onError: (_e, { id }) =>
+      // Deshacer: alternar otra vez devuelve el estado de antes.
+      patchActivityEverywhere(queryClient, id, toggledKudos),
+    onSuccess: (state, { id }) => {
+      patchActivityEverywhere(queryClient, id, () => state);
+      queryClient.invalidateQueries({ queryKey: ["social-kudos", id] });
+    },
+  });
+}
+
+export function useKudosList(activityId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["social-kudos", activityId],
+    enabled,
+    queryFn: () =>
+      apiFetch<PersonRef[]>(`${SOCIAL}/activities/${activityId}/kudos`),
+  });
+}
+
+export function useComments(activityId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["social-comments", activityId],
+    enabled,
+    queryFn: () =>
+      apiFetch<SocialComment[]>(`${SOCIAL}/activities/${activityId}/comments`),
+  });
+}
+
+export function useAddComment(activityId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: string) =>
+      apiFetch<SocialComment>(`${SOCIAL}/activities/${activityId}/comments`, {
+        method: "POST",
+        body: JSON.stringify({ body }),
+      }),
+    onSuccess: (comment) => {
+      queryClient.setQueryData<SocialComment[]>(
+        ["social-comments", activityId],
+        (old) => [...(old ?? []), comment],
+      );
+      patchActivityEverywhere(queryClient, activityId, (i) => ({
+        comments_count: i.comments_count + 1,
+      }));
+    },
+  });
+}
+
+export function useDeleteComment(activityId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (commentId: number) =>
+      apiFetch<void>(`${SOCIAL}/comments/${commentId}`, { method: "DELETE" }),
+    onSuccess: (_r, commentId) => {
+      queryClient.setQueryData<SocialComment[]>(
+        ["social-comments", activityId],
+        (old) => old?.filter((c) => c.id !== commentId),
+      );
+      patchActivityEverywhere(queryClient, activityId, (i) => ({
+        comments_count: Math.max(0, i.comments_count - 1),
+      }));
+    },
+  });
+}
+
+/** «Visible para seguidores» o «Solo yo» en una actividad tuya. */
+export function useSetActivityVisibility(activityId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (visibility: ActivityVisibility) =>
+      apiFetch<{ visibility: ActivityVisibility }>(
+        `/api/v1/activities/${activityId}/visibility`,
+        { method: "PUT", body: JSON.stringify({ visibility }) },
+      ),
+    onSuccess: ({ visibility }) => {
+      patchActivityEverywhere(queryClient, activityId, () => ({ visibility }));
+      queryClient.setQueryData<ActivityDetail>(
+        ["activity", activityId],
+        (old) => old && { ...old, visibility },
+      );
+      queryClient.invalidateQueries({ queryKey: ["social-leaderboard"] });
+    },
+  });
+}
+
+export function useLeaderboard(
+  period: LeaderboardPeriod,
+  metric: LeaderboardMetric,
+  sport: SocialSport,
+) {
+  return useQuery({
+    queryKey: ["social-leaderboard", period, metric, sport],
+    queryFn: () =>
+      apiFetch<Leaderboard>(
+        `${SOCIAL}/leaderboard?${new URLSearchParams({ period, metric, sport })}`,
+      ),
+  });
+}
+
+export function useDuels(enabled = true) {
+  return useQuery({
+    queryKey: ["social-duels"],
+    enabled,
+    queryFn: () => apiFetch<DuelLists>(`${SOCIAL}/duels`),
+  });
+}
+
+export const useCreateDuel = () =>
+  useSocialAction((input: DuelInput) =>
+    apiFetch<Duel>(`${SOCIAL}/duels`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  );
+
+export const useDuelAction = () =>
+  useSocialAction(
+    ({ id, action }: { id: number; action: "accept" | "decline" | "cancel" }) =>
+      apiFetch<Duel>(`${SOCIAL}/duels/${id}/${action}`, { method: "POST" }),
+  );
+
+/** Resumen para Hoy (puesto entre amigos y duelo activo). */
+export function useSocialSummary(enabled: boolean) {
+  return useQuery({
+    queryKey: ["social-summary"],
+    enabled,
+    staleTime: 60_000,
+    queryFn: () => apiFetch<SocialSummary>(`${SOCIAL}/summary`),
   });
 }

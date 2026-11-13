@@ -40,6 +40,8 @@ export interface ActivityDetail extends ActivitySummary {
   device: { id: number; name: string } | null;
   laps: Lap[];
   channels: string[];
+  /** Quién la ve en la parte social (si la API lo envía; si no, la del perfil). */
+  visibility?: ActivityVisibility;
 }
 
 export interface Streams {
@@ -1650,4 +1652,175 @@ export interface DevicesStatus {
 export interface XiaomiQr {
   login_url: string;
   qr: string;
+}
+
+// ─── Parte social (Amigos) ───────────────────────────────────────────────────
+
+export type ProfileVisibility = "private" | "public";
+export type ActivityVisibility = "followers" | "private";
+export type FollowStatus = "none" | "pending" | "accepted";
+
+/** Tu perfil social (`GET /social/me`). Nunca lleva el email. */
+export interface SocialProfile {
+  user_id: number;
+  display_name: string;
+  handle: string;
+  bio: string;
+  visibility: ProfileVisibility;
+  default_activity_visibility: ActivityVisibility;
+  hide_map_ends_m: number;
+  show_pace: boolean;
+  show_maps: boolean;
+}
+
+export interface SocialMe {
+  profile: SocialProfile | null;
+  counts: { followers: number; following: number; pending_requests: number };
+}
+
+/** `PUT /social/me`: crea o edita tu perfil (409 `HANDLE_TAKEN`). */
+export interface SocialProfileInput {
+  display_name: string;
+  handle: string;
+  bio?: string;
+  visibility?: ProfileVisibility;
+  default_activity_visibility?: ActivityVisibility;
+  hide_map_ends_m?: number;
+  show_pace?: boolean;
+  show_maps?: boolean;
+  share_history?: boolean;
+}
+
+/** Persona vista desde tu cuenta (búsqueda, seguidores, solicitudes…). */
+export interface Person {
+  user_id: number;
+  display_name: string;
+  handle: string;
+  bio: string;
+  visibility: ProfileVisibility;
+  follow_status: FollowStatus;
+  follows_me: boolean;
+  blocked: boolean;
+}
+
+export interface PersonRef {
+  user_id: number;
+  display_name: string;
+  handle: string;
+}
+
+/** Actividad en el feed: solo lo que se comparte (nunca FC, salud, notas ni IA). */
+export interface FeedItem {
+  activity_id: number;
+  owner: PersonRef;
+  sport: string;
+  name: string;
+  start_time: string;
+  distance_m: number | null;
+  duration_s: number;
+  moving_duration_s: number | null;
+  /** m/s; null si la persona oculta su ritmo. */
+  avg_speed: number | null;
+  elevation_gain_m: number | null;
+  is_race: boolean;
+  /** Traza simplificada [lat, lon] sin los extremos ocultos (null si oculta sus mapas). */
+  track: [number, number][] | null;
+  achievements: { title: string; kind: string }[];
+  kudos_count: number;
+  kudoed_by_me: boolean;
+  comments_count: number;
+  mine: boolean;
+  visibility: ActivityVisibility;
+}
+
+export interface FeedPage {
+  items: FeedItem[];
+  next_before: string | null;
+}
+
+/** `GET /social/users/{handle}`. */
+export interface PublicProfile {
+  person: Person;
+  counts: { followers: number; following: number; activities: number };
+  can_view: boolean;
+  recent: FeedItem[];
+}
+
+export interface KudosState {
+  kudos_count: number;
+  kudoed_by_me: boolean;
+}
+
+export interface SocialComment {
+  id: number;
+  author: PersonRef;
+  body: string;
+  created_at: string;
+  can_delete: boolean;
+}
+
+export type LeaderboardPeriod = "week" | "month";
+export type LeaderboardMetric = "km" | "time" | "elevation" | "days";
+export type SocialSport = "all" | "running" | "cycling";
+
+export interface LeaderboardRow extends PersonRef {
+  value: number;
+  rank: number;
+  prev_rank: number | null;
+  me: boolean;
+}
+
+export interface Leaderboard {
+  period_start: string;
+  period_end: string;
+  metric: LeaderboardMetric;
+  rows: LeaderboardRow[];
+  my_rank: number | null;
+  gap_to_next: number | null;
+  next_name: string | null;
+}
+
+export type DuelMetric = LeaderboardMetric | "best_5k" | "best_10k";
+export type DuelStatus =
+  "pending" | "active" | "finished" | "declined" | "cancelled";
+export type DuelDuration = "1w" | "2w" | "1m";
+
+export interface Duel {
+  id: number;
+  challenger: PersonRef;
+  opponent: PersonRef;
+  metric: DuelMetric;
+  sport: SocialSport;
+  start_date: string;
+  end_date: string;
+  status: DuelStatus;
+  my_value: number | null;
+  their_value: number | null;
+  winner_id: number | null;
+  i_am_challenger: boolean;
+}
+
+export interface DuelLists {
+  active: Duel[];
+  pending_in: Duel[];
+  pending_out: Duel[];
+  finished: Duel[];
+}
+
+export interface DuelInput {
+  opponent_id: number;
+  metric: DuelMetric;
+  sport: SocialSport;
+  duration: DuelDuration;
+}
+
+/** `GET /social/summary`: tarjetas de Hoy. */
+export interface SocialSummary {
+  has_profile: boolean;
+  my_rank: number | null;
+  friends: number;
+  gap_to_next: number | null;
+  next_name: string | null;
+  metric: "km";
+  active_duel: Duel | null;
 }
