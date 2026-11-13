@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { VisibilityChoice } from "@/components/social/profile-visibility";
 import { Switch } from "@/components/ui/switch";
 import { useSaveSocialProfile, useSocialMe } from "@/hooks/use-api";
 import { ApiError } from "@/lib/api";
@@ -45,6 +46,7 @@ export function SocialSetup() {
   const [handle, setHandle] = useState("");
   const [handleTouched, setHandleTouched] = useState(false);
   const [shareHistory, setShareHistory] = useState(false);
+  const [visibility, setVisibility] = useState<"private" | "public">("private");
   const [serverError, setServerError] = useState<string | null>(null);
 
   const effectiveHandle = handleTouched ? handle : suggestHandle(name);
@@ -62,6 +64,7 @@ export function SocialSetup() {
       {
         display_name: name.trim(),
         handle: effectiveHandle,
+        visibility,
         share_history: shareHistory,
       },
       {
@@ -193,10 +196,10 @@ export function SocialSetup() {
               </ul>
             </div>
           </div>
+          <VisibilityChoice value={visibility} onChange={setVisibility} />
           <p className="text-xs text-muted-foreground">
-            Tu perfil empieza privado: apruebas a quién te sigue. Cada actividad
-            puede ser «Solo yo», y todo se cambia en Ajustes → Privacidad
-            social.
+            Cada actividad puede ser «Solo yo», y todo se puede cambiar después
+            en Amigos → Personas o en Ajustes → Privacidad social.
           </p>
 
           <div className="flex items-start justify-between gap-3 rounded-lg border p-3">

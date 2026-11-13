@@ -11,6 +11,7 @@ import {
   PersonRow,
   UnblockButton,
 } from "@/components/social/person";
+import { ProfileVisibilityCard } from "@/components/social/profile-visibility";
 import { ShareProfile } from "@/components/social/share-profile";
 import { ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -162,6 +163,7 @@ export default function PersonasPage() {
         subtitle="Busca a tus amigos y gestiona quién te sigue"
         hideTitleOnMobile
       />
+      {me?.profile && <ProfileVisibilityCard />}
       {me?.profile && <ShareProfile handle={me.profile.handle} />}
 
       <div className="relative">
