@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, Float, Index, UniqueConstraint, text
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, Float, Index, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel import Field, SQLModel
 
@@ -57,6 +57,9 @@ class Activity(SQLModel, table=True):
     # Carrera disputada a tope (Garmin «race» o marcada a mano): solo estas alimentan el VDOT si las hay.
     is_race: bool = Field(default=False, sa_column=Column(Boolean, nullable=False, server_default=text("false")))
     gear_id: int | None = Field(default=None, foreign_key="gear.id", index=True, ondelete="SET NULL")
+    # Quién la ve en la parte social: «followers» (seguidores aceptados) o «private» (Solo yo). Si no se
+    # indica, al insertar toma la del perfil social del dueño (ver `models/social.py`).
+    visibility: str | None = Field(default=None, sa_column=Column(String(10), nullable=False, server_default="private"))
     created_at: datetime = created_at_field()
     updated_at: datetime = Field(
         default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, onupdate=utcnow)

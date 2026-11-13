@@ -12,19 +12,21 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 
-from sqlmodel import Session, col, delete, select
+from sqlmodel import Session, col, delete, or_, select
 
 from app.core.config import get_settings
 from app.models import (
     AccountTier,
     Achievement,
     Activity,
+    ActivityComment,
     ActivityFeedback,
     ActivityReview,
     AiProviderConfig,
     AppSetting,
     AthleteZones,
     AuditLog,
+    Block,
     ChatConversation,
     ChatMessage,
     CoachMemory,
@@ -32,9 +34,12 @@ from app.models import (
     DailySeries,
     Device,
     DeviceConnection,
+    Duel,
     EmailVerification,
+    Follow,
     Gear,
     HealthTag,
+    Kudos,
     Lap,
     NotificationPrefs,
     OuraConnection,
@@ -45,6 +50,7 @@ from app.models import (
     PlanProposal,
     RaceGoal,
     RestPeriod,
+    SocialProfile,
     StrengthSet,
     SyncRun,
     TrainingPlan,
@@ -277,6 +283,15 @@ def export_user_data(session: Session, user: User) -> dict:
         "chat_messages": _dump(
             session.exec(select(ChatMessage).where(col(ChatMessage.conversation_id).in_(conversation_ids))).all()
         ),
+        # Amigos: solo lo que es de la persona (de los demás, únicamente su id en las relaciones).
+        "social_profile": _dump([p for p in [session.get(SocialProfile, uid)] if p]),
+        "follows": _dump(
+            session.exec(select(Follow).where(or_(Follow.follower_id == uid, Follow.followee_id == uid))).all()
+        ),
+        "blocks": _dump(session.exec(select(Block).where(Block.blocker_id == uid)).all()),
+        "kudos_given": _dump(session.exec(select(Kudos).where(Kudos.user_id == uid)).all()),
+        "comments_written": _dump(session.exec(select(ActivityComment).where(ActivityComment.author_id == uid)).all()),
+        "duels": _dump(session.exec(select(Duel).where(or_(Duel.challenger_id == uid, Duel.opponent_id == uid))).all()),
     }
 
 

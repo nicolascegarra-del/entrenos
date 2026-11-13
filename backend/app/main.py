@@ -27,6 +27,7 @@ from app.api import (
     progress,
     reviews,
     routes,
+    social,
     sources,
     strength,
     training_plans,
@@ -117,6 +118,8 @@ app.include_router(modules.router, prefix="/api/v1")
 app.include_router(oura.public_router, prefix="/api/v1")
 app.include_router(oura.router, prefix="/api/v1")
 app.include_router(oura.health_router, prefix="/api/v1")
+app.include_router(social.router, prefix="/api/v1")
+app.include_router(social.activity_router, prefix="/api/v1")
 
 
 @app.get("/health", summary="Estado del servicio", tags=["infra"])

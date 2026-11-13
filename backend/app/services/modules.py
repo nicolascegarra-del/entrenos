@@ -36,6 +36,7 @@ DEFAULTS: dict[str, bool] = {
     "zepp": True,
     "xiaomi": True,
     "samsung": True,
+    "social": True,
 }
 LABELS: dict[str, str] = {
     "entrenadores": "Entrenadores",
@@ -48,6 +49,7 @@ LABELS: dict[str, str] = {
     "zepp": "Amazfit (Zepp)",
     "xiaomi": "Xiaomi (Mi Fitness)",
     "samsung": "Samsung Health",
+    "social": "Amigos",
 }
 
 

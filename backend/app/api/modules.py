@@ -20,6 +20,7 @@ class ModulesOut(BaseModel):
     zepp: bool
     xiaomi: bool
     samsung: bool
+    social: bool
 
 
 class ModulesIn(BaseModel):
@@ -35,6 +36,7 @@ class ModulesIn(BaseModel):
     zepp: bool | None = None
     xiaomi: bool | None = None
     samsung: bool | None = None
+    social: bool | None = None
 
 
 @router.get(
@@ -44,8 +46,8 @@ class ModulesIn(BaseModel):
         "Qué partes de la app tiene activadas tu cuenta (el valor general del administrador o el que haya "
         "fijado para ti): `entrenadores`, `ia` (entrenador IA), "
         "`reloj` (envío de sesiones a Garmin y COROS), `rutas`, `nutricion` y `oura` (conexión con el anillo "
-        "Oura) y `suunto`, `zepp`, `xiaomi` y `samsung` (relojes por la cuenta de su marca). La interfaz oculta lo "
-        "apagado y su API responde 404 con el código `MODULE_DISABLED`."
+        "Oura), `suunto`, `zepp`, `xiaomi` y `samsung` (relojes por la cuenta de su marca) y `social` (Amigos). "
+        "La interfaz oculta lo apagado y su API responde 404 con el código `MODULE_DISABLED`."
     ),
     responses={401: {"description": "No autenticado"}},
 )

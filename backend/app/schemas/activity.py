@@ -23,6 +23,7 @@ class ActivitySummary(BaseModel):
     metrics: dict[str, float]
     gear_id: int | None = None
     is_race: bool = False
+    visibility: str | None = "private"  # parte social: followers | private
 
     _numeric = field_validator("metrics", mode="before")(numeric_metrics)
 
