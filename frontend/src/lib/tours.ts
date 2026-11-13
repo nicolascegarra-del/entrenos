@@ -16,6 +16,7 @@ export type TourKey =
   | "plan"
   | "mi-plan"
   | "progreso"
+  | "amigos"
   | "asistente"
   | "ajustes";
 
@@ -61,8 +62,8 @@ export const TOURS: Tour[] = [
       },
       {
         target: "nav",
-        title: "Cinco secciones",
-        body: "Hoy, Entrenos, tu Entrenador (en el centro), Plan y Progreso. Todo lo importante está a uno o dos toques.",
+        title: "Las secciones",
+        body: "Hoy, Entrenos, tu Entrenador (en el centro), Plan, Amigos y Progreso. Todo lo importante está a uno o dos toques.",
       },
       {
         target: "sync",
@@ -107,10 +108,17 @@ export const TOURS: Tour[] = [
         body: "Tu calendario de sesiones, el plan automático hacia tu carrera y tus objetivos.",
       },
       {
+        route: "/social",
+        target: "tab-amigos",
+        module: "social",
+        title: "Amigos",
+        body: "Sigue a tus amigos, dales 👏, compárate en la clasificación y rétales a un duelo.",
+      },
+      {
         route: "/progresion",
         target: "tab-progreso",
         title: "Progreso",
-        body: "Tu forma física, rendimiento (ritmos, zonas, marcas) y salud (FC en reposo, HRV, sueño), además de tus logros.",
+        body: "Tu forma física, rendimiento (ritmos, zonas, marcas) y salud (FC en reposo, HRV, sueño), además de tus logros. En el móvil, si tienes Amigos, Progreso está en tu cuenta.",
       },
       {
         target: "account",
@@ -309,6 +317,45 @@ export const TOURS: Tour[] = [
       {
         title: "Toca las gráficas",
         body: "Pasa el dedo o el ratón por encima para ver cada valor; «¿Por qué?» explica de dónde sale cada dato.",
+      },
+    ],
+  },
+  {
+    key: "amigos",
+    module: "social",
+    title: "Amigos",
+    summary: "Feed, clasificación, duelos y privacidad.",
+    minutes: 1,
+    route: "/social",
+    steps: [
+      {
+        route: "/social",
+        title: "Entrena con tus amigos",
+        body: "Aquí ves los entrenos de quien sigues y los tuyos. Solo se comparten distancia, tiempo, ritmo, desnivel, el mapa recortado y tus logros: nunca la FC, la salud ni tus notas.",
+      },
+      {
+        target: "section-tabs",
+        title: "Cuatro pestañas",
+        body: "Feed, Clasificación (semana o mes), Duelos 1 contra 1 y Personas (buscar, solicitudes y seguidores).",
+        optional: true,
+      },
+      {
+        target: "social-feed",
+        title: "Kudos y comentarios",
+        body: "Toca 👏 para animar y el número para ver quién lo ha hecho. En las tuyas eliges si las ven tus seguidores o solo tú.",
+        optional: true,
+      },
+      {
+        route: "/social/personas",
+        target: "share-profile",
+        title: "Invita a tus amigos",
+        body: "Copia o comparte tu enlace para que te sigan. Si tu perfil es privado, apruebas cada solicitud.",
+      },
+      {
+        route: "/ajustes/privacidad",
+        target: "social-privacy",
+        title: "Tu privacidad",
+        body: "Visibilidad por defecto, la zona oculta del mapa alrededor de tu casa y si se ve tu ritmo.",
       },
     ],
   },

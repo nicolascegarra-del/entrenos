@@ -18,6 +18,7 @@ import { ReviewCard } from "@/components/activity/review-card";
 import { ActivityTestCard, MarkTest } from "@/components/tests/activity-test";
 import { LactateForm } from "@/components/tests/test-forms";
 import { RouteCard } from "@/components/activity/route-card";
+import { ActivitySocial } from "@/components/social/activity-social";
 import {
   StreamCharts,
   chartChannels,
@@ -411,6 +412,8 @@ export default function ActivityDetailPage() {
       <LapsTable laps={activity.laps} pace={pace} />
 
       <FeedbackCard activityId={activity.id} />
+
+      <ActivitySocial activity={activity} />
 
       {route.length > 1 && <RouteCard activityId={activity.id} />}
     </article>

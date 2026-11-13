@@ -21,6 +21,7 @@ import { OuraTodayCard } from "@/components/health/oura-today-card";
 import { InfoTerm } from "@/components/glossary/info-term";
 import { PageHeader } from "@/components/layout/page-header";
 import { ScoreBadge } from "@/components/plan/status-badge";
+import { SocialTodayCards } from "@/components/social/social-today";
 import { INSIGHT_STATUS } from "@/components/progress/insight";
 import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -446,6 +447,8 @@ export default function HoyPage() {
       </div>
 
       <StreakStrip />
+
+      <SocialTodayCards />
 
       <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
         <Card className="shadow-sm">

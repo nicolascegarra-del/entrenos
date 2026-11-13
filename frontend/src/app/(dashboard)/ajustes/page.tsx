@@ -8,6 +8,7 @@ import {
   Sparkles,
   TriangleAlert,
   UserRound,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -61,6 +62,13 @@ const SECTIONS: {
     icon: Sparkles,
     hint: "Tu clave y el modelo",
     module: "ia",
+  },
+  {
+    key: "privacidad",
+    label: "Privacidad social",
+    icon: Users,
+    hint: "Quién te sigue y qué ven de tus entrenos",
+    module: "social",
   },
   {
     key: "cuenta",
