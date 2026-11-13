@@ -73,6 +73,11 @@ const KINDS: { key: keyof NotificationPrefs; label: string; help: string }[] = [
     help: "Nuevas mejores marcas y retos conseguidos.",
   },
   {
+    key: "social",
+    label: "Amigos",
+    help: "Solicitudes para seguirte, kudos y comentarios en tus entrenos, y tus duelos.",
+  },
+  {
     key: "sync_error",
     label: "Problemas con Garmin",
     help: "Si la sincronización falla o la conexión caduca.",

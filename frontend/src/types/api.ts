@@ -935,6 +935,8 @@ export interface NotificationPrefs {
   activity_reviews: boolean;
   tests: boolean;
   weekly_review: boolean;
+  /** Amigos: solicitudes, kudos, comentarios y duelos. */
+  social?: boolean;
 }
 
 export interface NotificationConfig {
