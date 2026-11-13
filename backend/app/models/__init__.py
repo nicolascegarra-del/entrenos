@@ -30,6 +30,7 @@ from app.models.performance import PerformanceTest
 from app.models.plan import BlockKind, MatchMode, PlannedBlock, PlannedSession
 from app.models.planned_route import PlannedRoute
 from app.models.settings import RECOVERY_SOURCES, SYNC_INTERVALS, SyncMode, UserSettings
+from app.models.social import ActivityComment, Block, Duel, Follow, Kudos, SocialProfile
 from app.models.sources import (
     AppleImport,
     CorosCredential,
@@ -45,6 +46,12 @@ from app.models.training import TrainingPlan, TrainingPlanWeek
 from app.models.user import AccountTier, User, UserStatus
 
 __all__ = [
+    "ActivityComment",
+    "Block",
+    "Duel",
+    "Follow",
+    "Kudos",
+    "SocialProfile",
     "DailySeries",
     "HealthTag",
     "OuraConnection",

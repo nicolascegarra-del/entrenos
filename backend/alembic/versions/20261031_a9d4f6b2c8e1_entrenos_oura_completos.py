@@ -12,6 +12,7 @@ Create Date: 2026-10-31 20:00:00.000000
 
 from collections.abc import Sequence
 
+import sqlalchemy as sa
 from alembic import op
 from sqlmodel import Session
 
@@ -24,6 +25,10 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     from app.services.oura_sync import reprocess_workouts
 
+    # Usa los modelos actuales: si no hay entrenos de Oura (instalación nueva) no se toca nada, así una
+    # columna añadida después a `activity` no rompe la cadena de migraciones.
+    if op.get_bind().execute(sa.text("SELECT 1 FROM activity WHERE source = 'oura' LIMIT 1")).first() is None:
+        return
     with Session(bind=op.get_bind()) as session:
         reprocess_workouts(session)
 

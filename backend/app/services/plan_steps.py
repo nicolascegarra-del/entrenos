@@ -24,6 +24,11 @@ _FAMILIES = {
 TARGET_METRICS = ("pace", "speed", "hr", "power", "cadence")
 
 
+def family_members(family: str) -> set[str]:
+    """Deportes de una familia («running» → carrera en cinta, trail…); uno desconocido es solo él mismo."""
+    return set(_FAMILIES.get(family, {family}))
+
+
 def sport_family(sport: str) -> str:
     return next((family for family, members in _FAMILIES.items() if sport in members), sport)
 

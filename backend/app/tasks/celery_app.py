@@ -23,6 +23,7 @@ celery_app = Celery(
         "app.tasks.workouts",
         "app.tasks.coach",
         "app.tasks.oura",
+        "app.tasks.social",
     ],
 )
 celery_app.conf.update(
@@ -54,6 +55,9 @@ celery_app.conf.update(
         "oura-subscriptions": {"task": "oura.ensure_subscriptions", "schedule": 24 * 3600},
         # Suunto, Amazfit (Zepp) y Xiaomi por la cuenta de su marca (APIs no oficiales).
         "devices-sync": {"task": "devices.sync_all", "schedule": 15 * 60},
+        # Amigos: cierre de duelos vencidos (ganador o empate) y avisos cuando te adelantan en un duelo.
+        "social-close-duels": {"task": "social.close_duels", "schedule": 3600},
+        "social-duel-overtakes": {"task": "social.duel_overtakes", "schedule": 3600},
     },
 )
 

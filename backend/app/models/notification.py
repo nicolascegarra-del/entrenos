@@ -37,6 +37,7 @@ class NotificationPrefs(SQLModel, table=True):
     activity_reviews: bool = True  # el análisis de la IA de un entreno está listo
     tests: bool = True  # se ha detectado el resultado de un test planificado
     weekly_review: bool = True  # el domingo, la revisión de la semana con el entrenador IA
+    social: bool = True  # amigos: solicitudes, kudos, comentarios y duelos
 
 
 class NotificationLog(SQLModel, table=True):
